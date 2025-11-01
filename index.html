@@ -156,6 +156,9 @@
     .g3{ grid-template-columns:1fr 1fr 1fr }
     @media (max-width:420px){ .g2,.g3{ grid-template-columns:1fr } }
 
+    /* Cap Toss area – reliable pointer input */
+    #cap-area{ touch-action:none; user-select:none; -webkit-user-select:none; }
+
     /* confetti canvas */
     #confetti{ position:fixed; inset:0; pointer-events:none; z-index:99999; }
   </style>
@@ -673,19 +676,68 @@
       const v = store.get(SKEY.visits,[]); const amt = parseFloat(document.getElementById('rcp-amount').value||'0')||0; v.push({ts:Date.now(), amount:amt}); store.set(SKEY.visits,v); renderVisits(); addCoins(80); logReward({source:'visit', prize:'Шаг серии 3 за 30'}); if (v.filter(x=> Date.now()-x.ts < 30*24*3600000).length>=3){ logReward({source:'series', prize:'Спин «Колеса Пива»'}); confettiBurst(200,1200); }
     }
 
-    // ===== Cap Toss (demo flick) =====
-    let cap = {on:false, shots:0, score:0, t0:0, dur:30000};
-    function initCapUI(){ document.getElementById('cap-score').textContent='0'; document.getElementById('cap-shots').textContent='0/15'; document.getElementById('cap-time').textContent='00:30'; }
-    function startCapToss(){
-      cap = {on:true, shots:0, score:0, t0:Date.now(), dur:30000}; updateCapTime();
-      const area = document.getElementById('cap-area'); if(!area) return;
-      function onSwipe(){ if(!cap.on) return; if (cap.shots>=15) return; cap.shots++; const hit = Math.random()<0.45; const pts = hit ? (Math.random()<0.2? 200:100) : 0; cap.score += pts; haptic('light'); if (hit) confettiBurst(60,500); syncCapHUD(); if (cap.shots>=15) finishCap(); }
-      area.onclick = onSwipe; area.ontouchstart = onSwipe; syncCapHUD();
-      setTimeout(finishCap, cap.dur+50);
+    // ===== Cap Toss (pointer-based demo) =====
+    let cap = {on:false, shots:0, score:0, t0:0, dur:30000, max:15};
+    function initCapUI(){
+      const sEl = document.getElementById('cap-score'); if (sEl) sEl.textContent='0';
+      const shEl = document.getElementById('cap-shots'); if (shEl) shEl.textContent='0/'+cap.max;
+      const tEl = document.getElementById('cap-time'); if (tEl) tEl.textContent='00:30';
     }
-    function syncCapHUD(){ document.getElementById('cap-score').textContent = cap.score; document.getElementById('cap-shots').textContent = cap.shots+'/15'; }
-    function updateCapTime(){ if(!cap.on) return; const left = Math.max(0, cap.dur - (Date.now()-cap.t0)); const s = Math.ceil(left/1000); const mm = String(Math.floor(s/60)).padStart(2,'0'); const ss = String(s%60).padStart(2,'0'); const el = document.getElementById('cap-time'); if (el) el.textContent = mm+':'+ss; if (left>0) requestAnimationFrame(updateCapTime); }
-    function finishCap(){ if(!cap.on) return; cap.on=false; const bonus = Math.floor(cap.score/10); addCoins(bonus); logReward({source:'cap_toss', prize:`Очки ${cap.score} → +${bonus}🪙`}); confettiBurst(180,1200); haptic('light'); }
+    function startCapToss(){
+      cap = {on:true, shots:0, score:0, t0:Date.now(), dur:30000, max:15};
+      updateCapTime(); syncCapHUD();
+      const area = document.getElementById('cap-area'); if(!area) return;
+
+      // Reset previous handlers to avoid duplicates после повторных стартов
+      area.replaceWith(area.cloneNode(true));
+      const areaNew = document.getElementById('cap-area');
+
+      let down = null;
+      function pointerDown(e){
+        down = {x:e.clientX, y:e.clientY, t:performance.now()};
+      }
+      function pointerUp(e){
+        if(!cap.on) return;
+        if (cap.shots>=cap.max) return;
+        cap.shots++;
+        const dx = (e.clientX - (down?.x||e.clientX));
+        const dy = (e.clientY - (down?.y||e.clientY));
+        const dt = performance.now() - (down?.t||performance.now());
+        const isFlick = Math.hypot(dx,dy) > 20 && dt < 450; // быстрый свайп
+        // Простая вероятность попадания: флик чуть точнее
+        const hit = Math.random() < (isFlick ? 0.55 : 0.42);
+        const pts = hit ? (Math.random()<0.2? 200:100) : 0;
+        cap.score += pts;
+        haptic('light');
+        if (hit) confettiBurst(60,500);
+        syncCapHUD();
+        if (cap.shots>=cap.max) finishCap();
+      }
+
+      areaNew.addEventListener('pointerdown', pointerDown, {passive:true});
+      areaNew.addEventListener('pointerup', pointerUp, {passive:true});
+      areaNew.addEventListener('click', pointerUp, {passive:true}); // на десктопе хватит клика
+
+      setTimeout(finishCap, cap.dur+80);
+    }
+    function syncCapHUD(){
+      const sh = document.getElementById('cap-shots'); if (sh) sh.textContent = cap.shots+'/'+cap.max;
+      const sc = document.getElementById('cap-score'); if (sc) sc.textContent = cap.score;
+    }
+    function updateCapTime(){
+      if(!cap.on) return;
+      const left = Math.max(0, cap.dur - (Date.now()-cap.t0));
+      const s = Math.ceil(left/1000); const mm = String(Math.floor(s/60)).padStart(2,'0'); const ss = String(s%60).padStart(2,'0');
+      const el = document.getElementById('cap-time'); if (el) el.textContent = mm+':'+ss;
+      if (left>0) requestAnimationFrame(updateCapTime);
+    }
+    function finishCap(){
+      if(!cap.on) return; cap.on=false;
+      const bonus = Math.floor(cap.score/10);
+      addCoins(bonus);
+      logReward({source:'cap_toss', prize:`Очки ${cap.score} → +${bonus}🪙`});
+      confettiBurst(180,1200); haptic('light');
+    }
 
     // ===== Init state =====
     syncCoins(); renderRewards();
