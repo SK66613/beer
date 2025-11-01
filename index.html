@@ -164,19 +164,218 @@
     /* confetti canvas */
     #confetti{ position:fixed; inset:0; pointer-events:none; z-index:99999; }
   </style>
+
+  <style>
+
+/* ===== Слайдер Slider ===== */
+:root{ --introBottomPad: 28px; } /* насколько выше кнопки от нижней перекладины */
+
+.intro{
+  position:fixed; inset:0; z-index:10050;
+  background:#000; color:#fff;
+  display:none; pointer-events:auto;
+}
+.intro.is-open{ display:block; }
+body.intro-open{ overflow:hidden; }
+
+.intro__wrap{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  padding:
+    calc(env(safe-area-inset-top,0px) + 6px)
+    14px
+    calc(env(safe-area-inset-bottom,0px) + var(--introBottomPad));
+}
+
+.intro__progress{
+  display:flex; gap:8px; justify-content:center;
+  padding:8px 0 12px;
+}
+.intro__seg{ width:44px; height:4px; border-radius:999px; background:rgba(255,255,255,.28) }
+.intro__seg.active{ background:#fff }
+
+.intro__stage{
+  flex:1; display:grid; place-items:center; padding:12px; text-align:center;
+}
+.intro__slides{ width:100% }
+.intro__slide{ display:none }
+.intro__slide.active{ display:block }
+
+.intro__h1{ font-weight:900; font-size:28px; margin:0 0 10px }
+.intro__p{ opacity:.85; font-size:15px; margin:0 auto; max-width:26ch }
+
+/* низ экрана — динамически рендерим набор кнопок */
+.intro__actions{
+  margin-top:auto; display:grid; gap:10px;
+  padding-top:8px;
+}
+.intro__actions--one{ grid-template-columns:1fr }
+.intro__actions--two{ grid-template-columns:1fr 1fr }
+
+.intro__btn{
+  height:52px; padding:0 16px; border-radius:16px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:#fff; font-weight:800; cursor:pointer;
+}
+.intro__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.intro__btn--ghost{ background:transparent }
+.intro__btn:active{ transform:translateY(1px) }
+
+@media (min-width:900px){
+  .intro__wrap{ max-width: var(--appW,428px); margin:0 auto }
+}
+</style>
+
+<style>
+  /* ===== GAMES CARD Карточки на главной игры ===== */
+.list-card.games .list__item{ background:transparent; border:0; box-shadow:none }
+.list__btn{
+  height:36px; padding:0 14px; border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.06);
+  color:#fff; font-weight:800; cursor:pointer;
+}
+.list__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.list__btn:active{ transform:translateY(1px) }
+
+/* чуть плотнее сетка под кнопку справа */
+.list-card.games.tight .list__item{
+  grid-template-columns:36px 1fr auto;
+}
+:root{ --gap-block: 16px; }           /* подправь число при желании */
+.card.list-card.games{ margin-top: var(--gap-block); }
+
+ </style>
+
+ <style>
+  /* ===== LEADERBOARD Турнир (Clicker) ===== */
+.lb-card { padding:12px; }
+.lb-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.lb-title{ font-weight:900; font-size:18px; }
+.lb-sub{ opacity:.75; font-weight:600; font-size:12px; }
+
+.lb-seg{
+  display:inline-grid; grid-auto-flow:column; gap:6px; padding:4px; border-radius:999px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+}
+.lb-seg button{
+  height:30px; min-width:86px; padding:0 12px; border-radius:999px; border:0; cursor:pointer;
+  font-weight:800; color:#fff; background:transparent;
+}
+.lb-seg button[aria-pressed="true"]{ background:#fff; color:#000; }
+
+.lb-you{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+  margin-bottom:10px;
+}
+.lb-you__avatar{
+  width:36px; height:36px; border-radius:10px; background:#222; display:grid; place-items:center; font-weight:900;
+}
+.lb-you__name{ font-weight:800; }
+.lb-you__score{ margin-left:auto; font-weight:900; }
+
+.lb-list{ display:flex; flex-direction:column; gap:8px; }
+.lb-row{
+  display:grid; grid-template-columns:28px 36px 1fr auto; align-items:center; gap:10px;
+  padding:10px 12px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03); border-radius:14px;
+}
+.lb-rank{ font-weight:900; opacity:.9; text-align:center; }
+.lb-avatar{ width:36px; height:36px; border-radius:10px; background:#1b1c22; display:grid; place-items:center; font-weight:900; }
+.lb-name{ font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lb-score{ font-weight:900; }
+
+.lb-medal-1 .lb-rank{ color:#ffd34d; }
+.lb-medal-2 .lb-rank{ color:#cbd3ff; }
+.lb-medal-3 .lb-rank{ color:#ffb27a; }
+
+.lb-actions{ display:flex; gap:10px; margin-top:12px; }
+.lb-btn{
+  flex:1; height:42px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06); color:#fff; font-weight:800; cursor:pointer;
+}
+.lb-btn--primary{ background:#fff; color:#000; border-color:#fff; }
+
+@media (min-width:900px){
+  #leaderboard .inner{ max-width: var(--appW, 428px); margin:0 auto; }
+}
+
+ </style>
+
+
+
 </head>
 <body>
   <canvas id="confetti"></canvas>
   <div class="wrap">
     <nav id="btm-nav" class="btm-nav" aria-label="Навигация">
       <button class="tab" data-page="home"><img src="ic_home.png" alt=""><span>Главная</span></button>
-      <button class="tab" data-page="menu"><img src="ic_services.png" alt=""><span>Меню</span></button>
-      <button class="tab" data-page="games"><img src="ic_consult.png" alt=""><span>Игры</span></button>
+      <button class="tab" data-page="leaderboard"><img src="ic_services.png" alt=""><span>Турнир</span></button>
+      <button class="tab" data-page="games"><img src="ic_consult.png" alt=""><span>Играть</span></button>
       <button class="tab" data-page="bonuses"><img src="ic_bonus.png" alt=""><span>Бонусы</span></button>
       <button class="tab" data-page="profile"><img src="ic_about.png" alt=""><span>Профиль</span></button>
     </nav>
 
     <main>
+
+
+      <!-- Слайды Slider -->
+
+<div id="intro" class="intro" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="intro__wrap">
+    <div class="intro__progress" id="intro-progress"></div>
+
+    <div class="intro__stage">
+      <div class="intro__slides" id="intro-slides">
+        <!-- 1 -->
+        <section class="intro__slide active">
+          <h2 class="intro__h1">Welcome fren</h2>
+          <p class="intro__p">Подтверди, что тебе точно уже есть 18+.</p>
+        </section>
+        <!-- 2 -->
+        <section class="intro__slide">
+          <h2 class="intro__h1">Коротко о нас</h2>
+          <p class="intro__p">У нас кравтовое пиво собственного производства. варим так сказать по дедушкину рецепту</p>
+        </section>
+
+        <!-- 3 -->
+        <section class="intro__slide">
+          <h2 class="intro__h1">Что тут делать</h2>
+          <p class="intro__p">В этом мини апп ты можешь играть и выигрывать бонусы и цееные призы, начни с рулеточки</p>
+        </section>
+
+                <!-- 4 -->
+        <section class="intro__slide">
+          <h2 class="intro__h1">Отлично!</h2>
+          <p class="intro__p">Ну все начали бро, жми кнопку и погнали</p>
+        </section>
+      </div>
+    </div>
+
+    <!-- сюда JS будет рендерить нужный набор кнопок -->
+    <div id="intro-actions" class="intro__actions"></div>
+  </div>
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
       <!-- Bottom Sheet -->
       <div id="sheet" class="sheet sheet-bottom" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="sheet__overlay" data-close-sheet></div>
@@ -288,7 +487,7 @@
         </div>
       </template>
 
-      <!-- ===== PAGES ===== -->
+      <!-- ===== PAGES Страницы ===== -->
       <section class="page" id="home">
         <div class="hero">
           <img class="hero__media" src="beer_hero.jpg" alt="Beer Hero">
@@ -297,10 +496,12 @@
         <div class="promo">
           <div class="promo__icon"><img src="ic_bonus.png" alt=""></div>
           <div>
-            <div class="promo__title">Cap Toss — сыграй сейчас</div>
-            <div class="promo__sub">Попадания → коины → призы</div>
+            <div class="promo__title">Craft Beer</div>
+            <div class="promo__sub">Кто мы, где мы</div>
           </div>
-          <button class="promo__btn" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-toss">Играть</button>
+          <button class="promo__btn" data-open-intro
+          aria-controls="intro"
+          aria-label="Открыть онбординг">О нас</button>
         </div>
 
         <div class="card list-card tight">
@@ -332,18 +533,89 @@
             </div>
           </div>
         </div>
+
+        <!-- Games карточки ИГРЫ -->
+<div class="card list-card games tight">
+  <div class="list-head">Игры</div>
+  <div class="list">
+    <!-- Бонусы -->
+    <div class="list__item">
+      <div class="list__icon"><img src="bumblebee.png" alt=""></div>
+      <div class="list__text">
+        <div class="list__title">Bumblebee</div>
+        <div class="list__sub">Долети до нас и получи приз</div>
+      </div>
+<!-- Пример кнопки запуска на главной -->
+<button class="list__btn list__btn--primary"
+        data-open-popper
+        data-cooldown-hours="24"
+        data-game-key="popper">
+  Play
+</button>
+    </div>
+
+    <!-- Бонусы -->
+    <div class="list__item">
+      <div class="list__icon"><img src="racing.png" alt=""></div>
+      <div class="list__text">
+        <div class="list__title">Night Racing</div>
+        <div class="list__sub">Катайся и прокачивай тачку</div>
+      </div>
+<!-- Кнопка запуска на главной -->
+<button class="list__btn list__btn--primary" data-open-flappy>Demo</button>
+    </div>
+      </div>
+</div>
       </section>
 
-      <section class="page" id="menu">
-        <div class="card page-title">
-          <div class="h1">Меню и лимитки</div>
-          <p class="muted-sm">Секретные позиции открываются по уровню. (макеты/картинки подставь позже)</p>
-          <div class="g g2">
-            <button class="btn" data-open-sheet data-title="Викторина" data-tpl="#tpl-trivia">Викторина</button>
-            <button class="btn" data-open-sheet data-title="Добавить визит" data-tpl="#tpl-receipt">3 визита за 30</button>
-          </div>
-        </div>
-      </section>
+<!-- Турниры страница -->
+<section id="leaderboard" class="page" style="display:none">
+    <div class="promo">
+    <div class="promo__icon">
+      <img src="ic_about.png" alt="">
+    </div>
+    <div>
+      <div class="promo__title">Halloween Clicker</div>
+      <div class="promo__sub">Play</div>
+    </div>
+<button class="promo__btn" data-open-clicker>Clicker</button>
+  </div>
+
+
+  <div class="card lb-card inner">
+    <div class="lb-head">
+      <div>
+        <div class="lb-title">Leaderboard</div>
+        <div class="lb-sub">Clicker · daily & all-time</div>
+      </div>
+      <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
+        <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">Daily</button>
+        <button type="button" class="js-lb-mode" data-mode="all">All-time</button>
+      </div>
+    </div>
+
+    <!-- Ты -->
+    <div class="lb-you" id="lb-you">
+      <div class="lb-you__avatar" id="lb-you-ava">YOU</div>
+      <div class="lb-you__meta">
+        <div class="lb-you__name" id="lb-you-name">You</div>
+        <div class="lb-sub" id="lb-you-note">best score</div>
+      </div>
+      <div class="lb-you__score" id="lb-you-score">0</div>
+    </div>
+
+    <!-- Топ -->
+    <div class="lb-list" id="lb-list">
+      <!-- сюда JS рендерит строки -->
+    </div>
+
+    <div class="lb-actions">
+      <button class="lb-btn" id="lb-refresh" type="button">Refresh</button>
+      <button class="lb-btn lb-btn--primary" type="button"
+              data-open-clicker data-cooldown-hours="24" data-clicker-key="pumpkin">Play</button>
+    </div>
+  </div>
+</section>
 
       <section class="page" id="games">
         <div class="card page-title">
@@ -843,5 +1115,185 @@
     syncCoins(); renderRewards();
   })();
   </script>
+
+  <script>
+(function introSlider(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+
+  // ====== КОНФИГ КНОПОК ПО СЛАЙДАМ ======
+  // Индексы соответствуют порядку секций .intro__slide в #intro-slides
+  const INTRO_CFG = {
+    actions: {
+      0: [ // Слайд 1 — две рядом
+        { label:'Нет', type:'ghost', do:'navigate', value:'no' },
+        { label:'Да',  type:'primary', do:'answer', to:'next' } // перейти в раздел "Запись"
+      ],
+      1: [ // Слайд 0 — одна кнопка
+        { label:'Продолжить', type:'primary', do:'next' }
+      ],
+      2: [ // Слайд 2 — одна кнопка
+        { label:'Продолжить', type:'primary', do:'next' }
+      ],
+      3: [ // Слайд 3 — одна кнопка
+        { label:'Играть', type:'ghost', do:'navigate' }
+      ]
+      // Примеры для будущих слайдов:
+      // 3: [
+      //   { label:'Открыть сайт', type:'primary', do:'link', href:'https://example.com' }
+      // ],
+      // 4: [
+      //   { label:'Показать окно', type:'primary', do:'sheet', title:'Демо', tpl:'#tpl-example', from:'bottom' }
+      // ]
+    },
+    onAnswer: (index, value) => {
+      // Твой хук на ответы "Да/Нет" и т.п.
+      // Например: localStorage.setItem('intro_answer_'+index, value);
+      // console.log('Answer on slide', index, '=>', value);
+    }
+  };
+
+  // ====== DOM ======
+  const root = document.getElementById('intro');
+  if(!root) return;
+
+  const slidesWrap = root.querySelector('#intro-slides');
+  const slides = Array.from(root.querySelectorAll('.intro__slide'));
+  const progress = root.querySelector('#intro-progress');
+  const actions = root.querySelector('#intro-actions');
+
+  // Прогресс
+  progress.innerHTML = slides.map(()=>'<i class="intro__seg"></i>').join('');
+  const segs = Array.from(progress.children);
+
+  let idx = 0, touchX0=0, touchX=0, dragging=false, backHandler=null;
+
+  const haptic = (lvl='light') => { try{ TG?.HapticFeedback?.impactOccurred(lvl); }catch(_){ } };
+
+  // Сервис: создать кнопку
+  function btnHTML(cfg){
+    const cls = ['intro__btn'];
+    if (cfg.type === 'primary') cls.push('intro__btn--primary');
+    if (cfg.type === 'ghost')   cls.push('intro__btn--ghost');
+    const attrs = [];
+    if (cfg.do) attrs.push(`data-act="${cfg.do}"`);
+    if (cfg.value != null) attrs.push(`data-val="${String(cfg.value)}"`);
+    if (cfg.to)    attrs.push(`data-to="${String(cfg.to)}"`);
+    if (cfg.href)  attrs.push(`data-href="${String(cfg.href)}"`);
+    if (cfg.title) attrs.push(`data-title="${String(cfg.title)}"`);
+    if (cfg.tpl)   attrs.push(`data-tpl="${String(cfg.tpl)}"`);
+    if (cfg.from)  attrs.push(`data-from="${String(cfg.from)}"`);
+    return `<button class="${cls.join(' ')}" ${attrs.join(' ')}>${cfg.label}</button>`;
+  }
+
+  // Рендер низа (кнопок)
+  function renderActions(){
+    const set = INTRO_CFG.actions[idx] || defaultActions();
+    // сетка: 1 / 2 / 3+
+    actions.className = 'intro__actions';
+    if (set.length === 1) actions.classList.add('intro__actions--one');
+    else if (set.length === 2) actions.classList.add('intro__actions--two');
+    else actions.classList.add('intro__actions--multi'); // см. CSS ниже
+    actions.innerHTML = set.map(btnHTML).join('');
+  }
+
+  // Дефолт, если не задал для слайда: "Продолжить" или "Готово" на последнем
+  function defaultActions(){
+    const last = (idx === slides.length - 1);
+    return [ { label: last ? 'Готово' : 'Продолжить', type:'primary', do: last ? 'done' : 'next' } ];
+    // можно заменить на то, что тебе нужно по умолчанию
+  }
+
+  function apply(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
+    segs.forEach((d,i)=> d.classList.toggle('active', i<=idx));
+    renderActions();
+  }
+
+  // Открыть / закрыть
+  function openIntro(startIndex){
+    if (Number.isInteger(startIndex)) idx = Math.max(0, Math.min(startIndex, slides.length-1));
+    root.classList.add('is-open');
+    document.body.classList.add('intro-open');
+
+    try{
+      TG?.BackButton?.show?.();
+      backHandler = ()=> closeIntro();
+      TG?.BackButton?.onClick?.(backHandler);
+      TG?.disableVerticalSwipes?.();
+    }catch(_){}
+
+    apply();
+    window.syncBack?.();
+  }
+  function closeIntro(){
+    root.classList.remove('is-open');
+    document.body.classList.remove('intro-open');
+
+    try{ TG?.BackButton?.offClick?.(backHandler); backHandler=null; }catch(_){}
+    if (typeof window.syncBack === 'function') window.syncBack(); else try{ TG?.BackButton?.hide?.(); }catch(_){}
+  }
+
+  function next(){ if(idx<slides.length-1){ idx++; apply(); haptic(); } }
+  function prev(){ if(idx>0){ idx--; apply(); haptic(); } }
+
+  // Жесты перелистывания
+  slidesWrap.addEventListener('touchstart', e=>{ dragging=true; touchX0=touchX=e.touches[0].clientX; }, {passive:true});
+  slidesWrap.addEventListener('touchmove',  e=>{ if(!dragging) return; touchX=e.touches[0].clientX; }, {passive:true});
+  slidesWrap.addEventListener('touchend',   ()=>{ if(!dragging) return; dragging=false;
+    const dx = touchX - touchX0; if (Math.abs(dx)>50){ dx<0 ? next() : prev(); }
+  });
+
+  // Клики по кнопкам низа
+  actions.addEventListener('click', (e)=>{
+    const b = e.target.closest('[data-act]'); if(!b) return;
+    const act  = b.getAttribute('data-act');
+    const val  = b.getAttribute('data-val');
+    const to   = b.getAttribute('data-to');
+    const href = b.getAttribute('data-href');
+    const title= b.getAttribute('data-title');
+    const tpl  = b.getAttribute('data-tpl');
+    const from = b.getAttribute('data-from') || 'bottom';
+
+    switch(act){
+      case 'next': next(); break;
+      case 'prev': prev(); break;
+      case 'done': haptic('medium'); closeIntro(); break;
+      case 'answer':
+        try{ INTRO_CFG.onAnswer && INTRO_CFG.onAnswer(idx, val); }catch(_){}
+        next(); break;
+      case 'navigate':
+        closeIntro();
+        if (typeof window.navigateTo === 'function') window.navigateTo(to);
+        else if (to) location.hash = '#'+to;
+        break;
+      case 'link':
+        try{ TG?.openLink ? TG.openLink(href) : window.open(href, '_blank'); }catch(_){}
+        break;
+      case 'sheet':
+        closeIntro();
+        if (typeof window.openSheet === 'function'){
+          const tplNode = tpl ? document.querySelector(tpl) : null;
+          const html = tplNode ? tplNode.innerHTML : '<div class="card"><b>Нет шаблона</b></div>';
+          window.openSheet({ title, html, from });
+        }
+        break;
+    }
+  });
+
+  // Открывать по кнопке: data-open-intro или data-open-intro="2" (старт слайд 2)
+  document.addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-open-intro]');
+    if (!t) return;
+    e.preventDefault();
+    const start = parseInt(t.getAttribute('data-open-intro'), 10);
+    openIntro(Number.isFinite(start) ? start : undefined);
+  });
+
+  // Экспорт (если захочешь открыть из кода)
+  window.openIntro  = openIntro;
+  window.closeIntro = closeIntro;
+})();
+</script>
+
 </body>
 </html>
