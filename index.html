@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <title>Beer Mini‑App | Router + BackButton + No‑Swipe</title>
+  <title>Beer Mini‑App | Игры + Колесо | Telegram</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
@@ -156,7 +156,30 @@
     .g3{ grid-template-columns:1fr 1fr 1fr }
     @media (max-width:420px){ .g2,.g3{ grid-template-columns:1fr } }
 
-    /* Cap Toss area – reliable pointer input */
+    /* FULLSCREEN pages */
+    body.fs .btm-nav{ display:none }
+    body.fs .wrap{ padding-bottom: 16px }
+    .page--fullscreen{ padding:0 !important; margin:0 !important }
+    .fs .page--fullscreen .fs-hud{ position:sticky; top:0; z-index:5; padding:10px 14px; background:rgba(10,12,14,.84); backdrop-filter: blur(8px); border-bottom:1px solid rgba(255,255,255,.06) }
+    .fs .page--fullscreen .fs-stage{ position:relative; height: calc(100svh - 130px); }
+
+    /* Wheel visual */
+    .wheel-wrap{ display:grid; gap:10px; padding:10px 14px }
+    .wheel-stage{ position:relative; height: calc(100svh - 160px); display:grid; place-items:center }
+    #wheel-canvas{ width:min(92vw, 520px); height:min(92vw, 520px); display:block }
+    .wheel-cta{ position:fixed; left:14px; right:14px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px); display:grid; gap:8px; }
+    .wheel-cta .btn{ height:52px; border-radius:16px; font-weight:900 }
+
+    /* Cap Toss fullscreen */
+    .capfs-wrap{ display:grid; gap:10px; padding:10px 14px }
+    .capfs-stage{ position:relative; height: calc(100svh - 160px); border-radius:16px; overflow:hidden; background:#07080b }
+    #cap-canvas{ width:100%; height:100%; display:block }
+    .capfs-hud{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px }
+    .capfs-hud .cell{ background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10); border-radius:14px; padding:10px; text-align:center }
+    .capfs-start{ position:fixed; left:14px; right:14px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px) }
+    .capfs-start .btn{ width:100%; height:52px; border-radius:16px; font-weight:900 }
+
+    /* Cap Toss area – reliable pointer input (sheet demo) */
     #cap-area{ touch-action:none; user-select:none; -webkit-user-select:none; position:relative; margin-top:10px; height:260px; border:1px dashed rgba(255,255,255,.18); border-radius:12px; overflow:hidden; background:radial-gradient(120% 120% at 50% 100%, rgba(249,178,77,.12), rgba(255,255,255,.02)); }
     #cap-area canvas{ position:absolute; inset:0; width:100%; height:100%; display:block }
     #cap-area .cap-msg{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); opacity:.8; font-size:14px; text-align:center }
@@ -190,100 +213,30 @@
         </section>
       </div>
 
-      <!-- ===== Templates for sheets ===== -->
-      <template id="tpl-cap-toss">
+      <!-- ===== Templates (Sheet content) ===== -->
+      <template id="tpl-cap-info">
         <div class="card">
-          <div class="h1">Cap Toss — брось крышку!</div>
-          <p class="muted-sm">За 30 секунд накидай очков. Попадания → коины. Античит, вибро, конфетти — всё как любим.</p>
+          <div class="h1">Cap Toss — брось крышку</div>
+          <p class="muted-sm">Собирай очки за 30 секунд. Попадания в кружки дают 100/150/200 и превращаются в коины после игры. Результаты идут в недельный турнир.</p>
           <div class="g g2">
-            <button class="btn btn-primary" data-action="start-cap">Старт (30 сек)</button>
-            <button class="btn" data-action="cap-help">Правила</button>
+            <button class="btn btn-primary" data-action="open-cap">Открыть игру на весь экран</button>
+            <button class="btn" data-action="cap-rules">Правила</button>
           </div>
-          <div id="cap-area">
-            <canvas id="cap-canvas"></canvas>
-            <div class="cap-msg">Свайпни/тапни, чтобы бросить крышку</div>
-          </div>
-          <div class="g g3" style="margin-top:10px">
-            <div class="card" style="text-align:center">
-              <div class="muted-sm">Очки</div>
-              <div id="cap-score" class="h1">0</div>
-            </div>
-            <div class="card" style="text-align:center">
-              <div class="muted-sm">Броски</div>
-              <div id="cap-shots" class="h1">0/15</div>
-            </div>
-            <div class="card" style="text-align:center">
-              <div class="muted-sm">Время</div>
-              <div id="cap-time" class="h1">00:30</div>
-            </div>
-          </div>
+          <ul class="list" style="margin-top:10px">
+            <li>15 бросков на раунд</li>
+            <li>Каждый 5-й бросок — x2 очков (пассив)</li>
+            <li>Античит: частота бросков и тайминг</li>
+          </ul>
         </div>
       </template>
 
-      <template id="tpl-passport">
+      <template id="tpl-wheel-info">
         <div class="card">
-          <div class="h1">Пивной Паспорт стилей</div>
-          <p class="muted-sm">Собери 6 штампов (Lager, IPA, Stout, Weizen, Sour, Cider) — приз.</p>
-          <div class="g g3" id="passport-grid"></div>
-          <div class="g g2" style="margin-top:8px">
-            <button class="btn" data-action="add-stamp">Добавить штамп</button>
-            <button class="btn" data-action="reset-passport">Сбросить</button>
-          </div>
-        </div>
-      </template>
-
-      <template id="tpl-spin">
-        <div class="card">
-          <div class="h1">Колесо Пива — ежедневный спин</div>
-          <div id="spin-state" class="muted-sm">Проверяем кулдаун…</div>
-          <div class="g" style="margin-top:8px">
-            <button class="btn btn-primary" data-action="spin">Крутить</button>
-            <div class="meter"><i id="coin-meter"></i></div>
-            <div><span class="badge badge--amber">Коины: <b id="coins">0</b></span></div>
-          </div>
-          <div id="spin-log" class="muted-sm" style="margin-top:8px"></div>
-        </div>
-      </template>
-
-      <template id="tpl-trivia">
-        <div class="card">
-          <div class="h1">Викторина «Угадай стиль»</div>
-          <form id="trivia-form" class="g">
-            <!-- вопросы будут подставлены JS -->
-          </form>
-          <div class="g g2" style="margin-top:8px">
-            <button class="btn btn-primary" data-action="submit-trivia">Сдать</button>
-            <button class="btn" data-action="reset-trivia">Сброс</button>
-          </div>
-          <div id="trivia-result" class="muted-sm" style="margin-top:8px"></div>
-        </div>
-      </template>
-
-      <template id="tpl-ref">
-        <div class="card">
-          <div class="h1">Пригласи друзей</div>
-          <p class="muted-sm">За друга — +100 коинов. За 3 друзей — мини‑дегустация.</p>
-          <div class="g">
-            <input id="ref-link" class="btn" readonly value="" />
-            <div class="g g2">
-              <button class="btn btn-primary" data-action="copy-ref">Скопировать</button>
-              <button class="btn" data-action="share-ref">Поделиться</button>
-            </div>
-          </div>
-        </div>
-      </template>
-
-      <template id="tpl-receipt">
-        <div class="card">
-          <div class="h1">Добавить визит (серия 3 за 30)</div>
+          <div class="h1">Колесо пива</div>
+          <p class="muted-sm">Крути раз в 24 часа. Призы: скидки, бонус-кружки, коины. Визуальное колесо.</p>
           <div class="g g2">
-            <input id="rcp-amount" class="btn" inputmode="decimal" placeholder="Сумма чека" />
-            <button class="btn btn-primary" data-action="add-visit">Добавить</button>
-          </div>
-          <div style="margin-top:8px">
-            <div class="muted-sm">Прогресс:</div>
-            <div class="meter"><i id="visits-meter" style="width:0%"></i></div>
-            <div class="muted-sm"><span id="visits-count">0</span>/3 в последние 30 дней</div>
+            <button class="btn btn-primary" data-action="open-wheel">Открыть колесо на весь экран</button>
+            <button class="btn" data-action="wheel-rules">Правила</button>
           </div>
         </div>
       </template>
@@ -300,7 +253,7 @@
             <div class="promo__title">Cap Toss — сыграй сейчас</div>
             <div class="promo__sub">Попадания → коины → призы</div>
           </div>
-          <button class="promo__btn" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-toss">Играть</button>
+          <button class="promo__btn" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-info">Играть</button>
         </div>
 
         <div class="card list-card tight">
@@ -320,7 +273,7 @@
                 <div class="list__title">Ежедневный спин</div>
                 <div class="list__sub">Кулдаун 24 ч, мелкие призы</div>
               </div>
-              <button class="list__chev-btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">›</button>
+              <button class="list__chev-btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-wheel-info">›</button>
             </div>
             <div class="list__item">
               <div class="list__icon"><img src="ic_about.png" alt=""></div>
@@ -349,8 +302,8 @@
         <div class="card page-title">
           <div class="h1">Игры</div>
           <div class="g g2">
-            <button class="btn btn-primary" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-toss">Cap Toss</button>
-            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">Колесо Пива</button>
+            <button class="btn btn-primary" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-info">Cap Toss (описание)</button>
+            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-wheel-info">Колесо Пива (описание)</button>
           </div>
         </div>
       </section>
@@ -364,7 +317,7 @@
               <p class="muted-sm">Коины: <b id="coins-inline">0</b></p>
               <div class="meter"><i id="lvl-meter" style="width:0%"></i></div>
             </div>
-            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">Крутить колесо</button>
+            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-wheel-info">Крутить колесо</button>
             <button class="btn" data-open-sheet data-title="Пивной Паспорт" data-tpl="#tpl-passport">Паспорт стилей</button>
           </div>
         </div>
@@ -393,6 +346,79 @@
           </div>
         </div>
       </section>
+
+      <!-- Fullscreen pages -->
+      <section class="page page--fullscreen" id="cap">
+        <div class="fs-hud capfs-hud capfs-wrap">
+          <div class="cell"><div class="muted-sm">Очки</div><div id="cap-score" class="h1">0</div></div>
+          <div class="cell"><div class="muted-sm">Броски</div><div id="cap-shots" class="h1">0/15</div></div>
+          <div class="cell"><div class="muted-sm">Время</div><div id="cap-time" class="h1">00:30</div></div>
+        </div>
+        <div class="fs-stage capfs-stage">
+          <canvas id="cap-canvas"></canvas>
+        </div>
+        <div class="capfs-start"><button class="btn btn-primary" data-action="start-cap">Старт (30 сек)</button></div>
+      </section>
+
+      <section class="page page--fullscreen" id="wheel">
+        <div class="fs-hud wheel-wrap">
+          <div class="h1" style="margin:0">Колесо пива</div>
+          <div class="muted-sm">Крути, чтобы получить приз. 1 раз в сутки.</div>
+        </div>
+        <div class="fs-stage wheel-stage">
+          <canvas id="wheel-canvas"></canvas>
+        </div>
+        <div class="wheel-cta">
+          <button class="btn btn-primary" data-action="spin-wheel">Крутить</button>
+          <button class="btn" data-action="to-home">На главную</button>
+        </div>
+      </section>
+
+      <!-- Other templates used on Home/Menu -->
+      <template id="tpl-passport">
+        <div class="card">
+          <div class="h1">Пивной Паспорт стилей</div>
+          <p class="muted-sm">Собери 6 штампов (Lager, IPA, Stout, Weizen, Sour, Cider) — приз.</p>
+          <div class="g g3" id="passport-grid"></div>
+          <div class="g g2" style="margin-top:8px">
+            <button class="btn" data-action="add-stamp">Добавить штамп</button>
+            <button class="btn" data-action="reset-passport">Сбросить</button>
+          </div>
+        </div>
+      </template>
+
+      <template id="tpl-ref">
+        <div class="card">
+          <div class="h1">Пригласи друзей</div>
+          <p class="muted-sm">За друга — +100 коинов. За 3 друзей — мини‑дегустация.</p>
+          <div class="g">
+            <input id="ref-link" class="btn" readonly value="" />
+            <div class="g g2">
+              <button class="btn btn-primary" data-action="copy-ref">Скопировать</button>
+              <button class="btn" data-action="share-ref">Поделиться</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template id="tpl-trivia">
+        <div class="card">
+          <div class="h1">Викторина «Угадай стиль»</div>
+          <form id="trivia-form" class="g"></form>
+          <div class="g g2" style="margin-top:8px">
+            <button class="btn btn-primary" data-action="submit-trivia">Сдать</button>
+            <button class="btn" data-action="reset-trivia">Сброс</button>
+          </div>
+          <div id="trivia-result" class="muted-sm" style="margin-top:8px"></div>
+        </div>
+      </template>
+
+      <template id="tpl-receipt">
+        <div class="card">
+          <div class="h1">Добавить визит (серия 3 за 30)</div>
+        </div>
+      </template>
+
     </main>
   </div>
 
@@ -402,6 +428,15 @@
     if (TG){
       try{ TG.ready(); TG.expand(); TG.disableVerticalSwipes?.(); TG.enableClosingConfirmation?.(); TG.onEvent?.('viewportChanged', () => TG.disableVerticalSwipes?.()); }catch(e){ console.warn('TG init error', e); }
     }
+
+    // ==== Hash-based fullscreen toggle ====
+    function fsRouteCheck(){
+      const id = (location.hash||'#home').slice(1);
+      const isFS = (id==='cap' || id==='wheel');
+      document.body.classList.toggle('fs', isFS);
+    }
+    window.addEventListener('hashchange', fsRouteCheck);
+    document.addEventListener('DOMContentLoaded', fsRouteCheck);
 
     const ROOT = 'home';
     const sheetRoot = document.getElementById('sheet');
@@ -428,6 +463,9 @@
       qsa('[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === id));
       requestAnimationFrame(()=> window.scrollTo({ top: 0, behavior:'auto' }));
       syncBack();
+      fsRouteCheck();
+      if (id==='cap') mountCapFullscreen();
+      if (id==='wheel') mountWheel();
     }
     function navigateTo(id){
       if (!id || !isInDOM(id)) return;
@@ -445,8 +483,16 @@
       if (sheetOpen || !atRoot) showBack(); else hideBack();
     }
 
-    TG?.BackButton?.onClick?.(()=>{ if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; } const atRoot = (currentId() === ROOT); if (!atRoot) history.back(); });
-    TG?.onEvent?.('backButtonClicked', ()=>{ if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; } const atRoot = (currentId() === ROOT); if (!atRoot) history.back(); });
+    TG?.BackButton?.onClick?.(()=>{
+      if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; }
+      const atRoot = (currentId() === ROOT);
+      if (!atRoot) history.back();
+    });
+    TG?.onEvent?.('backButtonClicked', ()=>{
+      if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; }
+      const atRoot = (currentId() === ROOT);
+      if (!atRoot) history.back();
+    });
     window.addEventListener('popstate', ()=> setActivePage(currentId()));
 
     function haptic(level='light'){ try{ TG?.HapticFeedback?.impactOccurred && TG.HapticFeedback.impactOccurred(level); } catch(_){ try{ navigator.vibrate && navigator.vibrate(level==='light'?10:16); }catch(_){} } }
@@ -525,91 +571,8 @@
       const pct = Math.min(100, (coins() % 1000)/10);
       const lvlEl = document.getElementById('level'); if (lvlEl) lvlEl.textContent = lvl;
       const lm = document.getElementById('lvl-meter'); if (lm) lm.style.width = pct+'%';
-      const cm = document.getElementById('coin-meter'); if (cm) cm.style.width = Math.min(100, coins()/10)+'%';
     }
     function levelFromCoins(c){ if (c >= 3000) return 'Gold'; if (c >= 1500) return 'Silver'; return 'Bronze'; }
-
-    // ===== Pages: Home interactions =====
-    document.addEventListener('click', (e)=>{
-      const openBtn = e.target.closest('[data-open-sheet]');
-      if (openBtn){ e.preventDefault(); const tplSel = openBtn.dataset.tpl || ''; const tpl = tplSel ? document.querySelector(tplSel) : null; const html = tpl ? tpl.innerHTML : ''; const ttl = openBtn.getAttribute('title') || openBtn.dataset.title || openBtn.textContent.trim() || ''; const from = openBtn.dataset.from || 'bottom'; openSheet({ title: ttl, html, from }); initSheet(ttl); return; }
-      const tab = e.target.closest('[data-page]'); if (tab){ e.preventDefault(); navigateTo(tab.dataset.page); }
-
-      // sheet actions
-      const act = e.target.closest('[data-action]')?.dataset.action;
-      if (!act) return;
-      switch(act){
-        case 'start-cap': startCapToss(); break;
-        case 'cap-help': alert('Свайпай, чтобы бросать. Комбо и «Foam Frenzy» позже прикрутим.'); break;
-        case 'spin': handleSpin(); break;
-        case 'add-stamp': addStampPrompt(); break;
-        case 'reset-passport': resetPassport(); break;
-        case 'submit-trivia': submitTrivia(); break;
-        case 'reset-trivia': resetTrivia(); break;
-        case 'copy-ref': copyRef(); break;
-        case 'share-ref': shareRef(); break;
-        case 'add-visit': addVisit(); break;
-      }
-    });
-
-    // ===== Router bootstrap =====
-    const start = currentId(); history.replaceState({id:start}, '', '#'+start); setActivePage(start);
-    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 0);
-    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 300);
-
-    // ===== User name in profile =====
-    (function fillUser(){
-      const u = TG?.initDataUnsafe?.user; const name = u ? (u.first_name + (u.last_name? (' ' + u.last_name) : '')) : 'Гость';
-      const nameEl = document.getElementById('user-name'); if (nameEl) nameEl.textContent = name;
-    })();
-
-    // ===== Sheet initializers =====
-    function initSheet(title){
-      if (/паспорт/i.test(title)) renderPassport();
-      if (/колесо/i.test(title)) initSpin();
-      if (/реферал|друз/i.test(title)) initRef();
-      if (/викторин/i.test(title)) renderTrivia();
-      if (/визит/i.test(title)) renderVisits();
-      if (/cap toss/i.test(title)) initCapUI();
-      syncCoins();
-    }
-
-    // ===== Spin logic =====
-    const PRIZES = [
-      {code:'nuts', title:'Орешки', coins:50, weight:25},
-      {code:'-5',   title:'Купон -5%', coins:80, weight:20},
-      {code:'sticker', title:'Стикер', coins:40, weight:22},
-      {code:'x2',   title:'x2 коины за следующий чек (48ч)', coins:0, weight:14},
-      {code:'-10',  title:'Купон -10% (48ч)', coins:120, weight:10},
-      {code:'rare', title:'Редкая банка (чеком подтвердить)', coins:200, weight:9},
-    ];
-    function rollPrize(){
-      const total = PRIZES.reduce((s,p)=>s+p.weight,0); let r = Math.random()*total; for(const p of PRIZES){ if((r-=p.weight)<=0) return p; } return PRIZES[0];
-    }
-    function initSpin(){
-      const next = store.get(SKEY.spinAt,0);
-      const el = document.getElementById('spin-state');
-      updateSpinState(el, next);
-    }
-    function updateSpinState(el, next){
-      const now = store.now();
-      if (now >= next){ el.textContent = 'Готово к вращению'; } else {
-        const left = Math.max(0, next - now); const h = Math.floor(left/3600000); const m = Math.floor((left%3600000)/60000);
-        el.textContent = `Кулдаун: ${h}ч ${m}м`;
-      }
-    }
-    function handleSpin(){
-      const el = document.getElementById('spin-state'); const next = store.get(SKEY.spinAt,0); const now = store.now();
-      if (now < next){ haptic('light'); alert(el?.textContent || 'Кулдаун'); return; }
-      const prize = rollPrize();
-      addCoins(prize.coins);
-      logReward({source:'spin', prize:prize.title});
-      confettiBurst(160, 1100); haptic('light');
-      document.getElementById('spin-log')?.insertAdjacentHTML('afterbegin', `<div>🎉 Вы выиграли: <b>${prize.title}</b> (+${prize.coins}🪙)</div>`);
-      const newNext = now + APP.COOLDOWN_SPIN_HOURS*3600000;
-      store.set(SKEY.spinAt, newNext);
-      updateSpinState(el, newNext);
-    }
 
     // ===== Rewards feed =====
     function logReward(rec){ const r = store.get(SKEY.rewards,[]); r.unshift({ts:Date.now(),...rec}); store.set(SKEY.rewards,r); renderRewards(); }
@@ -656,7 +619,7 @@
       const res = document.getElementById('trivia-result'); res.textContent = `Верных ответов: ${score}/${APP.MAX_TRIVIA}`;
       if (score>=4){ addCoins(120); logReward({source:'trivia', prize:'Купон -10% (48ч)'}); confettiBurst(); haptic('light'); }
     }
-    function resetTrivia(){ renderTrivia(); document.getElementById('trivia-result').textContent=''; }
+    function resetTrivia(){ renderTrivia(); const r=document.getElementById('trivia-result'); if (r) r.textContent=''; }
 
     // ===== Referrals =====
     function initRef(){
@@ -672,175 +635,155 @@
     function renderVisits(){
       const list = store.get(SKEY.visits,[]).filter(x=> Date.now()-x.ts < 30*24*3600000);
       const cnt = list.length; const pct = Math.min(100, cnt/3*100);
-      const m = document.getElementById('visits-meter'); if (m) m.style.width = pct+'%';
-      const c = document.getElementById('visits-count'); if (c) c.textContent = cnt;
+      // just placeholder UI if needed later
     }
     function addVisit(){
-      const v = store.get(SKEY.visits,[]); const amt = parseFloat(document.getElementById('rcp-amount').value||'0')||0; v.push({ts:Date.now(), amount:amt}); store.set(SKEY.visits,v); renderVisits(); addCoins(80); logReward({source:'visit', prize:'Шаг серии 3 за 30'}); if (v.filter(x=> Date.now()-x.ts < 30*24*3600000).length>=3){ logReward({source:'series', prize:'Спин «Колеса Пива»'}); confettiBurst(200,1200); }
+      const v = store.get(SKEY.visits,[]); v.push({ts:Date.now(), amount:0}); store.set(SKEY.visits,v); renderVisits(); addCoins(80); logReward({source:'visit', prize:'Шаг серии 3 за 30'});
+      if (v.filter(x=> Date.now()-x.ts < 30*24*3600000).length>=3){ logReward({source:'series', prize:'Спин «Колеса Пива»'}); confettiBurst(200,1200); }
     }
 
-    // ===== Cap Toss (canvas visual demo with cups) =====
+    // ===== ACTIONS =====
+    document.addEventListener('click', (e)=>{
+      const openBtn = e.target.closest('[data-open-sheet]');
+      if (openBtn){ e.preventDefault(); const tplSel = openBtn.dataset.tpl || ''; const tpl = tplSel ? document.querySelector(tplSel) : null; const html = tpl ? tpl.innerHTML : ''; const ttl = openBtn.getAttribute('title') || openBtn.dataset.title || openBtn.textContent.trim() || ''; const from = openBtn.dataset.from || 'bottom'; openSheet({ title: ttl, html, from }); initSheet(ttl); return; }
+      const tab = e.target.closest('[data-page]'); if (tab){ e.preventDefault(); navigateTo(tab.dataset.page); }
+      const act = e.target.closest('[data-action]')?.dataset.action;
+      if (!act) return;
+      switch(act){
+        case 'open-cap': location.hash = 'cap'; closeSheet(); setActivePage('cap'); break;
+        case 'open-wheel': location.hash = 'wheel'; closeSheet(); setActivePage('wheel'); break;
+        case 'to-home': location.hash = 'home'; setActivePage('home'); break;
+        case 'start-cap': startCapToss(); break;
+        case 'spin-wheel': spinWheel(); break;
+        case 'add-stamp': addStampPrompt(); break;
+        case 'reset-passport': resetPassport(); break;
+        case 'submit-trivia': submitTrivia(); break;
+        case 'reset-trivia': resetTrivia(); break;
+        case 'copy-ref': copyRef(); break;
+        case 'share-ref': shareRef(); break;
+      }
+    });
+
+    // ===== Router bootstrap =====
+    const start = currentId(); history.replaceState({id:start}, '', '#'+start); setActivePage(start);
+    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 0);
+    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 300);
+
+    // ===== User name in profile =====
+    (function fillUser(){
+      const u = TG?.initDataUnsafe?.user; const name = u ? (u.first_name + (u.last_name? (' ' + u.last_name) : '')) : 'Гость';
+      const nameEl = document.getElementById('user-name'); if (nameEl) nameEl.textContent = name;
+    })();
+
+    // ===== Sheet initializers =====
+    function initSheet(title){
+      if (/паспорт/i.test(title)) renderPassport();
+      if (/реферал|друз/i.test(title)) initRef();
+      if (/викторин/i.test(title)) renderTrivia();
+      if (/визит/i.test(title)) renderVisits();
+      syncCoins();
+    }
+
+    // ======== Cap Toss (fullscreen canvas) =========
     let cap = {on:false, shots:0, score:0, t0:0, dur:30000, max:15};
-    let capVis = null; // визуальное состояние (canvas)
-
-    function initCapUI(){
-      const sEl = document.getElementById('cap-score'); if (sEl) sEl.textContent='0';
-      const shEl = document.getElementById('cap-shots'); if (shEl) shEl.textContent='0/'+cap.max;
-      const tEl = document.getElementById('cap-time'); if (tEl) tEl.textContent='00:30';
-
-      const canvas = document.getElementById('cap-canvas');
-      if (!canvas) return;
+    let capVis = null; // visual state
+    function mountCapFullscreen(){
+      const canvas = document.getElementById('cap-canvas'); if (!canvas) return;
       const ctx = canvas.getContext('2d');
       function resize(){
         const r = canvas.getBoundingClientRect();
-        canvas.width = Math.max(320, Math.floor(r.width*devicePixelRatio));
-        canvas.height= Math.max(200, Math.floor(r.height*devicePixelRatio));
+        canvas.width = Math.max(360, Math.floor(r.width*devicePixelRatio));
+        canvas.height = Math.max(240, Math.floor(r.height*devicePixelRatio));
+        drawCapScene();
       }
-      resize();
-
-      // три «кружки» (таргеты)
-      const W = ()=>canvas.width, H = ()=>canvas.height;
       const cups = [
-        {x:()=>W()*0.25, y:()=>H()*0.22, r:()=>28*devicePixelRatio, pts:100, color:'#f9b24d', name:'Lager'},
-        {x:()=>W()*0.50, y:()=>H()*0.18, r:()=>28*devicePixelRatio, pts:150, color:'#ffd59c', name:'IPA'},
-        {x:()=>W()*0.75, y:()=>H()*0.22, r:()=>28*devicePixelRatio, pts:200, color:'#f29117', name:'Stout'},
+        {x:()=>canvas.width*0.25, y:()=>canvas.height*0.28, r:()=>30*devicePixelRatio, pts:100, color:'#f9b24d', name:'Lager'},
+        {x:()=>canvas.width*0.50, y:()=>canvas.height*0.22, r:()=>30*devicePixelRatio, pts:150, color:'#ffd59c', name:'IPA'},
+        {x:()=>canvas.width*0.75, y:()=>canvas.height*0.28, r:()=>30*devicePixelRatio, pts:200, color:'#f29117', name:'Stout'}
       ];
-
-      capVis = { canvas, ctx, cups, proj:null, lastT:0, animId:0, resize };
-
-      // первичный рендер
+      capVis = { canvas, ctx, cups, proj:null, animId:0, resize };
+      resize(); window.addEventListener('resize', resize, {passive:true});
       drawCapScene();
-      window.addEventListener('resize', ()=>{ resize(); drawCapScene(); }, {passive:true});
     }
-
     function drawCapScene(){
       if (!capVis) return;
       const {canvas, ctx, cups, proj} = capVis;
-      const W = canvas.width, H = canvas.height;
+      const W=canvas.width, H=canvas.height;
       ctx.clearRect(0,0,W,H);
-
-      // фон
-      const grd = ctx.createLinearGradient(0,0,0,H);
-      grd.addColorStop(0,'rgba(255,255,255,0.06)');
-      grd.addColorStop(1,'rgba(255,255,255,0.00)');
-      ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
-
-      // чашки/мишени
-      cups.forEach((c,i)=>{
-        ctx.beginPath(); ctx.arc(c.x(), c.y(), c.r(), 0, Math.PI*2);
-        ctx.fillStyle = c.color; ctx.globalAlpha = 0.18; ctx.fill();
-        ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.stroke();
-        ctx.font = `${12*devicePixelRatio}px Inter`; ctx.textAlign='center'; ctx.fillStyle = 'rgba(255,255,255,.85)';
-        ctx.fillText(c.name, c.x(), c.y() - (c.r()+8*devicePixelRatio));
-        ctx.fillText('+'+c.pts, c.x(), c.y() + (c.r()+14*devicePixelRatio));
-      });
-
-      // projectile (крышка)
-      if (proj){
-        ctx.beginPath(); ctx.arc(proj.x, proj.y, 10*devicePixelRatio, 0, Math.PI*2);
-        ctx.fillStyle = '#fff'; ctx.shadowColor='rgba(255,255,255,.6)'; ctx.shadowBlur=8*devicePixelRatio; ctx.fill(); ctx.shadowBlur=0;
-      }
+      const grd=ctx.createLinearGradient(0,0,0,H); grd.addColorStop(0,'rgba(255,255,255,0.06)'); grd.addColorStop(1,'rgba(255,255,255,0.00)'); ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+      cups.forEach(c=>{ ctx.beginPath(); ctx.arc(c.x(),c.y(),c.r(),0,Math.PI*2); ctx.fillStyle=c.color; ctx.globalAlpha=.18; ctx.fill(); ctx.globalAlpha=1; ctx.lineWidth=2; ctx.strokeStyle='rgba(255,255,255,.35)'; ctx.stroke();
+        ctx.font=(12*devicePixelRatio)+'px Inter'; ctx.textAlign='center'; ctx.fillStyle='rgba(255,255,255,.85)'; ctx.fillText(c.name,c.x(),c.y()-(c.r()+8*devicePixelRatio)); ctx.fillText('+'+c.pts,c.x(),c.y()+(c.r()+14*devicePixelRatio)); });
+      if (proj){ ctx.beginPath(); ctx.arc(proj.x, proj.y, 10*devicePixelRatio, 0, Math.PI*2); ctx.fillStyle='#fff'; ctx.shadowColor='rgba(255,255,255,.6)'; ctx.shadowBlur=8*devicePixelRatio; ctx.fill(); ctx.shadowBlur=0; }
     }
-
     function startCapToss(){
       cap = {on:true, shots:0, score:0, t0:Date.now(), dur:30000, max:15};
+      const stage = document.querySelector('#cap.page .capfs-stage'); if (!stage) return;
+      const clone = stage.cloneNode(true); stage.parentNode.replaceChild(clone, stage);
+      const box = document.querySelector('#cap.page .capfs-stage');
+      let start=null; function onDown(e){ start = {x:e.clientX, y:e.clientY, t:performance.now()}; }
+      function onUp(e){ if(!cap.on) return; throwCap(start, {x:e.clientX, y:e.clientY, t:performance.now()}); }
+      ['pointerdown','touchstart','mousedown'].forEach(ev=> box.addEventListener(ev,onDown,{passive:true}));
+      ['pointerup','touchend','mouseup','click'].forEach(ev=> box.addEventListener(ev,onUp,{passive:true}));
       updateCapTime(); syncCapHUD();
-      const area = document.getElementById('cap-area'); if(!area) return;
-
-      // сброс слушателей и скрытие подсказки
-      const clone = area.cloneNode(true); area.parentNode.replaceChild(clone, area);
-      const box = document.getElementById('cap-area');
-      box.querySelector('.cap-msg')?.remove();
-
-      // Убедимся, что канвас проинициализирован
-      initCapUI();
-
-      let down = null;
-      const onDown = (e)=>{ down = {x:e.clientX, y:e.clientY, t:performance.now()}; };
-      const onUp = (e)=>{ if (!cap.on) return; throwCap(down, {x:e.clientX, y:e.clientY, t:performance.now()}); };
-
-      ['pointerdown','touchstart','mousedown'].forEach(ev=> box.addEventListener(ev, onDown, {passive:true}));
-      ['pointerup','touchend','mouseup','click'].forEach(ev=> box.addEventListener(ev, onUp, {passive:true}));
-
       setTimeout(finishCap, cap.dur+120);
     }
-
-    function throwCap(start, end){
-      if (cap.shots>=cap.max) return;
-      cap.shots++;
-
-      // Начальная позиция — нижний центр
-      const {canvas} = capVis; const W = canvas.width, H = canvas.height;
-      const sx = W*0.5, sy = H*0.86;
-
-      // Скорость из жеста, fallback — фиксированный вектор вверх
-      const dx = (end?.x||0) - (start?.x||0);
-      const dy = (end?.y||0) - (start?.y||0);
-      const dt = Math.max(1, (end?.t||0) - (start?.t||0));
-      const speed = Math.min(1.8, Math.hypot(dx,dy)/Math.max(60,dt));
-      const ang = Math.atan2(-Math.abs(dy)||-1, dx||0) || -1.2; // угол полёта (вверх)
-
-      const v0 = (260 + Math.random()*90) * devicePixelRatio * (0.6 + 0.4*speed);
-      const vx = v0 * Math.cos(ang) * 0.016; // px per frame
-      const vy = v0 * Math.sin(ang) * 0.016;
-      const g  = 9.8 * devicePixelRatio * 0.12; // gravity per frame
-
-      capVis.proj = {x:sx, y:sy, vx, vy, g};
-      haptic('light');
-      animateProjectile();
+    function throwCap(s,e){ if (cap.shots>=cap.max) return; cap.shots++;
+      const canvas=capVis.canvas; const W=canvas.width, H=canvas.height; const sx=W*0.5, sy=H*0.88;
+      const dx=(e&&e.x||0)-(s&&s.x||0); const dy=(e&&e.y||0)-(s&&s.y||0); const dt=Math.max(1,(e&&e.t||0)-(s&&s.t||0));
+      const speed=Math.min(1.8, Math.hypot(dx,dy)/Math.max(60,dt)); const ang=Math.atan2(-(Math.abs(dy)||1), dx||0) || -1.2;
+      const v0=(260+Math.random()*90)*devicePixelRatio*(0.6+0.4*speed); const vx=v0*Math.cos(ang)*0.016; const vy=v0*Math.sin(ang)*0.016; const g=9.8*devicePixelRatio*0.12;
+      capVis.proj={x:sx,y:sy,vx,vy,g}; haptic('light'); animateProjectile();
     }
+    function animateProjectile(){ if (!capVis||!capVis.proj) return; const p=capVis.proj; const canvas=capVis.canvas, cups=capVis.cups;
+      const step=()=>{ if(!cap.on) return; p.x+=p.vx; p.y+=p.vy; p.vy+=p.g; for(const c of cups){ const hit=Math.hypot(p.x-c.x(), p.y-c.y()) <= c.r()+10*devicePixelRatio; if(hit){ cap.score+=c.pts; confettiBurst(80,700); haptic('light'); capVis.proj=null; syncCapHUD(); drawCapScene(); return; }}
+        if(p.y<0||p.x<-20*devicePixelRatio||p.x>canvas.width+20*devicePixelRatio||p.y>canvas.height+10*devicePixelRatio){ capVis.proj=null; drawCapScene(); return; }
+        drawCapScene(); capVis.animId=requestAnimationFrame(step);
+      }; cancelAnimationFrame(capVis.animId); capVis.animId=requestAnimationFrame(step);
+    }
+    function syncCapHUD(){ var sh=document.getElementById('cap-shots'); if (sh) sh.textContent=cap.shots+'/'+cap.max; var sc=document.getElementById('cap-score'); if (sc) sc.textContent=cap.score; }
+    function updateCapTime(){ if(!cap.on) return; var left=Math.max(0, cap.dur-(Date.now()-cap.t0)); var s=Math.ceil(left/1000); var mm=('0'+Math.floor(s/60)).slice(-2); var ss=('0'+(s%60)).slice(-2); var el=document.getElementById('cap-time'); if(el) el.textContent=mm+':'+ss; if(left>0) requestAnimationFrame(updateCapTime); }
+    function finishCap(){ if(!cap.on) return; cap.on=false; if (capVis) cancelAnimationFrame(capVis.animId); var bonus=Math.floor(cap.score/10); try{ addCoins && addCoins(bonus); }catch(e){} try{ logReward && logReward({source:'cap_toss', prize:'Очки '+cap.score+' → +'+bonus+'🪙'}); }catch(e){} confettiBurst(180,1200); haptic('light'); }
 
-    function animateProjectile(){
-      if (!capVis?.proj) return;
-      const {canvas, cups} = capVis;
-      const p = capVis.proj;
-      const step = ()=>{
-        if (!cap.on) return; // игра завершена
-        // update
-        p.x += p.vx; p.y += p.vy; p.vy += p.g;
-        // collide with cups
-        for(const c of cups){
-          const dx = p.x - c.x(); const dy = p.y - c.y(); const hit = Math.hypot(dx,dy) <= c.r()+10*devicePixelRatio;
-          if (hit){
-            cap.score += c.pts;
-            confettiBurst(80,700); haptic('light');
-            capVis.proj = null; // остановить
-            syncCapHUD();
-            drawCapScene();
-            return; // бросок завершён
-          }
-        }
-        // out of bounds
-        if (p.y < 0 || p.x< -20*devicePixelRatio || p.x > canvas.width+20*devicePixelRatio || p.y > canvas.height+10*devicePixelRatio){
-          capVis.proj = null; drawCapScene(); return;
-        }
-        drawCapScene();
-        capVis.animId = requestAnimationFrame(step);
-      };
-      cancelAnimationFrame(capVis.animId); capVis.animId = requestAnimationFrame(step);
+    // ======== Wheel (fullscreen visual) =========
+    const WHEEL = {ctx:null, canvas:null, angle:0, spinning:false, prizes:[
+      {label:'-5%',  weight:1},
+      {label:'+20🪙',weight:1},
+      {label:'Пинта',weight:1},
+      {label:'Пусто',weight:1},
+      {label:'-10%', weight:1},
+      {label:'+50🪙',weight:1},
+      {label:'Снэк', weight:1},
+      {label:'Сюрприз',weight:1}
+    ]};
+    function mountWheel(){ const c=document.getElementById('wheel-canvas'); if(!c) return; const ctx=c.getContext('2d');
+      function resize(){ const r=c.getBoundingClientRect(); c.width=Math.floor(r.width*devicePixelRatio); c.height=c.width; drawWheel(WHEEL.angle||0); }
+      WHEEL.canvas=c; WHEEL.ctx=ctx; resize(); window.addEventListener('resize', resize, {passive:true}); drawWheel(WHEEL.angle||0);
     }
-
-    function syncCapHUD(){
-      const sh = document.getElementById('cap-shots'); if (sh) sh.textContent = cap.shots+'/'+cap.max;
-      const sc = document.getElementById('cap-score'); if (sc) sc.textContent = cap.score;
+    function drawWheel(angle){ const c=WHEEL.canvas, ctx=WHEEL.ctx; if (!c||!ctx) return; const cx=c.width/2, cy=c.height/2; const R=Math.min(cx,cy)-10*devicePixelRatio; ctx.clearRect(0,0,c.width,c.height);
+      ctx.save(); ctx.translate(cx,cy); ctx.rotate(angle);
+      const n=WHEEL.prizes.length; const step=2*Math.PI/n; for(let i=0;i<n;i++){ const a=i*step; ctx.beginPath(); ctx.moveTo(0,0); ctx.arc(0,0,R,a,a+step); ctx.closePath(); ctx.fillStyle = i%2? 'rgba(255,255,255,.08)':'rgba(255,255,255,.16)'; ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.lineWidth=2; ctx.stroke();
+        ctx.save(); ctx.rotate(a+step/2); ctx.textAlign='center'; ctx.fillStyle='#fff'; ctx.font=(14*devicePixelRatio)+'px Inter'; ctx.fillText(WHEEL.prizes[i].label, 0, -R*0.62); ctx.restore(); }
+      ctx.beginPath(); ctx.arc(0,0,R*0.16,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+      ctx.restore();
+      ctx.beginPath(); ctx.moveTo(cx, cy-R-6*devicePixelRatio); ctx.lineTo(cx-10*devicePixelRatio, cy-R+18*devicePixelRatio); ctx.lineTo(cx+10*devicePixelRatio, cy-R+18*devicePixelRatio); ctx.closePath(); ctx.fillStyle='#fff'; ctx.fill();
     }
-    function updateCapTime(){
-      if(!cap.on) return;
-      const left = Math.max(0, cap.dur - (Date.now()-cap.t0));
-      const s = Math.ceil(left/1000); const mm = String(Math.floor(s/60)).padStart(2,'0'); const ss = String(s%60).padStart(2,'0');
-      const el = document.getElementById('cap-time'); if (el) el.textContent = mm+':'+ss;
-      if (left>0) requestAnimationFrame(updateCapTime);
+    function spinWheel(){ if (WHEEL.spinning) return;
+      const n=WHEEL.prizes.length; const step=2*Math.PI/n; const pick = Math.floor(Math.random()*n);
+      const target = (Math.PI*1.5) - (pick*step + step/2);
+      const current = (WHEEL.angle % (2*Math.PI));
+      const turns = 6; const to = target + turns*2*Math.PI; const delta = (function(from,to){ let d=to-from; while(d>Math.PI) d-=2*Math.PI; while(d<-Math.PI) d+=2*Math.PI; return d; })(current,to);
+      const dur = 3400; const t0=performance.now(); WHEEL.spinning=true;
+      const tick = function(now){ const p=Math.min(1,(now-t0)/dur); const eased = 1 - Math.pow(1-p,3); WHEEL.angle = current + delta*eased; drawWheel(WHEEL.angle); if(p<1) requestAnimationFrame(tick); else { WHEEL.spinning=false; onWheelStop(pick); } };
+      requestAnimationFrame(tick);
     }
-    function finishCap(){
-      if(!cap.on) return; cap.on=false; capVis && cancelAnimationFrame(capVis.animId);
-      const bonus = Math.floor(cap.score/10);
-      addCoins(bonus);
-      logReward({source:'cap_toss', prize:`Очки ${cap.score} → +${bonus}🪙`});
-      confettiBurst(180,1200); haptic('light');
+    function onWheelStop(idx){ const prize=WHEEL.prizes[idx]; haptic('light'); confettiBurst(120,1000); if(prize.label.indexOf('🪙')>-1){ const n=parseInt(prize.label.replace(/[^0-9]/g,''))||0; try{ addCoins && addCoins(n); }catch(e){} try{ logReward && logReward({source:'wheel', prize:prize.label}); }catch(e){} }
+      else { try{ logReward && logReward({source:'wheel', prize: prize.label}); }catch(e){} }
+      try{ if (window.commitSpinAt) commitSpinAt(Date.now()+24*3600*1000); }catch(e){}
     }
 
     // ===== Init state =====
     syncCoins(); renderRewards();
+
   })();
   </script>
 </body>
