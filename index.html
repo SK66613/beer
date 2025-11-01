@@ -157,7 +157,9 @@
     @media (max-width:420px){ .g2,.g3{ grid-template-columns:1fr } }
 
     /* Cap Toss area – reliable pointer input */
-    #cap-area{ touch-action:none; user-select:none; -webkit-user-select:none; }
+    #cap-area{ touch-action:none; user-select:none; -webkit-user-select:none; position:relative; margin-top:10px; height:260px; border:1px dashed rgba(255,255,255,.18); border-radius:12px; overflow:hidden; background:radial-gradient(120% 120% at 50% 100%, rgba(249,178,77,.12), rgba(255,255,255,.02)); }
+    #cap-area canvas{ position:absolute; inset:0; width:100%; height:100%; display:block }
+    #cap-area .cap-msg{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); opacity:.8; font-size:14px; text-align:center }
 
     /* confetti canvas */
     #confetti{ position:fixed; inset:0; pointer-events:none; z-index:99999; }
@@ -197,8 +199,9 @@
             <button class="btn btn-primary" data-action="start-cap">Старт (30 сек)</button>
             <button class="btn" data-action="cap-help">Правила</button>
           </div>
-          <div id="cap-area" style="margin-top:10px; height:220px; border:1px dashed rgba(255,255,255,.18); border-radius:12px; display:grid; place-items:center;">
-            <div class="muted-sm">Свайпни по экрану, чтобы бросить «крышку». (демо‑версия)</div>
+          <div id="cap-area">
+            <canvas id="cap-canvas"></canvas>
+            <div class="cap-msg">Свайпни/тапни, чтобы бросить крышку</div>
           </div>
           <div class="g g3" style="margin-top:10px">
             <div class="card" style="text-align:center">
@@ -676,50 +679,147 @@
       const v = store.get(SKEY.visits,[]); const amt = parseFloat(document.getElementById('rcp-amount').value||'0')||0; v.push({ts:Date.now(), amount:amt}); store.set(SKEY.visits,v); renderVisits(); addCoins(80); logReward({source:'visit', prize:'Шаг серии 3 за 30'}); if (v.filter(x=> Date.now()-x.ts < 30*24*3600000).length>=3){ logReward({source:'series', prize:'Спин «Колеса Пива»'}); confettiBurst(200,1200); }
     }
 
-    // ===== Cap Toss (pointer-based demo) =====
+    // ===== Cap Toss (canvas visual demo with cups) =====
     let cap = {on:false, shots:0, score:0, t0:0, dur:30000, max:15};
+    let capVis = null; // визуальное состояние (canvas)
+
     function initCapUI(){
       const sEl = document.getElementById('cap-score'); if (sEl) sEl.textContent='0';
       const shEl = document.getElementById('cap-shots'); if (shEl) shEl.textContent='0/'+cap.max;
       const tEl = document.getElementById('cap-time'); if (tEl) tEl.textContent='00:30';
+
+      const canvas = document.getElementById('cap-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      function resize(){
+        const r = canvas.getBoundingClientRect();
+        canvas.width = Math.max(320, Math.floor(r.width*devicePixelRatio));
+        canvas.height= Math.max(200, Math.floor(r.height*devicePixelRatio));
+      }
+      resize();
+
+      // три «кружки» (таргеты)
+      const W = ()=>canvas.width, H = ()=>canvas.height;
+      const cups = [
+        {x:()=>W()*0.25, y:()=>H()*0.22, r:()=>28*devicePixelRatio, pts:100, color:'#f9b24d', name:'Lager'},
+        {x:()=>W()*0.50, y:()=>H()*0.18, r:()=>28*devicePixelRatio, pts:150, color:'#ffd59c', name:'IPA'},
+        {x:()=>W()*0.75, y:()=>H()*0.22, r:()=>28*devicePixelRatio, pts:200, color:'#f29117', name:'Stout'},
+      ];
+
+      capVis = { canvas, ctx, cups, proj:null, lastT:0, animId:0, resize };
+
+      // первичный рендер
+      drawCapScene();
+      window.addEventListener('resize', ()=>{ resize(); drawCapScene(); }, {passive:true});
     }
+
+    function drawCapScene(){
+      if (!capVis) return;
+      const {canvas, ctx, cups, proj} = capVis;
+      const W = canvas.width, H = canvas.height;
+      ctx.clearRect(0,0,W,H);
+
+      // фон
+      const grd = ctx.createLinearGradient(0,0,0,H);
+      grd.addColorStop(0,'rgba(255,255,255,0.06)');
+      grd.addColorStop(1,'rgba(255,255,255,0.00)');
+      ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
+
+      // чашки/мишени
+      cups.forEach((c,i)=>{
+        ctx.beginPath(); ctx.arc(c.x(), c.y(), c.r(), 0, Math.PI*2);
+        ctx.fillStyle = c.color; ctx.globalAlpha = 0.18; ctx.fill();
+        ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.stroke();
+        ctx.font = `${12*devicePixelRatio}px Inter`; ctx.textAlign='center'; ctx.fillStyle = 'rgba(255,255,255,.85)';
+        ctx.fillText(c.name, c.x(), c.y() - (c.r()+8*devicePixelRatio));
+        ctx.fillText('+'+c.pts, c.x(), c.y() + (c.r()+14*devicePixelRatio));
+      });
+
+      // projectile (крышка)
+      if (proj){
+        ctx.beginPath(); ctx.arc(proj.x, proj.y, 10*devicePixelRatio, 0, Math.PI*2);
+        ctx.fillStyle = '#fff'; ctx.shadowColor='rgba(255,255,255,.6)'; ctx.shadowBlur=8*devicePixelRatio; ctx.fill(); ctx.shadowBlur=0;
+      }
+    }
+
     function startCapToss(){
       cap = {on:true, shots:0, score:0, t0:Date.now(), dur:30000, max:15};
       updateCapTime(); syncCapHUD();
       const area = document.getElementById('cap-area'); if(!area) return;
 
-      // Reset previous handlers to avoid duplicates после повторных стартов
-      area.replaceWith(area.cloneNode(true));
-      const areaNew = document.getElementById('cap-area');
+      // сброс слушателей и скрытие подсказки
+      const clone = area.cloneNode(true); area.parentNode.replaceChild(clone, area);
+      const box = document.getElementById('cap-area');
+      box.querySelector('.cap-msg')?.remove();
+
+      // Убедимся, что канвас проинициализирован
+      initCapUI();
 
       let down = null;
-      function pointerDown(e){
-        down = {x:e.clientX, y:e.clientY, t:performance.now()};
-      }
-      function pointerUp(e){
-        if(!cap.on) return;
-        if (cap.shots>=cap.max) return;
-        cap.shots++;
-        const dx = (e.clientX - (down?.x||e.clientX));
-        const dy = (e.clientY - (down?.y||e.clientY));
-        const dt = performance.now() - (down?.t||performance.now());
-        const isFlick = Math.hypot(dx,dy) > 20 && dt < 450; // быстрый свайп
-        // Простая вероятность попадания: флик чуть точнее
-        const hit = Math.random() < (isFlick ? 0.55 : 0.42);
-        const pts = hit ? (Math.random()<0.2? 200:100) : 0;
-        cap.score += pts;
-        haptic('light');
-        if (hit) confettiBurst(60,500);
-        syncCapHUD();
-        if (cap.shots>=cap.max) finishCap();
-      }
+      const onDown = (e)=>{ down = {x:e.clientX, y:e.clientY, t:performance.now()}; };
+      const onUp = (e)=>{ if (!cap.on) return; throwCap(down, {x:e.clientX, y:e.clientY, t:performance.now()}); };
 
-      areaNew.addEventListener('pointerdown', pointerDown, {passive:true});
-      areaNew.addEventListener('pointerup', pointerUp, {passive:true});
-      areaNew.addEventListener('click', pointerUp, {passive:true}); // на десктопе хватит клика
+      ['pointerdown','touchstart','mousedown'].forEach(ev=> box.addEventListener(ev, onDown, {passive:true}));
+      ['pointerup','touchend','mouseup','click'].forEach(ev=> box.addEventListener(ev, onUp, {passive:true}));
 
-      setTimeout(finishCap, cap.dur+80);
+      setTimeout(finishCap, cap.dur+120);
     }
+
+    function throwCap(start, end){
+      if (cap.shots>=cap.max) return;
+      cap.shots++;
+
+      // Начальная позиция — нижний центр
+      const {canvas} = capVis; const W = canvas.width, H = canvas.height;
+      const sx = W*0.5, sy = H*0.86;
+
+      // Скорость из жеста, fallback — фиксированный вектор вверх
+      const dx = (end?.x||0) - (start?.x||0);
+      const dy = (end?.y||0) - (start?.y||0);
+      const dt = Math.max(1, (end?.t||0) - (start?.t||0));
+      const speed = Math.min(1.8, Math.hypot(dx,dy)/Math.max(60,dt));
+      const ang = Math.atan2(-Math.abs(dy)||-1, dx||0) || -1.2; // угол полёта (вверх)
+
+      const v0 = (260 + Math.random()*90) * devicePixelRatio * (0.6 + 0.4*speed);
+      const vx = v0 * Math.cos(ang) * 0.016; // px per frame
+      const vy = v0 * Math.sin(ang) * 0.016;
+      const g  = 9.8 * devicePixelRatio * 0.12; // gravity per frame
+
+      capVis.proj = {x:sx, y:sy, vx, vy, g};
+      haptic('light');
+      animateProjectile();
+    }
+
+    function animateProjectile(){
+      if (!capVis?.proj) return;
+      const {canvas, cups} = capVis;
+      const p = capVis.proj;
+      const step = ()=>{
+        if (!cap.on) return; // игра завершена
+        // update
+        p.x += p.vx; p.y += p.vy; p.vy += p.g;
+        // collide with cups
+        for(const c of cups){
+          const dx = p.x - c.x(); const dy = p.y - c.y(); const hit = Math.hypot(dx,dy) <= c.r()+10*devicePixelRatio;
+          if (hit){
+            cap.score += c.pts;
+            confettiBurst(80,700); haptic('light');
+            capVis.proj = null; // остановить
+            syncCapHUD();
+            drawCapScene();
+            return; // бросок завершён
+          }
+        }
+        // out of bounds
+        if (p.y < 0 || p.x< -20*devicePixelRatio || p.x > canvas.width+20*devicePixelRatio || p.y > canvas.height+10*devicePixelRatio){
+          capVis.proj = null; drawCapScene(); return;
+        }
+        drawCapScene();
+        capVis.animId = requestAnimationFrame(step);
+      };
+      cancelAnimationFrame(capVis.animId); capVis.animId = requestAnimationFrame(step);
+    }
+
     function syncCapHUD(){
       const sh = document.getElementById('cap-shots'); if (sh) sh.textContent = cap.shots+'/'+cap.max;
       const sc = document.getElementById('cap-score'); if (sc) sc.textContent = cap.score;
@@ -732,7 +832,7 @@
       if (left>0) requestAnimationFrame(updateCapTime);
     }
     function finishCap(){
-      if(!cap.on) return; cap.on=false;
+      if(!cap.on) return; cap.on=false; capVis && cancelAnimationFrame(capVis.animId);
       const bonus = Math.floor(cap.score/10);
       addCoins(bonus);
       logReward({source:'cap_toss', prize:`Очки ${cap.score} → +${bonus}🪙`});
