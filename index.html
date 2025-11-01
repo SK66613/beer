@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Beer Mini‑App | Router + BackButton + No‑Swipe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <style>
+    :root{
+      --tabH: 64px;
+      --navGap: 12px;
+      --bg:#0b0c15; --text:#f4f6fa; --border:rgba(255,255,255,.10);
+      --amber:#f9b24d; --green:#37d67a; --red:#ff6b6b; --blue:#3d7eff;
+      --appW: 428px;
+      --wrapPadX: 14px;
+      --wrapPadTop: 16px;
+    }
+    *{ box-sizing:border-box }
+    img{ max-width:100%; display:block }
+    html,body{ height:100% }
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:16px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      overscroll-behavior: none;
+    }
+    @media (min-width:900px){ body{ display:grid; place-items:center; } }
+    .wrap{
+      width:100%; max-width:1080px; margin:0 auto;
+      min-height:100svh;
+      padding:16px 14px calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom,0px) + 22px);
+    }
+    @media (min-width:900px){
+      .wrap{ max-width:var(--appW); padding:20px 14px calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom,0px) + 22px); }
+    }
+    main>section, section.page{ display:none }
+    main>section.active, section.page.active{ display:block }
+
+    /* bottom nav */
+    .btm-nav{
+      position:fixed; left:0; right:0;
+      bottom: calc(var(--navGap) + env(safe-area-inset-bottom, 0px));
+      height: var(--tabH);
+      z-index: 9999;
+      display:grid; grid-template-columns:repeat(5,1fr); align-items:center;
+      padding: 6px 6px 6px;
+      background: rgba(10,12,14,.72);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.08);
+      border-left:0; border-right:0; border-bottom:0;
+      border-radius: 16px 16px 0 0;
+    }
+    .btm-nav .tab{
+      height:100%; border:0; background:none; color:#dfe3e6; cursor:pointer;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+      font-size:11px; font-weight:700;
+      filter: grayscale(.35) saturate(.8); opacity:.85;
+      border-radius:14px; -webkit-tap-highlight-color:transparent;
+    }
+    .btm-nav .tab img{ width:24px; height:24px }
+    .btm-nav .tab:active{ transform: translateY(1px) }
+    .btm-nav .tab.active{ opacity:1; filter:none; color:#fff; position:relative }
+    .btm-nav .tab.active::before{
+      content:""; position:absolute; inset:6px 10px 18px 10px; z-index:-1;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08); border-radius:12px;
+    }
+    @media (min-width:900px){
+      .btm-nav{ left:50%; right:auto; width: var(--appW); transform: translateX(-50%); }
+    }
+
+    /* cards */
+    .card{ background:rgba(255,255,255,.05); border:1px solid var(--border); border-radius:16px; padding:16px; }
+    .page-title{ margin:0 0 12px }
+    .h1{ font-weight:800; font-size:20px; margin:0 0 8px }
+    .muted-sm{ opacity:.8 }
+
+    /* sheet */
+    .sheet{ position:fixed; inset:0; z-index:9990; pointer-events:none; }
+    .sheet.is-open{ pointer-events:auto; }
+    .sheet__overlay{
+      position:absolute; left:0; right:0; top:0;
+      bottom: calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom, 0px));
+      background: rgba(0,0,0,.48); opacity:0; transition:opacity .2s ease;
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    }
+    .sheet.is-open .sheet__overlay{ opacity:1; }
+    .sheet__panel{
+      position:absolute; left:0; right:0; margin:0 auto;
+      width:min(820px,100%); max-height:88vh; overflow:auto;
+      background:linear-gradient(180deg, rgba(18,20,24,.98), rgba(18,20,24,.96));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 20px 40px rgba(0,0,0,.45);
+      transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+      padding:12px 14px calc(16px + var(--tabH) + var(--navGap) + env(safe-area-inset-bottom, 0px));
+      will-change: transform;
+      touch-action: pan-y;
+    }
+    .sheet.sheet-bottom .sheet__panel{ bottom:0; top:auto; border-radius: 16px 16px 0 0; transform: translateY(100%); }
+    .sheet.is-open.sheet-bottom .sheet__panel{ transform: translateY(0); }
+    .sheet__handle{ width:42px; height:4px; border-radius:999px; margin:6px auto 10px; background:rgba(255,255,255,.18) }
+    .sheet__header{ display:flex; align-items:center; gap:10px; margin:0 0 8px }
+    .sheet__title{ font-weight:800; font-size:18px; margin:0 }
+    .sheet__close{ margin-left:auto; border:0; background:transparent; color:#fff; opacity:.85; width:36px; height:36px; border-radius:10px; display:grid; place-items:center }
+    .sheet__close:active{ transform:translateY(1px); opacity:1 }
+    .sheet__body{ display:grid; gap:10px }
+    body.sheet-open{ overflow:hidden }
+    @media (min-width:900px){ .sheet__panel{ width:min(var(--appW),92vw); } }
+
+    /* HERO */
+    .hero{ position: relative; margin: calc(-1 * var(--wrapPadTop)) calc(-1 * var(--wrapPadX)) 14px; padding-top: env(safe-area-inset-top, 0px); background:#000; overflow:hidden; }
+    .hero__media{ width:100%; height: clamp(260px, 42vh, 460px); object-fit: cover; display:block; }
+    .hero::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:84px; pointer-events:none; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg) 100%); }
+    @media (min-width:900px){ .hero{ margin-left: calc((var(--appW) - 100vw)/2 - var(--wrapPadX)); margin-right: calc((var(--appW) - 100vw)/2 - var(--wrapPadX)); } }
+
+    /* Promo */
+    .promo{ display:grid; grid-template-columns:48px 1fr auto; align-items:center; gap:12px; padding:10px 12px; margin:0 0 12px; background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:16px; }
+    .promo__icon{ width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:rgba(255,255,255,.06); overflow:hidden }
+    .promo__icon img{ width:28px; height:28px; display:block }
+    .promo__title{ font-weight:800 }
+    .promo__sub{ opacity:.8; font-size:13px; margin-top:2px }
+    .promo__btn{ height:36px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg,#f9b24d,#f29117); color:#16181e; font-weight:900; cursor:pointer; }
+    .promo__btn:active{ transform: translateY(1px) }
+
+    /* List */
+    .list-card .list-head{ font:800 16px/1.2 Inter,system-ui; margin-bottom:8px }
+    .list{ display:grid; gap:8px }
+    .list-card .list__item{ background:transparent; border:0; box-shadow:none }
+    .list-card.tight .list{ margin-left:-16px; margin-right:-16px }
+    .list-card.tight .list__item{ padding:12px 16px; gap:10px; display:grid; grid-template-columns:36px 1fr auto; align-items:center; }
+    .list-card.tight .list__icon{ width:36px; height:36px; border-radius:10px; display:grid; place-items:center; background:rgba(255,255,255,.06); overflow:hidden }
+    .list-card.tight .list__icon img{ width:22px; height:22px; display:block }
+    .list__text{ display:grid; gap:4px }
+    .list__title{ font-weight:800 }
+    .list__sub{ opacity:.8; font-size:13px }
+    .list__chev-btn{ width:36px; height:36px; display:grid; place-items:center; border-radius:999px; border:1px solid rgba(255,255,255,.10); background:transparent; color:inherit; font-size:18px; cursor:pointer; }
+    .list__chev-btn:active{ transform:translateY(1px) }
+    .list-card .list__item:hover{ background: rgba(255,255,255,.04) }
+
+    /* badges, meters */
+    .badge{ display:inline-grid; place-items:center; padding:3px 8px; border-radius:999px; font:700 12px/1 Inter; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); }
+    .badge--amber{ background:rgba(249,178,77,.15); border-color:rgba(249,178,77,.35); color:#ffd59c }
+    .badge--green{ background:rgba(55,214,122,.15); border-color:rgba(55,214,122,.35); color:#bff5d6 }
+    .meter{ height:8px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden }
+    .meter>i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,#f9b24d,#f29117); }
+
+    /* buttons */
+    .btn{ height:40px; padding:0 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:#fff; font-weight:800; cursor:pointer }
+    .btn:active{ transform: translateY(1px) }
+    .btn-primary{ background:linear-gradient(180deg,#f9b24d,#f29117); color:#16181e; border:0 }
+
+    /* grid small */
+    .g{ display:grid; gap:10px }
+    .g2{ grid-template-columns:1fr 1fr }
+    .g3{ grid-template-columns:1fr 1fr 1fr }
+    @media (max-width:420px){ .g2,.g3{ grid-template-columns:1fr } }
+
+    /* confetti canvas */
+    #confetti{ position:fixed; inset:0; pointer-events:none; z-index:99999; }
+  </style>
+</head>
+<body>
+  <canvas id="confetti"></canvas>
+  <div class="wrap">
+    <nav id="btm-nav" class="btm-nav" aria-label="Навигация">
+      <button class="tab" data-page="home"><img src="ic_home.png" alt=""><span>Главная</span></button>
+      <button class="tab" data-page="menu"><img src="ic_services.png" alt=""><span>Меню</span></button>
+      <button class="tab" data-page="games"><img src="ic_consult.png" alt=""><span>Игры</span></button>
+      <button class="tab" data-page="bonuses"><img src="ic_bonus.png" alt=""><span>Бонусы</span></button>
+      <button class="tab" data-page="profile"><img src="ic_about.png" alt=""><span>Профиль</span></button>
+    </nav>
+
+    <main>
+      <!-- Bottom Sheet -->
+      <div id="sheet" class="sheet sheet-bottom" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="sheet__overlay" data-close-sheet></div>
+        <section class="sheet__panel" tabindex="-1">
+          <div class="sheet__handle"></div>
+          <header class="sheet__header">
+            <h3 class="sheet__title">Заголовок</h3>
+            <button class="sheet__close" aria-label="Закрыть" data-close-sheet>✕</button>
+          </header>
+          <div class="sheet__body" id="sheet-body"></div>
+        </section>
+      </div>
+
+      <!-- ===== Templates for sheets ===== -->
+      <template id="tpl-cap-toss">
+        <div class="card">
+          <div class="h1">Cap Toss — брось крышку!</div>
+          <p class="muted-sm">За 30 секунд накидай очков. Попадания → коины. Античит, вибро, конфетти — всё как любим.</p>
+          <div class="g g2">
+            <button class="btn btn-primary" data-action="start-cap">Старт (30 сек)</button>
+            <button class="btn" data-action="cap-help">Правила</button>
+          </div>
+          <div id="cap-area" style="margin-top:10px; height:220px; border:1px dashed rgba(255,255,255,.18); border-radius:12px; display:grid; place-items:center;">
+            <div class="muted-sm">Свайпни по экрану, чтобы бросить «крышку». (демо‑версия)</div>
+          </div>
+          <div class="g g3" style="margin-top:10px">
+            <div class="card" style="text-align:center">
+              <div class="muted-sm">Очки</div>
+              <div id="cap-score" class="h1">0</div>
+            </div>
+            <div class="card" style="text-align:center">
+              <div class="muted-sm">Броски</div>
+              <div id="cap-shots" class="h1">0/15</div>
+            </div>
+            <div class="card" style="text-align:center">
+              <div class="muted-sm">Время</div>
+              <div id="cap-time" class="h1">00:30</div>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template id="tpl-passport">
+        <div class="card">
+          <div class="h1">Пивной Паспорт стилей</div>
+          <p class="muted-sm">Собери 6 штампов (Lager, IPA, Stout, Weizen, Sour, Cider) — приз.</p>
+          <div class="g g3" id="passport-grid"></div>
+          <div class="g g2" style="margin-top:8px">
+            <button class="btn" data-action="add-stamp">Добавить штамп</button>
+            <button class="btn" data-action="reset-passport">Сбросить</button>
+          </div>
+        </div>
+      </template>
+
+      <template id="tpl-spin">
+        <div class="card">
+          <div class="h1">Колесо Пива — ежедневный спин</div>
+          <div id="spin-state" class="muted-sm">Проверяем кулдаун…</div>
+          <div class="g" style="margin-top:8px">
+            <button class="btn btn-primary" data-action="spin">Крутить</button>
+            <div class="meter"><i id="coin-meter"></i></div>
+            <div><span class="badge badge--amber">Коины: <b id="coins">0</b></span></div>
+          </div>
+          <div id="spin-log" class="muted-sm" style="margin-top:8px"></div>
+        </div>
+      </template>
+
+      <template id="tpl-trivia">
+        <div class="card">
+          <div class="h1">Викторина «Угадай стиль»</div>
+          <form id="trivia-form" class="g">
+            <!-- вопросы будут подставлены JS -->
+          </form>
+          <div class="g g2" style="margin-top:8px">
+            <button class="btn btn-primary" data-action="submit-trivia">Сдать</button>
+            <button class="btn" data-action="reset-trivia">Сброс</button>
+          </div>
+          <div id="trivia-result" class="muted-sm" style="margin-top:8px"></div>
+        </div>
+      </template>
+
+      <template id="tpl-ref">
+        <div class="card">
+          <div class="h1">Пригласи друзей</div>
+          <p class="muted-sm">За друга — +100 коинов. За 3 друзей — мини‑дегустация.</p>
+          <div class="g">
+            <input id="ref-link" class="btn" readonly value="" />
+            <div class="g g2">
+              <button class="btn btn-primary" data-action="copy-ref">Скопировать</button>
+              <button class="btn" data-action="share-ref">Поделиться</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <template id="tpl-receipt">
+        <div class="card">
+          <div class="h1">Добавить визит (серия 3 за 30)</div>
+          <div class="g g2">
+            <input id="rcp-amount" class="btn" inputmode="decimal" placeholder="Сумма чека" />
+            <button class="btn btn-primary" data-action="add-visit">Добавить</button>
+          </div>
+          <div style="margin-top:8px">
+            <div class="muted-sm">Прогресс:</div>
+            <div class="meter"><i id="visits-meter" style="width:0%"></i></div>
+            <div class="muted-sm"><span id="visits-count">0</span>/3 в последние 30 дней</div>
+          </div>
+        </div>
+      </template>
+
+      <!-- ===== PAGES ===== -->
+      <section class="page" id="home">
+        <div class="hero">
+          <img class="hero__media" src="beer_hero.jpg" alt="Beer Hero">
+        </div>
+
+        <div class="promo">
+          <div class="promo__icon"><img src="ic_bonus.png" alt=""></div>
+          <div>
+            <div class="promo__title">Cap Toss — сыграй сейчас</div>
+            <div class="promo__sub">Попадания → коины → призы</div>
+          </div>
+          <button class="promo__btn" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-toss">Играть</button>
+        </div>
+
+        <div class="card list-card tight">
+          <div class="list-head">С чего начать</div>
+          <div class="list">
+            <div class="list__item">
+              <div class="list__icon"><img src="ic_services.png" alt=""></div>
+              <div class="list__text">
+                <div class="list__title">Пивной Паспорт</div>
+                <div class="list__sub">Собери 6 штампов — подарок</div>
+              </div>
+              <button class="list__chev-btn" data-open-sheet data-title="Пивной Паспорт" data-tpl="#tpl-passport">›</button>
+            </div>
+            <div class="list__item">
+              <div class="list__icon"><img src="ic_bonus.png" alt=""></div>
+              <div class="list__text">
+                <div class="list__title">Ежедневный спин</div>
+                <div class="list__sub">Кулдаун 24 ч, мелкие призы</div>
+              </div>
+              <button class="list__chev-btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">›</button>
+            </div>
+            <div class="list__item">
+              <div class="list__icon"><img src="ic_about.png" alt=""></div>
+              <div class="list__text">
+                <div class="list__title">Пригласи друзей</div>
+                <div class="list__sub">+100 коинов за друга</div>
+              </div>
+              <button class="list__chev-btn" data-open-sheet data-title="Рефералы" data-tpl="#tpl-ref">›</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="menu">
+        <div class="card page-title">
+          <div class="h1">Меню и лимитки</div>
+          <p class="muted-sm">Секретные позиции открываются по уровню. (макеты/картинки подставь позже)</p>
+          <div class="g g2">
+            <button class="btn" data-open-sheet data-title="Викторина" data-tpl="#tpl-trivia">Викторина</button>
+            <button class="btn" data-open-sheet data-title="Добавить визит" data-tpl="#tpl-receipt">3 визита за 30</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="games">
+        <div class="card page-title">
+          <div class="h1">Игры</div>
+          <div class="g g2">
+            <button class="btn btn-primary" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-toss">Cap Toss</button>
+            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">Колесо Пива</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="bonuses">
+        <div class="card page-title">
+          <div class="h1">Бонусы</div>
+          <div class="g">
+            <div class="card">
+              <div class="h1" style="margin:0">Текущий уровень: <span id="level">Bronze</span></div>
+              <p class="muted-sm">Коины: <b id="coins-inline">0</b></p>
+              <div class="meter"><i id="lvl-meter" style="width:0%"></i></div>
+            </div>
+            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">Крутить колесо</button>
+            <button class="btn" data-open-sheet data-title="Пивной Паспорт" data-tpl="#tpl-passport">Паспорт стилей</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="profile">
+        <div class="card page-title">
+          <div class="h1">Профиль</div>
+          <div class="g">
+            <div class="card">
+              <div class="g g2">
+                <div>
+                  <div class="muted-sm">Пользователь</div>
+                  <div id="user-name" class="h1">—</div>
+                </div>
+                <div style="text-align:right">
+                  <div class="muted-sm">Коины</div>
+                  <div class="h1" id="coins-profile">0</div>
+                </div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="muted-sm">Последние призы</div>
+              <div id="rewards-feed">Пока пусто</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+  (function app(){
+    const TG = window.Telegram && window.Telegram.WebApp;
+    if (TG){
+      try{ TG.ready(); TG.expand(); TG.disableVerticalSwipes?.(); TG.enableClosingConfirmation?.(); TG.onEvent?.('viewportChanged', () => TG.disableVerticalSwipes?.()); }catch(e){ console.warn('TG init error', e); }
+    }
+
+    const ROOT = 'home';
+    const sheetRoot = document.getElementById('sheet');
+    const sheetPanel= sheetRoot?.querySelector('.sheet__panel');
+    const sheetBody = document.getElementById('sheet-body');
+    const sheetTitle= sheetRoot?.querySelector('.sheet__title');
+
+    const qsa = sel => Array.from(document.querySelectorAll(sel));
+    const isInDOM = id => !!document.getElementById(id);
+
+    function currentId(){
+      const url = new URL(location.href);
+      const qp = (url.searchParams.get('page') || '').trim();
+      if (qp && isInDOM(qp)) return qp;
+      const h = (location.hash || '#'+ROOT).replace(/^#/, '');
+      return isInDOM(h) ? h : ROOT;
+    }
+    function setActivePage(id){
+      qsa('main > section, section.page').forEach(s => {
+        const on = (s.id === id);
+        s.classList.toggle('active', on);
+        s.style.display = on ? 'block' : 'none';
+      });
+      qsa('[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === id));
+      requestAnimationFrame(()=> window.scrollTo({ top: 0, behavior:'auto' }));
+      syncBack();
+    }
+    function navigateTo(id){
+      if (!id || !isInDOM(id)) return;
+      const h = '#'+id;
+      if (h !== (location.hash || '#'+ROOT)){ history.pushState({id}, '', h); }
+      setActivePage(id);
+    }
+
+    function showBack(){ try{ TG?.BackButton?.show && TG.BackButton.show(); }catch(_){ } }
+    function hideBack(){ try{ TG?.BackButton?.hide && TG.BackButton.hide(); }catch(_){ } }
+    function syncBack(){
+      if (!TG) return;
+      const atRoot = (currentId() === ROOT);
+      const sheetOpen = sheetRoot?.classList.contains('is-open');
+      if (sheetOpen || !atRoot) showBack(); else hideBack();
+    }
+
+    TG?.BackButton?.onClick?.(()=>{ if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; } const atRoot = (currentId() === ROOT); if (!atRoot) history.back(); });
+    TG?.onEvent?.('backButtonClicked', ()=>{ if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; } const atRoot = (currentId() === ROOT); if (!atRoot) history.back(); });
+    window.addEventListener('popstate', ()=> setActivePage(currentId()));
+
+    function haptic(level='light'){ try{ TG?.HapticFeedback?.impactOccurred && TG.HapticFeedback.impactOccurred(level); } catch(_){ try{ navigator.vibrate && navigator.vibrate(level==='light'?10:16); }catch(_){} } }
+    function openSheet({title='', html='', from='bottom'} = {}){
+      if (!sheetRoot) return;
+      sheetRoot.classList.toggle('sheet-bottom', from==='bottom');
+      if (sheetTitle) sheetTitle.textContent = title || '';
+      if (sheetBody && html != null) sheetBody.innerHTML = html;
+      sheetRoot.classList.add('is-open'); document.body.classList.add('sheet-open');
+      requestAnimationFrame(()=> sheetPanel?.focus({preventScroll:true}));
+      haptic('light'); syncBack();
+    }
+    function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); haptic('light'); syncBack(); }
+    window.openSheet = openSheet; window.closeSheet = closeSheet;
+    sheetRoot?.addEventListener('click', (e)=>{ if (e.target.closest('[data-close-sheet]')) closeSheet(); });
+    document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && sheetRoot?.classList.contains('is-open')) closeSheet(); });
+
+    // Prevent iOS pull-to-refresh when no TG.disableVerticalSwipes
+    const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isiOS && !(TG && typeof TG.disableVerticalSwipes === 'function')){
+      let startY = 0; document.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, {passive:true});
+      document.addEventListener('touchmove', e => { const dy = e.touches[0].clientY - startY; const atTop = (window.scrollY <= 0); if (dy > 0 && atTop){ e.preventDefault(); } }, {passive:false});
+    }
+
+    // ===== Confetti (simple) =====
+    const confettiCanvas = document.getElementById('confetti');
+    const ctx = confettiCanvas.getContext('2d');
+    function resizeCanvas(){ confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    function confettiBurst(n=140, duration=900){
+      const parts = Array.from({length:n},()=>({
+        x: Math.random()*confettiCanvas.width,
+        y: -10,
+        vx: (Math.random()-0.5)*4,
+        vy: Math.random()*3+2,
+        r: Math.random()*3+1,
+        a: 1
+      }));
+      const t0 = performance.now();
+      function frame(t){
+        const dt = (t - (confettiBurst._lt||t))/16; confettiBurst._lt = t;
+        ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+        parts.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.a -= 0.01*dt; ctx.globalAlpha = Math.max(0,p.a); ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle = ['#f9b24d','#f29117','#ffd59c','#fff'][p.r|0 % 4]; ctx.fill(); });
+        if (t - t0 < duration){ requestAnimationFrame(frame); } else { ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    // ===== App State & Storage =====
+    const APP = {
+      BOT_USERNAME: 'your_bot_username', // TODO: замените на @имя_бота
+      WORKER_BASE: 'https://your-worker.example.dev/', // TODO: замените на ваш Worker
+      API_KEY: 'dev-123',
+      COOLDOWN_SPIN_HOURS: 24,
+      MAX_TRIVIA: 5,
+    };
+    const store = {
+      get(k,def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(_){ return def }},
+      set(k,v){ localStorage.setItem(k, JSON.stringify(v)); },
+      now(){ return Date.now(); }
+    };
+    const SKEY = {
+      coins: 'beer_coins',
+      spinAt: 'beer_spin_next',
+      rewards: 'beer_rewards',
+      passport: 'beer_passport',
+      visits: 'beer_visits',
+      trivia: 'beer_trivia',
+    };
+    function addCoins(n){ const c = Math.max(0, (store.get(SKEY.coins,0) + n)|0); store.set(SKEY.coins,c); syncCoins(); }
+    function coins(){ return store.get(SKEY.coins,0)|0; }
+
+    function syncCoins(){
+      qsa('#coins,#coins-inline,#coins-profile').forEach(el=> el && (el.textContent = coins()));
+      const lvl = levelFromCoins(coins());
+      const pct = Math.min(100, (coins() % 1000)/10);
+      const lvlEl = document.getElementById('level'); if (lvlEl) lvlEl.textContent = lvl;
+      const lm = document.getElementById('lvl-meter'); if (lm) lm.style.width = pct+'%';
+      const cm = document.getElementById('coin-meter'); if (cm) cm.style.width = Math.min(100, coins()/10)+'%';
+    }
+    function levelFromCoins(c){ if (c >= 3000) return 'Gold'; if (c >= 1500) return 'Silver'; return 'Bronze'; }
+
+    // ===== Pages: Home interactions =====
+    document.addEventListener('click', (e)=>{
+      const openBtn = e.target.closest('[data-open-sheet]');
+      if (openBtn){ e.preventDefault(); const tplSel = openBtn.dataset.tpl || ''; const tpl = tplSel ? document.querySelector(tplSel) : null; const html = tpl ? tpl.innerHTML : ''; const ttl = openBtn.getAttribute('title') || openBtn.dataset.title || openBtn.textContent.trim() || ''; const from = openBtn.dataset.from || 'bottom'; openSheet({ title: ttl, html, from }); initSheet(ttl); return; }
+      const tab = e.target.closest('[data-page]'); if (tab){ e.preventDefault(); navigateTo(tab.dataset.page); }
+
+      // sheet actions
+      const act = e.target.closest('[data-action]')?.dataset.action;
+      if (!act) return;
+      switch(act){
+        case 'start-cap': startCapToss(); break;
+        case 'cap-help': alert('Свайпай, чтобы бросать. Комбо и «Foam Frenzy» позже прикрутим.'); break;
+        case 'spin': handleSpin(); break;
+        case 'add-stamp': addStampPrompt(); break;
+        case 'reset-passport': resetPassport(); break;
+        case 'submit-trivia': submitTrivia(); break;
+        case 'reset-trivia': resetTrivia(); break;
+        case 'copy-ref': copyRef(); break;
+        case 'share-ref': shareRef(); break;
+        case 'add-visit': addVisit(); break;
+      }
+    });
+
+    // ===== Router bootstrap =====
+    const start = currentId(); history.replaceState({id:start}, '', '#'+start); setActivePage(start);
+    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 0);
+    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 300);
+
+    // ===== User name in profile =====
+    (function fillUser(){
+      const u = TG?.initDataUnsafe?.user; const name = u ? (u.first_name + (u.last_name? (' ' + u.last_name) : '')) : 'Гость';
+      const nameEl = document.getElementById('user-name'); if (nameEl) nameEl.textContent = name;
+    })();
+
+    // ===== Sheet initializers =====
+    function initSheet(title){
+      if (/паспорт/i.test(title)) renderPassport();
+      if (/колесо/i.test(title)) initSpin();
+      if (/реферал|друз/i.test(title)) initRef();
+      if (/викторин/i.test(title)) renderTrivia();
+      if (/визит/i.test(title)) renderVisits();
+      if (/cap toss/i.test(title)) initCapUI();
+      syncCoins();
+    }
+
+    // ===== Spin logic =====
+    const PRIZES = [
+      {code:'nuts', title:'Орешки', coins:50, weight:25},
+      {code:'-5',   title:'Купон -5%', coins:80, weight:20},
+      {code:'sticker', title:'Стикер', coins:40, weight:22},
+      {code:'x2',   title:'x2 коины за следующий чек (48ч)', coins:0, weight:14},
+      {code:'-10',  title:'Купон -10% (48ч)', coins:120, weight:10},
+      {code:'rare', title:'Редкая банка (чеком подтвердить)', coins:200, weight:9},
+    ];
+    function rollPrize(){
+      const total = PRIZES.reduce((s,p)=>s+p.weight,0); let r = Math.random()*total; for(const p of PRIZES){ if((r-=p.weight)<=0) return p; } return PRIZES[0];
+    }
+    function initSpin(){
+      const next = store.get(SKEY.spinAt,0);
+      const el = document.getElementById('spin-state');
+      updateSpinState(el, next);
+    }
+    function updateSpinState(el, next){
+      const now = store.now();
+      if (now >= next){ el.textContent = 'Готово к вращению'; } else {
+        const left = Math.max(0, next - now); const h = Math.floor(left/3600000); const m = Math.floor((left%3600000)/60000);
+        el.textContent = `Кулдаун: ${h}ч ${m}м`;
+      }
+    }
+    function handleSpin(){
+      const el = document.getElementById('spin-state'); const next = store.get(SKEY.spinAt,0); const now = store.now();
+      if (now < next){ haptic('light'); alert(el?.textContent || 'Кулдаун'); return; }
+      const prize = rollPrize();
+      addCoins(prize.coins);
+      logReward({source:'spin', prize:prize.title});
+      confettiBurst(160, 1100); haptic('light');
+      document.getElementById('spin-log')?.insertAdjacentHTML('afterbegin', `<div>🎉 Вы выиграли: <b>${prize.title}</b> (+${prize.coins}🪙)</div>`);
+      const newNext = now + APP.COOLDOWN_SPIN_HOURS*3600000;
+      store.set(SKEY.spinAt, newNext);
+      updateSpinState(el, newNext);
+    }
+
+    // ===== Rewards feed =====
+    function logReward(rec){ const r = store.get(SKEY.rewards,[]); r.unshift({ts:Date.now(),...rec}); store.set(SKEY.rewards,r); renderRewards(); }
+    function renderRewards(){
+      const r = store.get(SKEY.rewards,[]); const box = document.getElementById('rewards-feed'); if (!box) return;
+      if (!r.length){ box.textContent='Пока пусто'; return; }
+      box.innerHTML = r.slice(0,8).map(x=>`<div>• ${new Date(x.ts).toLocaleString()} — ${x.source}: <b>${x.prize}</b></div>`).join('');
+    }
+
+    // ===== Passport =====
+    const STYLES = ['Lager','IPA','Stout','Weizen','Sour','Cider'];
+    function renderPassport(){
+      const data = store.get(SKEY.passport, {});
+      const grid = document.getElementById('passport-grid'); if (!grid) return;
+      grid.innerHTML = STYLES.map(s=>{
+        const c = data[s]||0; const done = c>0 ? 'badge badge--green' : 'badge';
+        return `<div class="card" style="text-align:center"><div style="font-weight:800">${s}</div><div class="${done}" style="margin-top:6px">${c>0?'Штамп есть':'Нет штампа'}</div></div>`;
+      }).join('');
+    }
+    function addStampPrompt(){
+      const style = prompt('Какой стиль? (Lager, IPA, Stout, Weizen, Sour, Cider)'); if (!style) return;
+      const S = style.trim(); if (!STYLES.includes(S)) return alert('Неизвестный стиль');
+      const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
+      const data = store.get(SKEY.passport, {}); data[S] = 1; store.set(SKEY.passport, data); renderPassport(); addCoins(100); confettiBurst(); logReward({source:'passport', prize:'Штамп '+S});
+    }
+    function resetPassport(){ store.set(SKEY.passport, {}); renderPassport(); }
+
+    // ===== Trivia =====
+    const TRIVIA = [
+      {q:'Какой стиль обычно мутный и бананово‑гвоздичный?', a:['Lager','Weizen','Stout'], ok:1},
+      {q:'IBU — это…', a:['Горечь','Плотность','Цвет'], ok:0},
+      {q:'Что чаще даёт тропики?', a:['Американский хмель','Лагерные дрожжи','Солод Pilsner'], ok:0},
+      {q:'Stout ассоциируют с нотами…', a:['Кофе/шоколад','Лайм','Зелёное яблоко'], ok:0},
+      {q:'Sour — это…', a:['Кислое','Супергорькое','Дымное'], ok:0},
+    ];
+    function renderTrivia(){
+      const f = document.getElementById('trivia-form'); if (!f) return;
+      f.innerHTML = TRIVIA.slice(0,APP.MAX_TRIVIA).map((t,i)=>{
+        return `<div class="card"><div style="font-weight:700">${i+1}. ${t.q}</div>${t.a.map((opt,idx)=>`<label style="display:block; margin-top:6px"><input type="radio" name="q${i}" value="${idx}"> ${opt}</label>`).join('')}</div>`;
+      }).join('');
+    }
+    function submitTrivia(){
+      let score=0; for(let i=0;i<APP.MAX_TRIVIA;i++){ const v = (new FormData(document.getElementById('trivia-form'))).get('q'+i); if (v!=null && +v===TRIVIA[i].ok) score++; }
+      const res = document.getElementById('trivia-result'); res.textContent = `Верных ответов: ${score}/${APP.MAX_TRIVIA}`;
+      if (score>=4){ addCoins(120); logReward({source:'trivia', prize:'Купон -10% (48ч)'}); confettiBurst(); haptic('light'); }
+    }
+    function resetTrivia(){ renderTrivia(); document.getElementById('trivia-result').textContent=''; }
+
+    // ===== Referrals =====
+    function initRef(){
+      const u = TG?.initDataUnsafe?.user; const uid = u?.id || Math.floor(Math.random()*1e9);
+      const code = 'beer_ref_'+uid;
+      const link = `https://t.me/${APP.BOT_USERNAME}?start=${code}`;
+      const input = document.getElementById('ref-link'); if (input) input.value = link;
+    }
+    async function copyRef(){ const el = document.getElementById('ref-link'); if(!el) return; el.select(); document.execCommand?.('copy'); try{ await navigator.clipboard.writeText(el.value); }catch{} haptic('light'); }
+    async function shareRef(){ const el = document.getElementById('ref-link'); if(!el) return; const txt = 'Залетай в пивной мини‑апп и забери приз! '+el.value; try{ await navigator.share?.({text:txt}); }catch{ try{ await navigator.clipboard.writeText(el.value);}catch{} } haptic('light'); }
+
+    // ===== Visits (3 in 30 days) =====
+    function renderVisits(){
+      const list = store.get(SKEY.visits,[]).filter(x=> Date.now()-x.ts < 30*24*3600000);
+      const cnt = list.length; const pct = Math.min(100, cnt/3*100);
+      const m = document.getElementById('visits-meter'); if (m) m.style.width = pct+'%';
+      const c = document.getElementById('visits-count'); if (c) c.textContent = cnt;
+    }
+    function addVisit(){
+      const v = store.get(SKEY.visits,[]); const amt = parseFloat(document.getElementById('rcp-amount').value||'0')||0; v.push({ts:Date.now(), amount:amt}); store.set(SKEY.visits,v); renderVisits(); addCoins(80); logReward({source:'visit', prize:'Шаг серии 3 за 30'}); if (v.filter(x=> Date.now()-x.ts < 30*24*3600000).length>=3){ logReward({source:'series', prize:'Спин «Колеса Пива»'}); confettiBurst(200,1200); }
+    }
+
+    // ===== Cap Toss (demo flick) =====
+    let cap = {on:false, shots:0, score:0, t0:0, dur:30000};
+    function initCapUI(){ document.getElementById('cap-score').textContent='0'; document.getElementById('cap-shots').textContent='0/15'; document.getElementById('cap-time').textContent='00:30'; }
+    function startCapToss(){
+      cap = {on:true, shots:0, score:0, t0:Date.now(), dur:30000}; updateCapTime();
+      const area = document.getElementById('cap-area'); if(!area) return;
+      function onSwipe(){ if(!cap.on) return; if (cap.shots>=15) return; cap.shots++; const hit = Math.random()<0.45; const pts = hit ? (Math.random()<0.2? 200:100) : 0; cap.score += pts; haptic('light'); if (hit) confettiBurst(60,500); syncCapHUD(); if (cap.shots>=15) finishCap(); }
+      area.onclick = onSwipe; area.ontouchstart = onSwipe; syncCapHUD();
+      setTimeout(finishCap, cap.dur+50);
+    }
+    function syncCapHUD(){ document.getElementById('cap-score').textContent = cap.score; document.getElementById('cap-shots').textContent = cap.shots+'/15'; }
+    function updateCapTime(){ if(!cap.on) return; const left = Math.max(0, cap.dur - (Date.now()-cap.t0)); const s = Math.ceil(left/1000); const mm = String(Math.floor(s/60)).padStart(2,'0'); const ss = String(s%60).padStart(2,'0'); const el = document.getElementById('cap-time'); if (el) el.textContent = mm+':'+ss; if (left>0) requestAnimationFrame(updateCapTime); }
+    function finishCap(){ if(!cap.on) return; cap.on=false; const bonus = Math.floor(cap.score/10); addCoins(bonus); logReward({source:'cap_toss', prize:`Очки ${cap.score} → +${bonus}🪙`}); confettiBurst(180,1200); haptic('light'); }
+
+    // ===== Init state =====
+    syncCoins(); renderRewards();
+  })();
+  </script>
+</body>
+</html>
