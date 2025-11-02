@@ -707,8 +707,9 @@ body.flappy-open{ overflow:hidden; }
   .card.passport{ grid-template-columns: 1fr; }
   .passport__media{ height: 160px; } /* фикс высота превью */
 }
-
 </style>
+
+
 
 <style>
   /* Trivia Викторина */
@@ -1061,53 +1062,48 @@ body.flappy-open{ overflow:hidden; }
 </div>
       </section>
 
+
+      
+
 <!-- Турниры страница -->
 <section id="leaderboard" class="page" style="display:none">
-    <div class="promo">
-    <div class="promo__icon">
-      <img src="ic_about.png" alt="">
-    </div>
+
+
+<!-- Leaderboard -->
+<div class="card lb-card inner" id="leaderboard">
+  <div class="lb-head">
     <div>
-      <div class="promo__title">Halloween Clicker</div>
-      <div class="promo__sub">Play</div>
-    </div>
-<button class="promo__btn" data-open-clicker>Clicker</button>
-  </div>
-
-
-  <div class="card lb-card inner">
-    <div class="lb-head">
-      <div>
-        <div class="lb-title">Leaderboard</div>
-        <div class="lb-sub">Clicker · daily & all-time</div>
-      </div>
-      <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
-        <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">Daily</button>
-        <button type="button" class="js-lb-mode" data-mode="all">All-time</button>
-      </div>
+      <div class="lb-title">Leaderboard</div>
+      <div class="lb-sub">Flappy · daily &amp; all-time</div>
     </div>
 
-    <!-- Ты -->
-    <div class="lb-you" id="lb-you">
-      <div class="lb-you__avatar" id="lb-you-ava">YOU</div>
-      <div class="lb-you__meta">
-        <div class="lb-you__name" id="lb-you-name">You</div>
-        <div class="lb-sub" id="lb-you-note">best score</div>
-      </div>
-      <div class="lb-you__score" id="lb-you-score">0</div>
-    </div>
-
-    <!-- Топ -->
-    <div class="lb-list" id="lb-list">
-      <!-- сюда JS рендерит строки -->
-    </div>
-
-    <div class="lb-actions">
-      <button class="lb-btn" id="lb-refresh" type="button">Refresh</button>
-      <button class="lb-btn lb-btn--primary" type="button"
-              data-open-clicker data-cooldown-hours="24" data-clicker-key="pumpkin">Play</button>
+    <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
+      <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">Daily</button>
+      <button type="button" class="js-lb-mode" data-mode="all">All-time</button>
     </div>
   </div>
+
+  <!-- Ты -->
+  <div class="lb-you" id="lb-you">
+    <div class="lb-you__avatar" id="lb-you-ava">YOU</div>
+    <div class="lb-you__meta">
+      <div class="lb-you__name" id="lb-you-name">You</div>
+      <div class="lb-sub" id="lb-you-note">best score</div>
+    </div>
+    <div class="lb-you__score" id="lb-you-score">0</div>
+  </div>
+
+  <!-- Топ -->
+  <div class="lb-list" id="lb-list">
+    <!-- сюда JS рендерит строки -->
+  </div>
+
+  <div class="lb-actions">
+    <button class="lb-btn" id="lb-refresh" type="button">Refresh</button>
+    <button class="lb-btn lb-btn--primary" type="button" data-open-flappy>Играть</button>
+  </div>
+</div>
+
 </section>
 
 
@@ -1931,6 +1927,10 @@ for (const it of items){
   function finish(){
     running=false; cancelAnimationFrame(raf);
     if (score > best){ best=score; try{ localStorage.setItem('flappy_best', String(best)); }catch(_){ } }
+
+      // ✨ ДОБАВЬ ЭТО:
+  try { window.Tournament?.submit(score); } catch(_) {}
+
     document.getElementById('fl-best').textContent = best;
     document.getElementById('fl-world').textContent = WORLD_RECORD;
     resBox.classList.add('show'); cta.classList.add('show');
@@ -2603,6 +2603,103 @@ for (const it of items){
   // экспорт, если хочешь дёргать при openSheet()
   window.mountTrivia = function(){ renderStartRow(); elBody().innerHTML=''; };
 
+})();
+</script>
+
+<script>
+/* ===== Tournament (Flappy) — local LB + optional Worker submit ===== */
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+
+  const LB = {
+    GAME: 'flappy',
+    dayKey(){ return new Date().toISOString().slice(0,10); },
+    k(mode){ return `lb_${this.GAME}_` + (mode==='daily' ? this.dayKey() : 'all'); },
+    read(mode){ try{return JSON.parse(localStorage.getItem(this.k(mode))||'[]')}catch(_){return[]} },
+    write(mode,arr){ localStorage.setItem(this.k(mode), JSON.stringify(arr)); },
+
+    submit(score){
+      const u = TG?.initDataUnsafe?.user || {};
+      const uid = u.id || 'anon';
+      const name = u.first_name ? (u.first_name + (u.last_name? ' '+u.last_name : '')) : 'Guest';
+
+      // локально — сохраняем лучший
+      ['daily','all'].forEach(mode=>{
+        const list = this.read(mode);
+        const i = list.findIndex(r=>r.uid===uid);
+        if (i === -1) list.push({uid,name,score,ts:Date.now()});
+        else if (score > list[i].score){ list[i].score = score; list[i].ts = Date.now(); list[i].name = name; }
+        list.sort((a,b)=> b.score - a.score);
+        this.write(mode, list.slice(0,100)); // top100
+      });
+
+      // опционально — на бэкенд
+      try{
+        const base = (window.APP&&APP.WORKER_BASE) || (window.APP_CONFIG&&APP_CONFIG.WORKER_BASE);
+        const key  = (window.APP&&APP.API_KEY)     || (window.APP_CONFIG&&APP_CONFIG.API_KEY);
+        if (base){
+          const headers = {'content-type':'application/json'}; if (key) headers['x-api-key']=key;
+          const body = (mode)=> JSON.stringify({game:this.GAME, mode, score, user:u});
+          fetch(base+'games/submit', {method:'POST', headers, body: body('daily')});
+          fetch(base+'games/submit', {method:'POST', headers, body: body('all')});
+        }
+      }catch(_){}
+    },
+
+    me(mode){
+      const uid = TG?.initDataUnsafe?.user?.id || 'anon';
+      return this.read(mode).find(r=>r.uid===uid) || null;
+    },
+    top(mode){ return this.read(mode).slice(0,20); }
+  };
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m])); }
+
+  function render(mode){
+    mode = mode || document.querySelector('.js-lb-mode[aria-pressed="true"]')?.dataset.mode || 'daily';
+    const list = LB.top(mode);
+    const me   = LB.me(mode);
+
+    const meName  = document.getElementById('lb-you-name');
+    const meScore = document.getElementById('lb-you-score');
+    const box     = document.getElementById('lb-list');
+
+    if (meName){
+      const u = TG?.initDataUnsafe?.user;
+      meName.textContent = u ? `${u.first_name}${u.last_name?' '+u.last_name:''}` : 'You';
+    }
+    if (meScore) meScore.textContent = me?.score || 0;
+
+    if (!box) return;
+    if (!list.length){ box.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>'; return; }
+
+    box.innerHTML = list.map((r,i)=>`
+      <div class="lb-row ${i<3 ? ('lb-medal-'+(i+1)) : ''}">
+        <div class="lb-rank">${i+1}</div>
+        <div class="lb-avatar">${esc((r.name||'U').slice(0,1))}</div>
+        <div class="lb-name">${esc(r.name||'—')}</div>
+        <div class="lb-score">${r.score}</div>
+      </div>
+    `).join('');
+  }
+
+  // переключатель Day/All + Refresh
+  document.addEventListener('click', (e)=>{
+    const t = e.target.closest('.js-lb-mode');
+    if (t){
+      document.querySelectorAll('.js-lb-mode').forEach(b=> b.setAttribute('aria-pressed', String(b===t)));
+      render(t.dataset.mode);
+    }
+    if (e.target.id === 'lb-refresh') render();
+  });
+
+  // авторендер при заходе на #leaderboard
+  function auto(){ if ((location.hash||'#').slice(1)==='leaderboard') render(); }
+  window.addEventListener('hashchange', auto);
+  auto();
+
+  // экспорт (чтоб дернуть из игры)
+  window.Tournament = { submit:(score)=> LB.submit(score), render:()=>render() };
 })();
 </script>
 
