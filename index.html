@@ -756,6 +756,9 @@ body.flappy-open{ overflow:hidden; }
 /* если было ощущение "прыгает при тапе" — отключи смещение */
 .trivia-next.btn:active{ transform:none; }
 
+.trivia-next.is-hidden{ display:none !important; }
+
+
 
 </style>
 
@@ -920,6 +923,7 @@ body.flappy-open{ overflow:hidden; }
     <div id="trivia-body"></div>
   </div>
 </template>
+
 
 
       <template id="tpl-ref">
@@ -2368,170 +2372,206 @@ for (const it of items){
 
 
   
- <script>
+<script>
 (function(){
-  // ===== Настройки ====   /* Trivia Викторина */
+  'use strict';
+
+  // ================== КОНФИГ ==================
   const TRIVIA_QUESTIONS = [
-    { q: 'Какой стиль обычно самый хмельной и ароматный цитрусом?', opts: ['IPA','Lager','Weizen','Stout'], ok: 0 },
-    { q: 'У какого стиля выраженные кофейно-шоколадные ноты?',     opts: ['Sour','Stout','Pilsner','Cider'],     ok: 1 },
-    { q: 'Пшеничный немецкий стиль с бананом/гвоздикой — это…',    opts: ['Weizen','Porter','APA','Saison'],     ok: 0 },
-    { q: 'Кислотность — фишка стиля…',                             opts: ['Sour','Bock','Amber','Doppelbock'],   ok: 0 },
+    { q:'Какой стиль обычно самый хмельной и ароматный цитрусом?', opts:['IPA','Lager','Weizen','Stout'], ok:0 },
+    { q:'У какого стиля выраженные кофейно-шоколадные ноты?',     opts:['Sour','Stout','Pilsner','Cider'], ok:1 },
+    { q:'Пшеничный немецкий стиль с бананом/гвоздикой — это…',    opts:['Weizen','Porter','APA','Saison'], ok:0 },
+    { q:'Кислотность — фишка стиля…',                             opts:['Sour','Bock','Amber','Doppelbock'], ok:0 }
   ];
   const REWARD_COINS = 100;
-  const COOLDOWN_MS = 0.1 * 60 * 60 * 1000; // 24ч
-  const TG  = window.Telegram && window.Telegram.WebApp;
+  const COOLDOWN_MS  = 0.1 * 60 * 60 * 1000; // 24 часа
+
+  // ================== ТЕЛЕГРАМ/ХАПТИК ==================
+  const TG  = (window.Telegram && window.Telegram.WebApp) || null;
+  function haptic(level){ try{ TG?.HapticFeedback?.impactOccurred(level||'light'); }catch(_){ navigator.vibrate?.(10); } }
+
+  // ================== КОШЕЛЁК/ЛЕНТА ==================
+  const COIN_KEY = 'beer_coins';
+  function getCoins(){ return +(localStorage.getItem(COIN_KEY)||0); }
+  function setCoins(v){ localStorage.setItem(COIN_KEY, String(Math.max(0, v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
+  function addCoins(n){ if (typeof window.addCoins==='function') return window.addCoins(n); setCoins(getCoins()+(n|0)); }
+  function logPrize(txt){ try{ window.logReward?.({source:'trivia', prize:txt}); }catch(_){ } }
+
+  // ================== КУЛДАУН ==================
   const UID = TG?.initDataUnsafe?.user?.id || 'anon';
   const QUIZ_ID  = 'beer_trivia_v1';
   const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
+  const now=()=>Date.now();
+  const getLast=()=> +(localStorage.getItem(LAST_KEY)||0);
+  const setLast=(ts=now())=> localStorage.setItem(LAST_KEY, String(ts));
+  const remain=()=> Math.max(0, getLast()+COOLDOWN_MS - now());
+  const fmt = ms=>{ const s=Math.floor(ms/1000),h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor((s%3600)/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
 
-  // ===== Монеты/тост (используем глобальные, иначе фолбэк) =====
-  const COIN_KEY = 'beer_coins';
-  function getCoins(){ return +((localStorage.getItem(COIN_KEY)||'0')); }
-  function setCoins(v){ localStorage.setItem(COIN_KEY, String(Math.max(0, v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
-  function addCoins(n){ if (typeof window.addCoins==='function') return window.addCoins(n); setCoins(getCoins()+(n|0)); }
-  function toast(msg, type='ok'){ if (typeof window.showToast==='function') return showToast(msg, type, 3000); alert(msg); }
-  function haptic(level='light'){ try{ TG?.HapticFeedback?.impactOccurred(level); }catch(_){ navigator.vibrate?.(10); } }
+  // ================== ВНУТРЕННЕЕ СОСТОЯНИЕ ==================
+  const state = { i:0, canNext:false, timer:null, mounted:false };
+  const elBody = () => document.getElementById('trivia-body');
 
-  // ===== Вспомогательные =====
-  const now = () => Date.now();
-  const getLast = () => +(localStorage.getItem(LAST_KEY) || 0);
-  const setLast = (ts=now()) => localStorage.setItem(LAST_KEY, String(ts));
-  const remain  = () => Math.max(0, getLast() + COOLDOWN_MS - now());
-  const fmtClock = (ms)=>{ const s=Math.floor(ms/1000); const h=String(Math.floor(s/3600)).padStart(2,'0'); const m=String(Math.floor((s%3600)/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
-
-  const state = { i:0, done:false, timer:null, mounted:false };
-  const body  = () => document.getElementById('trivia-body');
-
-  // ===== Рендеры =====
+  // ================== РЕНДЕРЫ ==================
   function renderCooldown(){
-    const box = body(); if(!box) return;
+    const box = elBody(); if (!box) return;
     const ms = remain();
-    box.innerHTML = `
-      <div class="trivia-q">
-        <div class="trivia-title">Викторина недоступна</div>
-        <div class="trivia-cooldown">
-          <span class="trivia-muted">Следующая попытка через</span>
-          <span class="trivia-count" id="trivia-count">${fmtClock(ms)}</span>
-        </div>
-        <p class="trivia-muted">Пока ждёшь — играй и крути колесо 🟡</p>
-      </div>
-    `;
-    clearInterval(state.timer);
-    const label = document.getElementById('trivia-count');
-    state.timer = setInterval(()=>{
+    box.innerHTML =
+      '<div class="trivia-q">'
+      +  '<div class="trivia-title">Викторина недоступна</div>'
+      +  '<div class="trivia-cooldown">'
+      +    '<span class="trivia-muted">Следующая попытка через</span>'
+      +    '<span class="trivia-count" id="trivia-count">'+fmt(ms)+'</span>'
+      +  '</div>'
+      +  '<p class="trivia-muted">Пока ждёшь — играй в мини-игры и крути колесо.</p>'
+      +'</div>';
+
+    if (state.timer) { clearInterval(state.timer); state.timer=null; }
+    const lbl = document.getElementById('trivia-count');
+    state.timer = setInterval(function(){
       const r = remain();
-      if (r>0) label.textContent = fmtClock(r);
-      else { clearInterval(state.timer); startQuiz(true); }
+      if (r>0){ if (lbl) lbl.textContent = fmt(r); }
+      else { clearInterval(state.timer); state.timer=null; startQuiz(true); }
     }, 1000);
   }
 
   function renderQuestion(){
-    const box = body(); if(!box) return;
+    const box = elBody(); if (!box) return;
     const q = TRIVIA_QUESTIONS[state.i];
     const total = TRIVIA_QUESTIONS.length;
+    state.canNext = false;
 
-    box.innerHTML = `
-      <div class="trivia-q">
-        <div class="trivia-title">Вопрос ${state.i+1} из ${total}: ${q.q}</div>
-        <div class="trivia-opts">
-          ${q.opts.map((t,idx)=>`
-            <label class="trivia-opt" data-idx="${idx}">
-              <input type="radio" name="ans" value="${idx}">
-              <span>${t}</span>
-            </label>`).join('')}
-        </div>
-        <div class="trivia-cta">
-          <button class="btn btn-primary trivia-next" data-action="trivia-next">Далее</button>
-        </div>
-      </div>
-    `;
-    box.querySelector('.trivia-next').classList.remove('show'); // скрыта до правильного ответа
+    // разметка вопроса
+    var html = '<div class="trivia-q">'
+             +   '<div class="trivia-title">Вопрос '+(state.i+1)+' из '+total+': '+q.q+'</div>'
+             +   '<div class="trivia-opts">';
+    for (var idx=0; idx<q.opts.length; idx++){
+      html +=   '<label class="trivia-opt" data-idx="'+idx+'">'
+             +     '<input type="radio" name="ans" value="'+idx+'"><span>'+q.opts[idx]+'</span>'
+             +   '</label>';
+    }
+    html +=    '</div>'
+             +  '<div class="trivia-cta">'
+             +    '<button class="btn btn-primary trivia-next is-hidden" data-action="trivia-next" disabled>Далее</button>'
+             +  '</div>'
+             +'</div>';
+
+    box.innerHTML = html;
   }
 
   function finishQuiz(){
-    state.done = true;
     addCoins(REWARD_COINS);
-    toast(`Начислено ${REWARD_COINS} 🪙`, 'ok');
-    haptic('light');
-    setLast(); // стартуем 24ч кулдаун
+    logPrize('+'+REWARD_COINS+'🪙 за викторину');
+    setLast(); haptic('light');
 
-    const box = body(); if(!box) return;
-    box.innerHTML = `
-      <div class="trivia-q">
-        <div class="trivia-title">Готово!</div>
-        <p>Вы ответили на все вопросы. На счёт зачислено <b>${REWARD_COINS} 🪙</b>.</p>
-      </div>
-    `;
-    setTimeout(renderCooldown, 1400);
+    const box = elBody(); if (!box) return;
+    box.innerHTML =
+      '<div class="trivia-q">'
+      +  '<div class="trivia-title">Готово!</div>'
+      +  '<p>Вы ответили на все вопросы. На счёт зачислено <b>'+REWARD_COINS+' 🪙</b>.</p>'
+      +'</div>';
+
+    setTimeout(renderCooldown, 4400);
   }
 
-  function startQuiz(force=false){
-    clearInterval(state.timer);
-    state.i=0; state.done=false;
+  function startQuiz(force){
+    if (state.timer) { clearInterval(state.timer); state.timer=null; }
+    state.i = 0; state.canNext = false;
     if (!force && remain()>0){ renderCooldown(); return; }
     renderQuestion();
   }
 
-  // ===== Слушатели (один раз) =====
-  if (!window.__triviaClicksBound){
-    document.addEventListener('click', (e)=>{
-      const box = body(); if(!box) return;
-      if (state.done) return;
+  // ================== СЛУШАТЕЛИ (глобальный делегат, 1 раз) ==================
+  if (!window.__beerTriviaBound){
+    document.addEventListener('click', function(e){
+      const box = elBody(); if (!box) return;
 
-      // выбор варианта
-      const opt = e.target.closest('.trivia-opt');
+      // Выбор варианта
+      const opt = e.target.closest ? e.target.closest('.trivia-opt') : null;
       if (opt && box.contains(opt)){
-        const pick = +opt.dataset.idx;
-        const ok   = TRIVIA_QUESTIONS[state.i].ok;
+        var pick = parseInt(opt.getAttribute('data-idx'),10);
+        var ok   = TRIVIA_QUESTIONS[state.i].ok;
 
         // сброс подсветок
-        box.querySelectorAll('.trivia-opt').forEach(el=> el.classList.remove('wrong','correct'));
+        var all = box.querySelectorAll('.trivia-opt');
+        for (var i=0;i<all.length;i++){ all[i].classList.remove('wrong'); all[i].classList.remove('correct'); }
 
+        var nextBtn = box.querySelector('.trivia-next');
         if (pick === ok){
           opt.classList.add('correct');
-          box.querySelectorAll('.trivia-opt').forEach(el=> el.style.pointerEvents='none');
-          box.querySelector('.trivia-next')?.classList.add('show');
-          haptic('light');
+          for (var j=0;j<all.length;j++){ all[j].style.pointerEvents='none'; }
+          if (nextBtn){ nextBtn.classList.remove('is-hidden'); nextBtn.disabled=false; }
+          state.canNext = true; haptic('light');
         }else{
           opt.classList.add('wrong');
-          haptic('medium');
+          if (nextBtn){ nextBtn.classList.add('is-hidden'); nextBtn.disabled=true; }
+          state.canNext = false; haptic('medium');
         }
         return;
       }
 
-      // Далее
-      if (e.target.closest('[data-action="trivia-next"]')){
+      // Далее (строго только после верного ответа)
+      const next = e.target.closest ? e.target.closest('[data-action="trivia-next"]') : null;
+      if (next && box.contains(next)){
         e.preventDefault();
-        if (state.i < TRIVIA_QUESTIONS.length-1){ state.i++; renderQuestion(); }
-        else { finishQuiz(); }
+        if (!state.canNext) return;
+        if (state.i < TRIVIA_QUESTIONS.length - 1){
+          state.i++; renderQuestion();
+        }else{
+          finishQuiz();
+        }
       }
     });
-    window.__triviaClicksBound = true;
+    window.__beerTriviaBound = true;
   }
 
-  // ===== Автомонтирование (фикс пустого экрана) =====
-  function mountWhenReady(){
-    const el = body();
-    if (el && !state.mounted){
-      state.mounted = true;
-      startQuiz(); // покажем вопрос или кулдаун
-      return true;
-    }
+  // ================== НАДЁЖНОЕ МОНТИРОВАНИЕ ПРИ ОТКРЫТИИ ШТОРКИ ==================
+  function tryMount(){
+    const bodyEl = elBody();
+    if (bodyEl){ startQuiz(false); return true; }
     return false;
   }
 
-  // 1) если #trivia-body уже есть — монтируем сразу
-  if (!mountWhenReady()){
-    // 2) иначе ждём появления в DOM (шторка/темплейт подставится позднее)
-    const mo = new MutationObserver(()=>{ if (mountWhenReady()) mo.disconnect(); });
-    mo.observe(document.body, { childList:true, subtree:true });
+  // 1) сразу, если контейнер уже есть
+  if (!tryMount()){
+    // 2) ждём появления в DOM (темплейт/шторка вставят позже)
+    const mo = new MutationObserver(function(){
+      if (tryMount()) mo.disconnect();
+    });
+    mo.observe(document.documentElement, {childList:true, subtree:true});
   }
 
-  // 3) экспорт ручного вызова (если хочешь дергать при открытии шторки)
-  window.mountTrivia = (force=false)=>{ state.mounted=true; startQuiz(force); };
+  // экспорт ручного вызова на случай, если хочешь дергать из кода открытия шторки
+  window.mountTrivia = function(force){ startQuiz(!!force); };
 
 })();
+
+/* Горячий фикс: при каждом открытии любой шторки проверяем, появился ли #trivia-body,
+   и запускаем квиз. Работает даже если твой openSheet в другом модуле. */
+(function(){
+  let t = null;
+  function mountDebounced(){
+    clearTimeout(t);
+    t = setTimeout(()=> {
+      if (document.getElementById('trivia-body')) {
+        window.mountTrivia?.(false); // старт или кулдаун
+      }
+    }, 0);
+  }
+
+  // 1) Клик по любой кнопке, которая открывает шторку
+  document.addEventListener('click', (e)=>{
+    if (e.target.closest('[data-open-sheet]')) mountDebounced();
+  }, true);
+
+  // 2) Подстраховка: следим за DOM и монтируем каждый раз, как #trivia-body появляется
+  const mo = new MutationObserver(()=>{
+    if (document.getElementById('trivia-body')) mountDebounced();
+  });
+  mo.observe(document.body, { childList:true, subtree:true });
+})();
+
 </script>
+
 
 
 
