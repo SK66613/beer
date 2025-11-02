@@ -1500,7 +1500,7 @@ body.flappy-open{ overflow:hidden; }
 <div class="panel panel--prizes">
   <div class="panel__head">
  
-    <div class="panel__title">Последние призы</div>
+    <div class="panel__title">Последние призы ➕</div>
   </div>
 
   <div class="ticker js-ticker">
@@ -3076,7 +3076,7 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
     const log = getJSON(PRIZES_KEY, []) || [];
     if (!log.length){ wrap.innerHTML = '<div class="pf-muted">Пока пусто. Крути колесо или участвуй в играх.</div>'; return; }
     wrap.innerHTML = log.slice(0,6).map(x =>
-      `<div class="pf-item"><i class="pf-dot"></i><div>✅ ${esc(x.name)}</div><div class="pf-muted">📅 ${fmtDate(x.ts)}</div></div>`
+      `<div class="pf-item"><i class="pf-dot"></i><div>🎁 ${esc(x.name)}</div><div class="pf-muted">📅 ${fmtDate(x.ts)}</div></div>`
     ).join('');
   }
 
