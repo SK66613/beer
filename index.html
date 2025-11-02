@@ -658,6 +658,107 @@ body.flappy-open{ overflow:hidden; }
 </style>
 
 
+<style>
+  /* Beer Passport */
+.card.passport{
+  display:grid;
+  grid-template-columns: 140px 1fr;
+  gap:12px;
+  align-items: stretch;
+}
+.passport__media{
+  border-radius:14px;
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  display:grid;
+  place-items:center;
+}
+.passport__media img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+.passport__body{ display:grid; gap:10px; }
+
+/* сетка штампов как и была, но чуть плотнее */
+#passport-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:8px;
+}
+.stamp{
+  display:grid; place-items:center;
+  padding:10px; border-radius:12px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.05);
+  font-weight:800; font-size:13px; text-align:center;
+  opacity:.85;
+}
+.stamp.is-done{
+  background:rgba(55,214,122,.16);
+  border-color:rgba(55,214,122,.4);
+  opacity:1;
+}
+
+/* мобильная адаптация: картинка сверху */
+@media (max-width:520px){
+  .card.passport{ grid-template-columns: 1fr; }
+  .passport__media{ height: 160px; } /* фикс высота превью */
+}
+
+</style>
+
+<style>
+  /* Trivia Викторина */
+
+.trivia-q{ display:grid; gap:12px; }
+.trivia-title{ font-weight:800; }
+.trivia-opts{ display:grid; gap:8px; }
+.trivia-opt{
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); cursor:pointer; user-select:none;
+  transition:.15s ease;
+}
+.trivia-opt input{ display:none; }
+.trivia-opt.correct{ border-color:rgba(55,214,122,.45); background:rgba(55,214,122,.14); }
+.trivia-opt.wrong{   border-color:rgba(255,107,107,.45); background:rgba(255,107,107,.10); }
+.trivia-cta{ display:flex; gap:10px; }
+.trivia-next{ display:none; }
+.trivia-next.show{ display:inline-flex; }
+.trivia-muted{ opacity:.8; }
+.trivia-cooldown{
+  display:flex; align-items:center; justify-content:space-between;
+  border:1px dashed rgba(255,255,255,.18); border-radius:12px; padding:12px 14px;
+}
+.trivia-count{ font-weight:800; }
+
+/* ровная центровка текста на кнопках */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;           /* не наследуем от body */
+  vertical-align:middle;
+  gap:8px;
+}
+
+/* конкретно для кнопки "Далее" — можно сделать чуть выше */
+.trivia-cta{ display:flex; align-items:center; gap:10px; } /* выровнять ряд */
+.trivia-next.btn{
+  height:42px;             /* одна высота */
+  padding:0 16px;
+  font-weight:800;
+}
+
+/* если было ощущение "прыгает при тапе" — отключи смещение */
+.trivia-next.btn:active{ transform:none; }
+
+
+</style>
+
 </head>
 <body>
 
@@ -673,12 +774,14 @@ body.flappy-open{ overflow:hidden; }
     </nav>
 
     <main>
+
+
 <!-- ТОСТ Окошко поп апп всплывающее -->
-      <div id="toasts" class="toasts" aria-live="polite"></div>
+<div id="toasts" class="toasts" aria-live="polite"></div>
 
 
 
-      <!-- Слайды Slider -->
+<!-- Слайды Slider -->
 
 <div id="intro" class="intro" aria-hidden="true" role="dialog" aria-modal="true">
   <div class="intro__wrap">
@@ -718,6 +821,7 @@ body.flappy-open{ overflow:hidden; }
 
 
 <!-- FLAPPY LITE+ ШМЕЛЬ (overlay) -->
+
 <div id="flappy" class="flappy" aria-hidden="true" role="dialog" aria-modal="true">
   <div class="flappy__wrap">
     <!-- HUD -->
@@ -762,107 +866,66 @@ body.flappy-open{ overflow:hidden; }
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-      <!-- Bottom Sheet -->
+<!-- Bottom Sheet -->
+ 
       <div id="sheet" class="sheet sheet-bottom" aria-hidden="true" role="dialog" aria-modal="true">
         <div class="sheet__overlay" data-close-sheet></div>
         <section class="sheet__panel" tabindex="-1">
           <div class="sheet__handle"></div>
           <header class="sheet__header">
-            <h3 class="sheet__title">Заголовок</h3>
-            <button class="sheet__close" aria-label="Закрыть" data-close-sheet>✕</button>
+<!-- ===== <h3 class="sheet__title">Заголовок</h3> ===== -->
+            <button class="sheet__close" aria-label="Закрыть" data-close-sheet>❌</button>
           </header>
           <div class="sheet__body" id="sheet-body"></div>
         </section>
       </div>
 
       <!-- ===== Templates for sheets ===== -->
-      <template id="tpl-cap-toss">
-        <div class="card">
-          <div class="h1">Cap Toss — брось крышку!</div>
-          <p class="muted-sm">За 30 секунд накидай очков. Попадания → коины. Античит, вибро, конфетти — всё как любим.</p>
-          <div class="g g2">
-            <button class="btn btn-primary" data-action="start-cap">Старт (30 сек)</button>
-            <button class="btn" data-action="cap-help">Правила</button>
-          </div>
-          <div id="cap-area">
-            <canvas id="cap-canvas"></canvas>
-            <div class="cap-msg">Свайпни/тапни, чтобы бросить крышку</div>
-          </div>
-          <div class="g g3" style="margin-top:10px">
-            <div class="card" style="text-align:center">
-              <div class="muted-sm">Очки</div>
-              <div id="cap-score" class="h1">0</div>
-            </div>
-            <div class="card" style="text-align:center">
-              <div class="muted-sm">Броски</div>
-              <div id="cap-shots" class="h1">0/15</div>
-            </div>
-            <div class="card" style="text-align:center">
-              <div class="muted-sm">Время</div>
-              <div id="cap-time" class="h1">00:30</div>
-            </div>
-          </div>
-        </div>
-      </template>
 
-      <template id="tpl-passport">
-        <div class="card">
-          <div class="h1">Пивной Паспорт стилей</div>
-          <p class="muted-sm">Собери 6 штампов (Lager, IPA, Stout, Weizen, Sour, Cider) — приз.</p>
-          <div class="g g3" id="passport-grid"></div>
-          <div class="g g2" style="margin-top:8px">
-            <button class="btn" data-action="add-stamp">Добавить штамп</button>
-            <button class="btn" data-action="reset-passport">Сбросить</button>
-          </div>
-        </div>
-      </template>
 
-      <template id="tpl-spin">
-        <div class="card">
-          <div class="h1">Колесо Пива — ежедневный спин</div>
-          <div id="spin-state" class="muted-sm">Проверяем кулдаун…</div>
-          <div class="g" style="margin-top:8px">
-            <button class="btn btn-primary" data-action="spin">Крутить</button>
-            <div class="meter"><i id="coin-meter"></i></div>
-            <div><span class="badge badge--amber">Коины: <b id="coins">0</b></span></div>
-          </div>
-          <div id="spin-log" class="muted-sm" style="margin-top:8px"></div>
-        </div>
-      </template>
+<template id="tpl-passport">
+  <div class="card passport">
+    <!-- Левая колонка: картинка -->
+    <figure class="passport__media">
+      <!-- Положи свой файл, например img/beer-passport.jpg -->
+      <img src="beer_hero.jpg" alt="Пивной паспорт">
+    </figure>
 
-      <template id="tpl-trivia">
-        <div class="card">
-          <div class="h1">Викторина «Угадай стиль»</div>
-          <form id="trivia-form" class="g">
-            <!-- вопросы будут подставлены JS -->
-          </form>
-          <div class="g g2" style="margin-top:8px">
-            <button class="btn btn-primary" data-action="submit-trivia">Сдать</button>
-            <button class="btn" data-action="reset-trivia">Сброс</button>
-          </div>
-          <div id="trivia-result" class="muted-sm" style="margin-top:8px"></div>
-        </div>
-      </template>
+    <!-- Правая колонка: контент -->
+    <div class="passport__body">
+      <div>
+        <div class="h1" style="margin:0 0 6px">Пивной Паспорт стилей</div>
+        <p class="muted-sm" style="margin:0">
+          Собери 6 штампов: <b>Lager</b>, <b>IPA</b>, <b>Stout</b>, <b>Weizen</b>, <b>Sour</b>, <b>Cider</b> — приз.
+        </p>
+      </div>
+
+      <div id="passport-grid">
+        <!-- JS сюда отрисует .stamp элементы -->
+      </div>
+
+      <div class="g g2" style="margin-top:4px">
+        <button class="btn btn-primary" data-action="add-stamp">Добавить штамп</button>
+<!-- <button class="btn" data-action="reset-passport">Сбросить</button>-->
+      </div>
+    </div>
+  </div>
+</template>
+
+
+
+<template id="tpl-trivia">
+  <div class="card trivia-card">
+    <div class="h1">Викторина «Угадай стиль»</div>
+    <div id="trivia-body"></div>
+  </div>
+</template>
+
 
       <template id="tpl-ref">
         <div class="card">
           <div class="h1">Пригласи друзей</div>
-          <p class="muted-sm">За друга — +100 коинов. За 3 друзей — мини‑дегустация.</p>
+          <p class="muted-sm">За друга — +100 монет. За 3 друзей — мини‑дегустация.</p>
           <div class="g">
             <input id="ref-link" class="btn" readonly value="" />
             <div class="g g2">
@@ -873,22 +936,9 @@ body.flappy-open{ overflow:hidden; }
         </div>
       </template>
 
-      <template id="tpl-receipt">
-        <div class="card">
-          <div class="h1">Добавить визит (серия 3 за 30)</div>
-          <div class="g g2">
-            <input id="rcp-amount" class="btn" inputmode="decimal" placeholder="Сумма чека" />
-            <button class="btn btn-primary" data-action="add-visit">Добавить</button>
-          </div>
-          <div style="margin-top:8px">
-            <div class="muted-sm">Прогресс:</div>
-            <div class="meter"><i id="visits-meter" style="width:0%"></i></div>
-            <div class="muted-sm"><span id="visits-count">0</span>/3 в последние 30 дней</div>
-          </div>
-        </div>
-      </template>
 
-      <!-- ===== PAGES Страницы ===== -->
+<!-- ===== PAGES Страницы ===== -->
+
       <section class="page" id="home">
         <div class="hero">
           <img class="hero__media" src="beer_hero.jpg" alt="Beer Hero">
@@ -911,7 +961,7 @@ body.flappy-open{ overflow:hidden; }
             <div class="list__item">
               <div class="list__icon"><img src="ic_services.png" alt=""></div>
               <div class="list__text">
-                <div class="list__title">Пивной Паспорт</div>
+                <div class="list__title">Паспорт стилей</div>
                 <div class="list__sub">Собери 6 штампов — подарок</div>
               </div>
               <button class="list__chev-btn" data-open-sheet data-title="Пивной Паспорт" data-tpl="#tpl-passport">›</button>
@@ -919,16 +969,16 @@ body.flappy-open{ overflow:hidden; }
             <div class="list__item">
               <div class="list__icon"><img src="ic_bonus.png" alt=""></div>
               <div class="list__text">
-                <div class="list__title">Ежедневный спин</div>
-                <div class="list__sub">Кулдаун 24 ч, мелкие призы</div>
+                <div class="list__title">Викторина</div>
+                <div class="list__sub">Проверь свои пивные знания</div>
               </div>
-              <button class="list__chev-btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">›</button>
+              <button class="list__chev-btn" data-open-sheet data-title="Викторина" data-tpl="#tpl-trivia">›</button>
             </div>
             <div class="list__item">
               <div class="list__icon"><img src="ic_about.png" alt=""></div>
               <div class="list__text">
                 <div class="list__title">Пригласи друзей</div>
-                <div class="list__sub">+100 коинов за друга</div>
+                <div class="list__sub">Дарим +100 монет за друга</div>
               </div>
               <button class="list__chev-btn" data-open-sheet data-title="Рефералы" data-tpl="#tpl-ref">›</button>
             </div>
@@ -1024,15 +1074,7 @@ body.flappy-open{ overflow:hidden; }
   </div>
 </section>
 
-      <section class="page" id="games">
-        <div class="card page-title">
-          <div class="h1">Игры</div>
-          <div class="g g2">
-            <button class="btn btn-primary" data-open-sheet data-title="Cap Toss" data-tpl="#tpl-cap-toss">Cap Toss</button>
-            <button class="btn" data-open-sheet data-title="Колесо Пива" data-tpl="#tpl-spin">Колесо Пива</button>
-          </div>
-        </div>
-      </section>
+
 
 <!-- BONUSES -->
   <section class="page" id="bonuses">
@@ -1275,42 +1317,6 @@ body.flappy-open{ overflow:hidden; }
       syncCoins();
     }
 
-    // ===== Spin logic =====
-    const PRIZES = [
-      {code:'nuts', title:'Орешки', coins:50, weight:25},
-      {code:'-5',   title:'Купон -5%', coins:80, weight:20},
-      {code:'sticker', title:'Стикер', coins:40, weight:22},
-      {code:'x2',   title:'x2 коины за следующий чек (48ч)', coins:0, weight:14},
-      {code:'-10',  title:'Купон -10% (48ч)', coins:120, weight:10},
-      {code:'rare', title:'Редкая банка (чеком подтвердить)', coins:200, weight:9},
-    ];
-    function rollPrize(){
-      const total = PRIZES.reduce((s,p)=>s+p.weight,0); let r = Math.random()*total; for(const p of PRIZES){ if((r-=p.weight)<=0) return p; } return PRIZES[0];
-    }
-    function initSpin(){
-      const next = store.get(SKEY.spinAt,0);
-      const el = document.getElementById('spin-state');
-      updateSpinState(el, next);
-    }
-    function updateSpinState(el, next){
-      const now = store.now();
-      if (now >= next){ el.textContent = 'Готово к вращению'; } else {
-        const left = Math.max(0, next - now); const h = Math.floor(left/3600000); const m = Math.floor((left%3600000)/60000);
-        el.textContent = `Кулдаун: ${h}ч ${m}м`;
-      }
-    }
-    function handleSpin(){
-      const el = document.getElementById('spin-state'); const next = store.get(SKEY.spinAt,0); const now = store.now();
-      if (now < next){ haptic('light'); alert(el?.textContent || 'Кулдаун'); return; }
-      const prize = rollPrize();
-      addCoins(prize.coins);
-      logReward({source:'spin', prize:prize.title});
-      confettiBurst(160, 1100); haptic('light');
-      document.getElementById('spin-log')?.insertAdjacentHTML('afterbegin', `<div>🎉 Вы выиграли: <b>${prize.title}</b> (+${prize.coins}🪙)</div>`);
-      const newNext = now + APP.COOLDOWN_SPIN_HOURS*3600000;
-      store.set(SKEY.spinAt, newNext);
-      updateSpinState(el, newNext);
-    }
 
     // ===== Rewards feed =====
     function logReward(rec){ const r = store.get(SKEY.rewards,[]); r.unshift({ts:Date.now(),...rec}); store.set(SKEY.rewards,r); renderRewards(); }
@@ -1338,26 +1344,6 @@ body.flappy-open{ overflow:hidden; }
     }
     function resetPassport(){ store.set(SKEY.passport, {}); renderPassport(); }
 
-    // ===== Trivia =====
-    const TRIVIA = [
-      {q:'Какой стиль обычно мутный и бананово‑гвоздичный?', a:['Lager','Weizen','Stout'], ok:1},
-      {q:'IBU — это…', a:['Горечь','Плотность','Цвет'], ok:0},
-      {q:'Что чаще даёт тропики?', a:['Американский хмель','Лагерные дрожжи','Солод Pilsner'], ok:0},
-      {q:'Stout ассоциируют с нотами…', a:['Кофе/шоколад','Лайм','Зелёное яблоко'], ok:0},
-      {q:'Sour — это…', a:['Кислое','Супергорькое','Дымное'], ok:0},
-    ];
-    function renderTrivia(){
-      const f = document.getElementById('trivia-form'); if (!f) return;
-      f.innerHTML = TRIVIA.slice(0,APP.MAX_TRIVIA).map((t,i)=>{
-        return `<div class="card"><div style="font-weight:700">${i+1}. ${t.q}</div>${t.a.map((opt,idx)=>`<label style="display:block; margin-top:6px"><input type="radio" name="q${i}" value="${idx}"> ${opt}</label>`).join('')}</div>`;
-      }).join('');
-    }
-    function submitTrivia(){
-      let score=0; for(let i=0;i<APP.MAX_TRIVIA;i++){ const v = (new FormData(document.getElementById('trivia-form'))).get('q'+i); if (v!=null && +v===TRIVIA[i].ok) score++; }
-      const res = document.getElementById('trivia-result'); res.textContent = `Верных ответов: ${score}/${APP.MAX_TRIVIA}`;
-      if (score>=4){ addCoins(120); logReward({source:'trivia', prize:'Купон -10% (48ч)'}); confettiBurst(); haptic('light'); }
-    }
-    function resetTrivia(){ renderTrivia(); document.getElementById('trivia-result').textContent=''; }
 
     // ===== Referrals =====
     function initRef(){
@@ -1369,176 +1355,7 @@ body.flappy-open{ overflow:hidden; }
     async function copyRef(){ const el = document.getElementById('ref-link'); if(!el) return; el.select(); document.execCommand?.('copy'); try{ await navigator.clipboard.writeText(el.value); }catch{} haptic('light'); }
     async function shareRef(){ const el = document.getElementById('ref-link'); if(!el) return; const txt = 'Залетай в пивной мини‑апп и забери приз! '+el.value; try{ await navigator.share?.({text:txt}); }catch{ try{ await navigator.clipboard.writeText(el.value);}catch{} } haptic('light'); }
 
-    // ===== Visits (3 in 30 days) =====
-    function renderVisits(){
-      const list = store.get(SKEY.visits,[]).filter(x=> Date.now()-x.ts < 30*24*3600000);
-      const cnt = list.length; const pct = Math.min(100, cnt/3*100);
-      const m = document.getElementById('visits-meter'); if (m) m.style.width = pct+'%';
-      const c = document.getElementById('visits-count'); if (c) c.textContent = cnt;
-    }
-    function addVisit(){
-      const v = store.get(SKEY.visits,[]); const amt = parseFloat(document.getElementById('rcp-amount').value||'0')||0; v.push({ts:Date.now(), amount:amt}); store.set(SKEY.visits,v); renderVisits(); addCoins(80); logReward({source:'visit', prize:'Шаг серии 3 за 30'}); if (v.filter(x=> Date.now()-x.ts < 30*24*3600000).length>=3){ logReward({source:'series', prize:'Спин «Колеса Пива»'}); confettiBurst(200,1200); }
-    }
 
-    // ===== Cap Toss (canvas visual demo with cups) =====
-    let cap = {on:false, shots:0, score:0, t0:0, dur:30000, max:15};
-    let capVis = null; // визуальное состояние (canvas)
-
-    function initCapUI(){
-      const sEl = document.getElementById('cap-score'); if (sEl) sEl.textContent='0';
-      const shEl = document.getElementById('cap-shots'); if (shEl) shEl.textContent='0/'+cap.max;
-      const tEl = document.getElementById('cap-time'); if (tEl) tEl.textContent='00:30';
-
-      const canvas = document.getElementById('cap-canvas');
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      function resize(){
-        const r = canvas.getBoundingClientRect();
-        canvas.width = Math.max(320, Math.floor(r.width*devicePixelRatio));
-        canvas.height= Math.max(200, Math.floor(r.height*devicePixelRatio));
-      }
-      resize();
-
-      // три «кружки» (таргеты)
-      const W = ()=>canvas.width, H = ()=>canvas.height;
-      const cups = [
-        {x:()=>W()*0.25, y:()=>H()*0.22, r:()=>28*devicePixelRatio, pts:100, color:'#f9b24d', name:'Lager'},
-        {x:()=>W()*0.50, y:()=>H()*0.18, r:()=>28*devicePixelRatio, pts:150, color:'#ffd59c', name:'IPA'},
-        {x:()=>W()*0.75, y:()=>H()*0.22, r:()=>28*devicePixelRatio, pts:200, color:'#f29117', name:'Stout'},
-      ];
-
-      capVis = { canvas, ctx, cups, proj:null, lastT:0, animId:0, resize };
-
-      // первичный рендер
-      drawCapScene();
-      window.addEventListener('resize', ()=>{ resize(); drawCapScene(); }, {passive:true});
-    }
-
-    function drawCapScene(){
-      if (!capVis) return;
-      const {canvas, ctx, cups, proj} = capVis;
-      const W = canvas.width, H = canvas.height;
-      ctx.clearRect(0,0,W,H);
-
-      // фон
-      const grd = ctx.createLinearGradient(0,0,0,H);
-      grd.addColorStop(0,'rgba(255,255,255,0.06)');
-      grd.addColorStop(1,'rgba(255,255,255,0.00)');
-      ctx.fillStyle = grd; ctx.fillRect(0,0,W,H);
-
-      // чашки/мишени
-      cups.forEach((c,i)=>{
-        ctx.beginPath(); ctx.arc(c.x(), c.y(), c.r(), 0, Math.PI*2);
-        ctx.fillStyle = c.color; ctx.globalAlpha = 0.18; ctx.fill();
-        ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.stroke();
-        ctx.font = `${12*devicePixelRatio}px Inter`; ctx.textAlign='center'; ctx.fillStyle = 'rgba(255,255,255,.85)';
-        ctx.fillText(c.name, c.x(), c.y() - (c.r()+8*devicePixelRatio));
-        ctx.fillText('+'+c.pts, c.x(), c.y() + (c.r()+14*devicePixelRatio));
-      });
-
-      // projectile (крышка)
-      if (proj){
-        ctx.beginPath(); ctx.arc(proj.x, proj.y, 10*devicePixelRatio, 0, Math.PI*2);
-        ctx.fillStyle = '#fff'; ctx.shadowColor='rgba(255,255,255,.6)'; ctx.shadowBlur=8*devicePixelRatio; ctx.fill(); ctx.shadowBlur=0;
-      }
-    }
-
-    function startCapToss(){
-      cap = {on:true, shots:0, score:0, t0:Date.now(), dur:30000, max:15};
-      updateCapTime(); syncCapHUD();
-      const area = document.getElementById('cap-area'); if(!area) return;
-
-      // сброс слушателей и скрытие подсказки
-      const clone = area.cloneNode(true); area.parentNode.replaceChild(clone, area);
-      const box = document.getElementById('cap-area');
-      box.querySelector('.cap-msg')?.remove();
-
-      // Убедимся, что канвас проинициализирован
-      initCapUI();
-
-      let down = null;
-      const onDown = (e)=>{ down = {x:e.clientX, y:e.clientY, t:performance.now()}; };
-      const onUp = (e)=>{ if (!cap.on) return; throwCap(down, {x:e.clientX, y:e.clientY, t:performance.now()}); };
-
-      ['pointerdown','touchstart','mousedown'].forEach(ev=> box.addEventListener(ev, onDown, {passive:true}));
-      ['pointerup','touchend','mouseup','click'].forEach(ev=> box.addEventListener(ev, onUp, {passive:true}));
-
-      setTimeout(finishCap, cap.dur+120);
-    }
-
-    function throwCap(start, end){
-      if (cap.shots>=cap.max) return;
-      cap.shots++;
-
-      // Начальная позиция — нижний центр
-      const {canvas} = capVis; const W = canvas.width, H = canvas.height;
-      const sx = W*0.5, sy = H*0.86;
-
-      // Скорость из жеста, fallback — фиксированный вектор вверх
-      const dx = (end?.x||0) - (start?.x||0);
-      const dy = (end?.y||0) - (start?.y||0);
-      const dt = Math.max(1, (end?.t||0) - (start?.t||0));
-      const speed = Math.min(1.8, Math.hypot(dx,dy)/Math.max(60,dt));
-      const ang = Math.atan2(-Math.abs(dy)||-1, dx||0) || -1.2; // угол полёта (вверх)
-
-      const v0 = (260 + Math.random()*90) * devicePixelRatio * (0.6 + 0.4*speed);
-      const vx = v0 * Math.cos(ang) * 0.016; // px per frame
-      const vy = v0 * Math.sin(ang) * 0.016;
-      const g  = 9.8 * devicePixelRatio * 0.12; // gravity per frame
-
-      capVis.proj = {x:sx, y:sy, vx, vy, g};
-      haptic('light');
-      animateProjectile();
-    }
-
-    function animateProjectile(){
-      if (!capVis?.proj) return;
-      const {canvas, cups} = capVis;
-      const p = capVis.proj;
-      const step = ()=>{
-        if (!cap.on) return; // игра завершена
-        // update
-        p.x += p.vx; p.y += p.vy; p.vy += p.g;
-        // collide with cups
-        for(const c of cups){
-          const dx = p.x - c.x(); const dy = p.y - c.y(); const hit = Math.hypot(dx,dy) <= c.r()+10*devicePixelRatio;
-          if (hit){
-            cap.score += c.pts;
-            confettiBurst(80,700); haptic('light');
-            capVis.proj = null; // остановить
-            syncCapHUD();
-            drawCapScene();
-            return; // бросок завершён
-          }
-        }
-        // out of bounds
-        if (p.y < 0 || p.x< -20*devicePixelRatio || p.x > canvas.width+20*devicePixelRatio || p.y > canvas.height+10*devicePixelRatio){
-          capVis.proj = null; drawCapScene(); return;
-        }
-        drawCapScene();
-        capVis.animId = requestAnimationFrame(step);
-      };
-      cancelAnimationFrame(capVis.animId); capVis.animId = requestAnimationFrame(step);
-    }
-
-    function syncCapHUD(){
-      const sh = document.getElementById('cap-shots'); if (sh) sh.textContent = cap.shots+'/'+cap.max;
-      const sc = document.getElementById('cap-score'); if (sc) sc.textContent = cap.score;
-    }
-    function updateCapTime(){
-      if(!cap.on) return;
-      const left = Math.max(0, cap.dur - (Date.now()-cap.t0));
-      const s = Math.ceil(left/1000); const mm = String(Math.floor(s/60)).padStart(2,'0'); const ss = String(s%60).padStart(2,'0');
-      const el = document.getElementById('cap-time'); if (el) el.textContent = mm+':'+ss;
-      if (left>0) requestAnimationFrame(updateCapTime);
-    }
-    function finishCap(){
-      if(!cap.on) return; cap.on=false; capVis && cancelAnimationFrame(capVis.animId);
-      const bonus = Math.floor(cap.score/10);
-      addCoins(bonus);
-      logReward({source:'cap_toss', prize:`Очки ${cap.score} → +${bonus}🪙`});
-      confettiBurst(180,1200); haptic('light');
-    }
 
     // ===== Init state =====
     syncCoins(); renderRewards();
@@ -2352,7 +2169,7 @@ for (const it of items){
     requestAnimationFrame(tick);
   }
 
-  /* ================== Кошелёк монет ================== */
+  /* ================== Кошелёк монет БОНУСЫ РЕГУЛИРОВКА МОНЕТ  ================== */
   const COIN_KEY = 'beer_coins';
   const SPIN_COST = 1;
 
@@ -2548,6 +2365,176 @@ for (const it of items){
   syncCoinsUI();       // и с монетами
 })();
 </script>
+
+
+  
+ <script>
+(function(){
+  // ===== Настройки ====   /* Trivia Викторина */
+  const TRIVIA_QUESTIONS = [
+    { q: 'Какой стиль обычно самый хмельной и ароматный цитрусом?', opts: ['IPA','Lager','Weizen','Stout'], ok: 0 },
+    { q: 'У какого стиля выраженные кофейно-шоколадные ноты?',     opts: ['Sour','Stout','Pilsner','Cider'],     ok: 1 },
+    { q: 'Пшеничный немецкий стиль с бананом/гвоздикой — это…',    opts: ['Weizen','Porter','APA','Saison'],     ok: 0 },
+    { q: 'Кислотность — фишка стиля…',                             opts: ['Sour','Bock','Amber','Doppelbock'],   ok: 0 },
+  ];
+  const REWARD_COINS = 100;
+  const COOLDOWN_MS = 0.1 * 60 * 60 * 1000; // 24ч
+  const TG  = window.Telegram && window.Telegram.WebApp;
+  const UID = TG?.initDataUnsafe?.user?.id || 'anon';
+  const QUIZ_ID  = 'beer_trivia_v1';
+  const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
+
+  // ===== Монеты/тост (используем глобальные, иначе фолбэк) =====
+  const COIN_KEY = 'beer_coins';
+  function getCoins(){ return +((localStorage.getItem(COIN_KEY)||'0')); }
+  function setCoins(v){ localStorage.setItem(COIN_KEY, String(Math.max(0, v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
+  function addCoins(n){ if (typeof window.addCoins==='function') return window.addCoins(n); setCoins(getCoins()+(n|0)); }
+  function toast(msg, type='ok'){ if (typeof window.showToast==='function') return showToast(msg, type, 3000); alert(msg); }
+  function haptic(level='light'){ try{ TG?.HapticFeedback?.impactOccurred(level); }catch(_){ navigator.vibrate?.(10); } }
+
+  // ===== Вспомогательные =====
+  const now = () => Date.now();
+  const getLast = () => +(localStorage.getItem(LAST_KEY) || 0);
+  const setLast = (ts=now()) => localStorage.setItem(LAST_KEY, String(ts));
+  const remain  = () => Math.max(0, getLast() + COOLDOWN_MS - now());
+  const fmtClock = (ms)=>{ const s=Math.floor(ms/1000); const h=String(Math.floor(s/3600)).padStart(2,'0'); const m=String(Math.floor((s%3600)/60)).padStart(2,'0'); const ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
+
+  const state = { i:0, done:false, timer:null, mounted:false };
+  const body  = () => document.getElementById('trivia-body');
+
+  // ===== Рендеры =====
+  function renderCooldown(){
+    const box = body(); if(!box) return;
+    const ms = remain();
+    box.innerHTML = `
+      <div class="trivia-q">
+        <div class="trivia-title">Викторина недоступна</div>
+        <div class="trivia-cooldown">
+          <span class="trivia-muted">Следующая попытка через</span>
+          <span class="trivia-count" id="trivia-count">${fmtClock(ms)}</span>
+        </div>
+        <p class="trivia-muted">Пока ждёшь — играй и крути колесо 🟡</p>
+      </div>
+    `;
+    clearInterval(state.timer);
+    const label = document.getElementById('trivia-count');
+    state.timer = setInterval(()=>{
+      const r = remain();
+      if (r>0) label.textContent = fmtClock(r);
+      else { clearInterval(state.timer); startQuiz(true); }
+    }, 1000);
+  }
+
+  function renderQuestion(){
+    const box = body(); if(!box) return;
+    const q = TRIVIA_QUESTIONS[state.i];
+    const total = TRIVIA_QUESTIONS.length;
+
+    box.innerHTML = `
+      <div class="trivia-q">
+        <div class="trivia-title">Вопрос ${state.i+1} из ${total}: ${q.q}</div>
+        <div class="trivia-opts">
+          ${q.opts.map((t,idx)=>`
+            <label class="trivia-opt" data-idx="${idx}">
+              <input type="radio" name="ans" value="${idx}">
+              <span>${t}</span>
+            </label>`).join('')}
+        </div>
+        <div class="trivia-cta">
+          <button class="btn btn-primary trivia-next" data-action="trivia-next">Далее</button>
+        </div>
+      </div>
+    `;
+    box.querySelector('.trivia-next').classList.remove('show'); // скрыта до правильного ответа
+  }
+
+  function finishQuiz(){
+    state.done = true;
+    addCoins(REWARD_COINS);
+    toast(`Начислено ${REWARD_COINS} 🪙`, 'ok');
+    haptic('light');
+    setLast(); // стартуем 24ч кулдаун
+
+    const box = body(); if(!box) return;
+    box.innerHTML = `
+      <div class="trivia-q">
+        <div class="trivia-title">Готово!</div>
+        <p>Вы ответили на все вопросы. На счёт зачислено <b>${REWARD_COINS} 🪙</b>.</p>
+      </div>
+    `;
+    setTimeout(renderCooldown, 1400);
+  }
+
+  function startQuiz(force=false){
+    clearInterval(state.timer);
+    state.i=0; state.done=false;
+    if (!force && remain()>0){ renderCooldown(); return; }
+    renderQuestion();
+  }
+
+  // ===== Слушатели (один раз) =====
+  if (!window.__triviaClicksBound){
+    document.addEventListener('click', (e)=>{
+      const box = body(); if(!box) return;
+      if (state.done) return;
+
+      // выбор варианта
+      const opt = e.target.closest('.trivia-opt');
+      if (opt && box.contains(opt)){
+        const pick = +opt.dataset.idx;
+        const ok   = TRIVIA_QUESTIONS[state.i].ok;
+
+        // сброс подсветок
+        box.querySelectorAll('.trivia-opt').forEach(el=> el.classList.remove('wrong','correct'));
+
+        if (pick === ok){
+          opt.classList.add('correct');
+          box.querySelectorAll('.trivia-opt').forEach(el=> el.style.pointerEvents='none');
+          box.querySelector('.trivia-next')?.classList.add('show');
+          haptic('light');
+        }else{
+          opt.classList.add('wrong');
+          haptic('medium');
+        }
+        return;
+      }
+
+      // Далее
+      if (e.target.closest('[data-action="trivia-next"]')){
+        e.preventDefault();
+        if (state.i < TRIVIA_QUESTIONS.length-1){ state.i++; renderQuestion(); }
+        else { finishQuiz(); }
+      }
+    });
+    window.__triviaClicksBound = true;
+  }
+
+  // ===== Автомонтирование (фикс пустого экрана) =====
+  function mountWhenReady(){
+    const el = body();
+    if (el && !state.mounted){
+      state.mounted = true;
+      startQuiz(); // покажем вопрос или кулдаун
+      return true;
+    }
+    return false;
+  }
+
+  // 1) если #trivia-body уже есть — монтируем сразу
+  if (!mountWhenReady()){
+    // 2) иначе ждём появления в DOM (шторка/темплейт подставится позднее)
+    const mo = new MutationObserver(()=>{ if (mountWhenReady()) mo.disconnect(); });
+    mo.observe(document.body, { childList:true, subtree:true });
+  }
+
+  // 3) экспорт ручного вызова (если хочешь дергать при открытии шторки)
+  window.mountTrivia = (force=false)=>{ state.mounted=true; startQuiz(force); };
+
+})();
+</script>
+
+
+
 
 
 </body>
