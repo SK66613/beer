@@ -315,7 +315,7 @@ body.flappy-open{ overflow:hidden; }
 }
 
 /* HUD */
-.fl-hud{ width:100%; max-width:520px; margin:0 auto 8px; }
+.fl-hud{ width:100%; max-width:520px; margin:0 auto 8px; position:relative; z-index:30; } /* ↑ поверх сцены */
 .fl-hud__row{ display:grid; justify-items:center; gap:6px; }
 .fl-score{ font:900 clamp(28px,8vw,48px)/1 Inter,system-ui; text-shadow:0 2px 10px rgba(0,0,0,.25) }
 .fl-bar{ width:100%; height:4px; border-radius:999px; background:rgba(255,255,255,.18); overflow:hidden }
@@ -333,12 +333,14 @@ body.flappy-open{ overflow:hidden; }
 .fl-shield-bar>i{ display:block; height:100%; width:100%; background:#6be3ff; transform-origin:left center; }
 
 /* Stage */
-.fl-stage{ flex:1; position:relative; overflow:hidden; border-radius:16px;
+.fl-stage{
+  flex:1; position:relative; overflow:hidden; border-radius:16px;
   background: linear-gradient(180deg,#0a0c14 0%, #0f1626 100%);
+  z-index:1; /* базовый слой сцены */
 }
 .fl-hint{
   position:absolute; left:0; right:0; top:18%;
-  text-align:center; font:800 16px/1.2 Inter; opacity:.75; pointer-events:none;
+  text-align:center; font:800 16px/1.2 Inter; opacity:.75; pointer-events:none; z-index:15;
 }
 
 /* Sprites sizes (override via JS) */
@@ -350,6 +352,7 @@ body.flappy-open{ overflow:hidden; }
   background: radial-gradient(circle at 35% 35%, #ffdd66, #ff9a00);
   border-radius:14px; box-shadow:0 8px 18px rgba(255,154,0,.35), inset 0 0 10px rgba(255,255,255,.25);
   will-change: transform, top, left;
+  z-index:20; /* птица над трубами/монетами */
 }
 .fl-bird--sprite{ background:center/contain no-repeat; border-radius:0; box-shadow:none; }
 .fl-bird--shield{ box-shadow:0 0 0 3px rgba(107,227,255,.8), 0 0 30px rgba(107,227,255,.55); }
@@ -359,6 +362,7 @@ body.flappy-open{ overflow:hidden; }
   position:absolute; width:var(--pipe-w);
   background: linear-gradient(180deg,#6BFF7A,#1ED760);
   border:1px solid rgba(255,255,255,.08); box-shadow:0 10px 22px rgba(30,215,96,.25), inset 0 0 10px rgba(255,255,255,.15);
+  z-index:10; /* ниже птицы и результата */
 }
 .fl-pipe--sprite{ background: center / 100% 100% no-repeat; border:none; box-shadow:none; }
 
@@ -366,11 +370,16 @@ body.flappy-open{ overflow:hidden; }
 .fl-coin,.fl-power{
   position:absolute; transform:translate(-50%,-50%); will-change: left, top;
   width:var(--coin-w); height:var(--coin-h); background:center/contain no-repeat;
+  z-index:12; /* над трубами, но ниже птицы и результата */
 }
 .fl-power{ width:var(--pow-w); height:var(--pow-h); }
 
-/* Result */
-.fl-result{ position:absolute; inset:0; display:none; place-items:center; padding:16px; }
+/* Result (поверх всего) */
+.fl-result{
+  position:absolute; inset:0; display:none; place-items:center; padding:16px;
+  z-index:9999;            /* <-- ключ: над монетами/трубами/птицей */
+  pointer-events:auto;
+}
 .fl-result.show{ display:grid; }
 .fl-card{
   width:min(100%,520px); background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
@@ -381,7 +390,11 @@ body.flappy-open{ overflow:hidden; }
 
 /* CTA bottom (safe-area) */
 :root{ --ctaGap: 44px; }
-.fl-cta{ position:absolute; left:14px; right:14px; bottom: calc(env(safe-area-inset-bottom,0px) + var(--ctaGap)); display:none; }
+.fl-cta{
+  position:absolute; left:14px; right:14px;
+  bottom: calc(env(safe-area-inset-bottom,0px) + var(--ctaGap));
+  display:none; z-index:50; /* над сценой, но под результатом */
+}
 .fl-cta.show{ display:block; }
 .fl-cta .btn{ width:100%; height:52px; border-radius:16px; font:800 16px/1 Inter; background:#fff; color:#000; border:1px solid #fff; }
 
@@ -389,21 +402,20 @@ body.flappy-open{ overflow:hidden; }
 
 /* === ТЮНИНГ ЩИТА И РАДИУСОВ === */
 :root{
-  --bird-radius: 27px;                 /* скругление птички (в т.ч. со спрайтом) */
-  --shield-ring: 1px;                  /* толщина «кольца» щита */
+  --bird-radius: 50px;
+  --shield-ring: 0px;
   --shield-ring-color: rgba(107,227,255,.95);
   --shield-glow-color: rgba(107,227,255,.55);
-  --shield-glow-blur: 28px;            /* сила внешнего свечения */
-  --shield-pulse: 1.6s;                /* скорость пульса ауры */
+  --shield-glow-blur: 28px;
+  --shield-pulse: 1.6s;
 }
 
 /* птичка всегда со скруглением через переменную */
 .fl-bird{ border-radius: var(--bird-radius); }
-
-/* если используешь спрайт — НЕ обнуляем радиус, пусть берёт var(--bird-radius) */
+/* если используешь спрайт — оставляем скругление */
 .fl-bird--sprite{ border-radius: var(--bird-radius); }
 
-/* активный щит: кольцо + внешняя подсветка + мягкий пульс */
+/* активный щит: кольцо + подсветка + пульс */
 .fl-bird--shield{
   box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color);
   position: relative;
@@ -424,8 +436,11 @@ body.flappy-open{ overflow:hidden; }
   100%{ box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color), 0 0 0 0 rgba(107,227,255,0); }
 }
 
+/* Пусть Flappy целиком берёт тот же шрифт, что и весь мини-апп */
+.flappy, .flappy * { font-family: inherit !important; }
 
 </style>
+
 
   <style>
     /* ===== BONUSES (чистая версия) ===== */
@@ -784,9 +799,164 @@ body.flappy-open{ overflow:hidden; }
 /* Прячем заголовок, пока квиз идёт */
 .trivia-card.is-running .h1 { display: none !important; }
 
+</style>
 
+
+<!-- Стили профиля (лаконичные, дружат с твоими .card/.btn) -->
+<style>
+/* ===== ровные отступы и лёгкая иерархия ===== */
+.card{ padding:14px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); }
+.section-title{ font-weight:800; }
+
+/* HERO */
+.pf-hero{ display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:center; }
+.pf-title{ font-weight:800; font-size:18px; }
+.pf-hint{ opacity:.7; font-size:12px; }
+.pf-ava{ width:56px; height:56px; border-radius:50%; object-fit:cover; background:#222; border:1px solid rgba(255,255,255,.08); }
+.pf-balance{ height:36px; padding:0 12px; border-radius:999px; font-weight:800; }
+
+/* жёлтая пилюля */
+.pill-amber{ background:transparent; color:#ffb02e; border:1.5px solid #ffb02e; }
+
+/* строки и метрики */
+.profile-block{ display:grid; gap:12px; }
+.row{ display:grid; gap:8px; }
+.row-title{ font-weight:700; }
+
+.metrics{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.metric{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; }
+.metric__val{ font-weight:900; font-size:18px; }
+.metric__lbl{ opacity:.75; font-size:12px; }
+
+/* чипы для призов */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+       background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); font-weight:700; font-size:13px; }
+.chip .dot{ width:6px; height:6px; border-radius:50%; background:#ffd166; }
+
+/* действия внизу */
+.actions{ display:flex; gap:10px; }
+.btn-white{ background:#fff; color:#000; border:1px solid #fff; border-radius:12px; padding:10px 14px; font-weight:800; flex:1; }
+
+/* мобилка */
+@media (max-width:520px){
+  .pf-hero{ grid-template-columns:1fr auto; grid-template-areas:"about balance" "about ava"; }
+  .pf-about{ grid-area:about; }
+  .pf-balance{ grid-area:balance; }
+  .pf-ava{ grid-area:ava; }
+  .metrics{ grid-template-columns:1fr 1fr; }
+}
+
+/* === HERO: ava | about | balance в один ряд === */
+.pf-hero{
+  display:grid;
+  grid-template-columns: auto 1fr auto;           /* ⬅️ фото | имя | баланс */
+  grid-template-areas: "ava about balance";
+  gap:12px;
+  align-items:center;
+}
+.pf-ava     { grid-area: ava; }
+.pf-about   { grid-area: about; }
+.pf-balance { grid-area: balance; justify-self:end; white-space:nowrap; }
+
+/* Мобилка: оставляем тот же ряд; можно слегка ужать кнопку */
+@media (max-width:520px){
+  .pf-hero{
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "ava about balance";
+  }
+  .pf-balance{ padding:0 10px; height:34px; font-size:13px; }
+}
+/* Базовая карточка */
+.card{
+  padding:14px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  display:grid;
+  gap:12px;
+}
+/* Общий вертикальный ритм между карточками */
+.card + .card{ margin-top:12px; }
+
+/* Страховка: если вдруг где-то останется .card внутри .card — делаем её «плоской» */
+.card .card{
+  margin:0; padding:0; border:0; background:transparent; box-shadow:none;
+}
+
+/* HERO: аватар | имя | баланс */
+.pf-hero{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  grid-template-areas:"ava about balance";
+  gap:12px; align-items:center;
+}
+.pf-ava{ grid-area:ava; width:56px; height:56px; border-radius:50%; object-fit:cover;
+         background:#222; border:1px solid rgba(255,255,255,.08); }
+.pf-about{ grid-area:about; }
+.pf-title{ font-weight:800; font-size:18px; }
+.pf-hint{ opacity:.7; font-size:12px; }
+.pf-balance{ grid-area:balance; justify-self:end; height:36px; padding:0 12px; border-radius:999px; font-weight:800; }
+.pill-amber{ background:transparent; color:#ffb02e; border:1.5px solid #ffb02e; }
+
+/* Блоки */
+.profile-block{ gap:12px; }
+.section-title{ font-weight:800; }
+.row{ display:grid; gap:8px; }
+.row-title{ font-weight:700; }
+
+/* Метрики */
+.metrics{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.metric{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; }
+.metric__val{ font-weight:900; font-size:18px; }
+.metric__lbl{ opacity:.75; font-size:12px; }
+
+/* Призы-чипы */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+       background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); font-weight:700; font-size:13px; }
+.chip--muted{ opacity:.6; }
+
+/* Действия */
+.actions{ display:flex; gap:10px; }
+.btn-white{ background:#fff; color:#000; border:1px solid #fff; border-radius:12px; padding:10px 14px; font-weight:800; flex:1; }
+
+/* Мобилка */
+@media (max-width:520px){
+  .metrics{ grid-template-columns:1fr 1fr; }
+  .pf-balance{ padding:0 10px; height:34px; font-size:13px; }
+}
+/* Баланс-метрика в шапке (справа) */
+.pf-hero{
+  display:grid;
+  grid-template-columns:auto 1fr auto; /* ava | about | balance */
+  gap:12px; align-items:center;
+}
+.metric--balance{
+  justify-self:end;
+  padding:8px 12px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  min-width:96px;           /* можно убрать/изменить */
+}
+.metric--balance .metric__val{ font-weight:900; font-size:18px; line-height:1; }
+.metric--balance .metric__lbl{ opacity:.75; font-size:12px; margin-top:2px; }
+
+@media (max-width:520px){
+  .metric--balance{ padding:6px 10px; }
+  .metric--balance .metric__val{ font-size:16px; }
+}
+
+.coin-ico{
+  width:16px; height:16px;
+  background: var(--coin-url, url('coin.png')) center/contain no-repeat;
+  display:inline-block;
+  margin-left:6px;
+}
 
 </style>
+
 
 </head>
 <body>
@@ -873,14 +1043,14 @@ body.flappy-open{ overflow:hidden; }
 
     <!-- STAGE -->
     <div id="fl-stage" class="fl-stage">
-      <div id="fl-hint" class="fl-hint">tap to fly</div>
+      <div id="fl-hint" class="fl-hint">Тапни чтобы начать</div>
       <div id="fl-bird" class="fl-bird" aria-label="bird"></div>
 
       <!-- RESULT -->
       <div id="fl-result" class="fl-result" aria-hidden="true">
         <div class="fl-card">
-          <div class="fl-cell"><div class="fl-val" id="fl-best">0</div><div class="fl-sub">your best</div></div>
-          <div class="fl-cell"><div class="fl-val" id="fl-world">200</div><div class="fl-sub">world record</div></div>
+          <div class="fl-cell"><div class="fl-val" id="fl-best">0</div><div class="fl-sub">🎯 Твой рекорд</div></div>
+          <div class="fl-cell"><div class="fl-val" id="fl-world">200</div><div class="fl-sub">🏆 Мировой рекорд</div></div>
           <div class="fl-chev">›</div>
         </div>
       </div>
@@ -888,7 +1058,7 @@ body.flappy-open{ overflow:hidden; }
 
     <!-- CTA -->
     <div id="fl-cta" class="fl-cta">
-      <button class="btn" data-close-flappy>Play again</button>
+      <button class="btn" data-open-flappy>Попробывать еше раз</button>
     </div>
   </div>
 </div>
@@ -1147,29 +1317,91 @@ body.flappy-open{ overflow:hidden; }
     </div>
       </section>
 
-      <section class="page" id="profile">
-        <div class="card page-title">
-          <div class="h1">Профиль</div>
-          <div class="g">
-            <div class="card">
-              <div class="g g2">
-                <div>
-                  <div class="muted-sm">Пользователь</div>
-                  <div id="user-name" class="h1">—</div>
-                </div>
-                <div style="text-align:right">
-                  <div class="muted-sm">Коины</div>
-                  <div class="h1" id="coins-profile">0</div>
-                </div>
-              </div>
-            </div>
-            <div class="card">
-              <div class="muted-sm">Последние призы</div>
-              <div id="rewards-feed">Пока пусто</div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <!-- ========== PROFILE PAGE (без шаблонов) ========== -->
+<section id="profile" class="card profile">
+  <!-- ===== PROFILE · HERO ===== -->
+<!-- ===== PROFILE · HERO ===== -->
+<section class="card profile-hero">
+  <div class="pf-hero">
+    <div class="pf-about">
+      <div class="pf-title" id="pf-title">Гость</div>
+      <div class="pf-hint" id="pf-username"></div>
+    </div>
+
+<div class="metric metric--balance">
+  <div class="metric__val">
+    <span id="pf-coins">0</span>
+    <i class="coin-ico" aria-hidden="true"></i>
+  </div>
+  <div class="metric__lbl"></div>
+</div>
+
+    <!-- аватар справа -->
+    <img class="pf-ava" id="pf-ava" alt="">
+  </div>
+</section>
+<div aria-hidden="true" style="height:17px;"></div>
+
+<!-- ===== BLOCK 2: Призы · Игры ===== -->
+<section class="card profile-block">
+  <div class="section-title">Мои достижения</div>
+
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric__val" id="pf-flappy-best">0</div>
+      <div class="metric__lbl">Шмель — лучший счёт</div>
+    </div>
+    <div class="metric">
+      <div class="metric__val" id="pf-pass-count">0/6</div>
+      <div class="metric__lbl">Паспорт — штампы</div>
+    </div>
+    <div class="metric">
+      <div class="metric__val" id="pf-pass-list">—</div>
+      <div class="metric__lbl">Получены</div>
+    </div>
+        <div class="metric">
+      <div class="metric__val" id="pf-refs-count">0</div>
+      <div class="metric__lbl">Мои рефералы</div>
+    </div>
+  </div>
+</section>
+
+<div aria-hidden="true" style="height:12px;"></div>
+
+
+<!-- ===== BLOCK 3: Турнир · Рефералы ===== -->
+<section class="card profile-block">
+  <div class="section-title">Турнир</div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric__val" id="pf-today-rank">—</div>
+      <div class="metric__lbl">Место сегодня</div>
+    </div>
+    <div class="metric">
+      <div class="metric__val" id="pf-all-rank">—</div>
+      <div class="metric__lbl">All-time</div>
+    </div>
+
+  </div>
+
+  <!-- =====<div class="actions">
+    <button class="btn btn-white" id="pf-join">Участвовать</button>
+    <button class="btn btn-white" id="pf-invite">Пригласить</button>
+  </div>===== -->
+
+    <div class="row">
+    <div class="row-title">Последние призы</div>
+    <div class="chips" id="pf-prizes">
+      <!-- JS подставит .chip элементы -->
+    </div>
+  </div>
+
+</section>
+
+
+
     </main>
   </div>
 
@@ -2683,7 +2915,146 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
 </script>
 
 
+<!-- Логика профиля -->
+<script>
+(function(){
+  'use strict';
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
 
+  // Ключи локального хранилища (совместимы с твоими модулями)
+  const WALLET_KEY   = 'beer_coins';
+  const PRIZES_KEY   = 'bonus_log_v1';          // [{name, ts}]
+  const PASSPORT_KEY = 'beer_passport_v1';      // {stamps:[]}
+  const FLAPPY_BEST  = 'flappy_best';
+  const LB_DAILY_KEY = ()=>'lb_flappy_' + new Date().toISOString().slice(0,10);
+  const LB_ALL_KEY   ='lb_flappy_all';
+  const REFS_KEY     ='beer_refs_v1';
+
+  // Утилиты
+  const getJSON = (k,def)=>{ try{ return JSON.parse(localStorage.getItem(k) || ''); }catch(_){ return def; } };
+  const setJSON = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+  const fmtDate = ts => new Date(ts).toLocaleDateString();
+  const esc = s => String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+
+  // --- Рендер шапки
+  function renderHead(){
+    const u = TG?.initDataUnsafe?.user || {};
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Гость';
+    const uname = u.username ? '@'+u.username : '';
+    const photo = u.photo_url || '';
+
+    document.getElementById('pf-title').textContent = name;
+    document.getElementById('pf-username').textContent = uname;
+    const ava = document.getElementById('pf-ava');
+    if (photo){ ava.src = photo; ava.alt = name; } else { ava.removeAttribute('src'); ava.alt=''; }
+  }
+
+  // --- Монеты
+  function renderCoins(){
+    document.getElementById('pf-coins').textContent = +(localStorage.getItem(WALLET_KEY)||0);
+  }
+
+  // --- Последние призы
+  function renderPrizes(){
+    const wrap = document.getElementById('pf-prizes');
+    const log = getJSON(PRIZES_KEY, []) || [];
+    if (!log.length){ wrap.innerHTML = '<div class="pf-muted">Пока пусто. Крути колесо или участвуй в играх.</div>'; return; }
+    wrap.innerHTML = log.slice(0,6).map(x =>
+      `<div class="pf-item"><i class="pf-dot"></i><div>${esc(x.name)}</div><div class="pf-muted">· ${fmtDate(x.ts)}</div></div>`
+    ).join('');
+  }
+
+  // --- Игра «Шмель»
+  function renderFlappy(){
+    const best = +(localStorage.getItem(FLAPPY_BEST)||0);
+    document.getElementById('pf-flappy-best').textContent = best;
+
+    const me = String(TG?.initDataUnsafe?.user?.id || 'anon');
+    const daily = getJSON(LB_DAILY_KEY(), []) || [];
+    const all   = getJSON(LB_ALL_KEY,    []) || [];
+
+    const ixToday = daily.findIndex(r=> String(r.uid) === me);
+    const ixAll   = all.findIndex  (r=> String(r.uid) === me);
+
+    document.getElementById('pf-flappy-rank').textContent = ixToday>=0 ? (ixToday+1) : '—';
+    document.getElementById('pf-today-rank').textContent  = ixToday>=0 ? (ixToday+1) : '—';
+    document.getElementById('pf-all-rank').textContent    = ixAll>=0   ? (ixAll+1)   : '—';
+  }
+
+  // --- Паспорт стилей
+  function renderPassport(){
+    const data = getJSON(PASSPORT_KEY, {stamps:[]}) || {stamps:[]};
+    // фоллбек: собрать из DOM, если сайт уже отметил штампы
+    if (!data.stamps?.length){
+      const dom = Array.from(document.querySelectorAll('#passport-grid .stamp.is-done')).map(el=> el.dataset?.code || el.textContent.trim());
+      data.stamps = dom;
+    }
+    const unique = Array.from(new Set(data.stamps||[]));
+    const total  = 6;
+    document.getElementById('pf-pass-count').textContent = `${Math.min(unique.length,total)}/${total}`;
+    document.getElementById('pf-pass-list').textContent  = unique.slice(0,total).join(', ') || '—';
+  }
+
+  // --- Рефералы
+  function renderRefs(){
+    const list = getJSON(REFS_KEY, []) || [];
+    document.getElementById('pf-refs-count').textContent = list.length;
+    const box = document.getElementById('pf-refs-list');
+    if (!list.length){ box.innerHTML = '<div class="pf-muted">Пока нет приглашённых.</div>'; return; }
+    box.innerHTML = list.slice(-5).reverse().map(r =>
+      `<div class="pf-item"><i class="pf-dot"></i><div>${esc(r.name||('ID '+r.uid))}</div><div class="pf-muted">· ${fmtDate(r.ts)}</div></div>`
+    ).join('');
+  }
+
+  // --- Пригласить друга
+  function bindInvite(){
+    const btn = document.getElementById('pf-invite'); if (!btn) return;
+    btn.onclick = ()=>{
+      try{
+        const uid = TG?.initDataUnsafe?.user?.id || '';
+        const startParam = `ref_${uid||Math.random().toString(36).slice(2,7)}`;
+        const bot = (window.APP&&APP.BOT) || (window.APP_CONFIG&&APP_CONFIG.BOT) || 'your_bot';
+        TG?.openTelegramLink?.(`https://t.me/${bot}/app?startapp=${startParam}`);
+      }catch(_){}
+    };
+  }
+
+  // Публичный API (можно дергать из колеса/игр)
+  window.Profile = {
+    incPoints(n){ // +монеты
+      const cur = +(localStorage.getItem(WALLET_KEY)||0);
+      localStorage.setItem(WALLET_KEY, String(Math.max(0, cur + (n|0))));
+      renderCoins(); try{ window.syncCoinsUI?.(); }catch(_){}
+    },
+    setPrize(name){ // лог приза
+      const log = getJSON(PRIZES_KEY, [])||[];
+      log.unshift({name, ts: Date.now()});
+      setJSON(PRIZES_KEY, log.slice(0,30));
+      renderPrizes();
+    },
+    addReferral(user){ // реферал
+      const list = getJSON(REFS_KEY, [])||[];
+      const uid  = user?.id || ('u'+Math.random().toString(36).slice(2,7));
+      if (!list.find(x=>x.uid===uid)){
+        list.push({uid, name: [user?.first_name,user?.last_name].filter(Boolean).join(' ') || ('User '+uid), ts:Date.now()});
+        setJSON(REFS_KEY, list);
+      }
+      renderRefs();
+    },
+    refresh(){ renderHead(); renderCoins(); renderPrizes(); renderFlappy(); renderPassport(); renderRefs(); }
+  };
+
+  // Экспорт синка монет для других модулей
+  window.syncCoinsUI = renderCoins;
+
+  // Автоинициализация при загрузке страницы
+  function initProfilePage(){
+    renderHead(); renderCoins(); renderPrizes(); renderFlappy(); renderPassport(); renderRefs(); bindInvite();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initProfilePage);
+  else initProfilePage();
+})();
+</script>
 
 
 </body>
