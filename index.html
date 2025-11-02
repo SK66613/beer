@@ -2548,35 +2548,6 @@ for (const it of items){
 
 </script>
 
-<script>
-/* Горячий фикс: при каждом открытии любой шторки проверяем, появился ли #trivia-body,
-   и запускаем квиз. Работает даже если твой openSheet в другом модуле. */
-(function(){
-  let t = null;
-  function mountDebounced(){
-    clearTimeout(t);
-    t = setTimeout(()=> {
-      if (document.getElementById('trivia-body')) {
-        window.mountTrivia?.(false); // старт или кулдаун
-      }
-    }, 0);
-  }
-
-  // 1) Клик по любой кнопке, которая открывает шторку
-  document.addEventListener('click', (e)=>{
-    if (e.target.closest('[data-open-sheet]')) mountDebounced();
-  }, true);
-
-  // 2) Подстраховка: следим за DOM и монтируем каждый раз, как #trivia-body появляется
-  const mo = new MutationObserver(()=>{
-    if (document.getElementById('trivia-body')) mountDebounced();
-  });
-  mo.observe(document.body, { childList:true, subtree:true });
-})();
-</script>
-
-
-
 
 
 
