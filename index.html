@@ -1022,13 +1022,13 @@ body.flappy-open{ overflow:hidden; }
       <!-- КОЛЕСО -->
       <div id="bonusWheel" class="bonus-wheel" aria-live="polite">
         <div class="wheel-track" id="wheelTrack">
-          <button class="bonus" data-name="Аудит"><img src="bonus1.png" alt="Аудит"><span>Аудит</span></button>
-          <button class="bonus" data-name="Мафия-оффер"><img src="bonus2.png" alt="Мафия-оффер"><span>Мафия-оффер</span></button>
-          <button class="bonus" data-name="Cust Dev"><img src="bonus3.png" alt="Cust Dev"><span>Cust Dev</span></button>
+          <button class="bonus" data-name="Кружка"><img src="bonus1.png" alt="Кружка"><span>Кружка</span></button>
+          <button class="bonus" data-name="Футболка"><img src="bonus2.png" alt="Футболка"><span>Футболка</span></button>
+          <button class="bonus" data-name="Фисташки"><img src="bonus3.png" alt="Фисташки"><span>Фисташки</span></button>
           <button class="bonus" data-name="Скидка"><img src="bonus4.png" alt="Скидка"><span>Скидка</span></button>
-          <button class="bonus" data-name="Консультация"><img src="bonus5.png" alt="Консультация"><span>Консультация</span></button>
-          <button class="bonus" data-name="Чек-лист"><img src="bonus6.png"
-              alt="Чек-лист"><span>Чек-лист</span></button>
+          <button class="bonus" data-name="Дегустация"><img src="bonus5.png" alt="Дегустация"><span>Дегустация</span></button>
+          <button class="bonus" data-name="Монеты"><img src="bonus6.png"
+              alt="Монеты"><span>Монеты</span></button>
         </div>
         <div class="wheel-center"></div>
       </div>
@@ -2121,288 +2121,348 @@ for (const it of items){
 })();
 </script>
 
+
+
+
+
+
+
+
+
+
+
   <script>
-    (function () {
-      const wheel = document.getElementById('bonusWheel');
-      const track = document.getElementById('wheelTrack');
-      if (!wheel || !track) return;
+(function () {
+  const wheel = document.getElementById('bonusWheel');
+  const track = document.getElementById('wheelTrack');
+  if (!wheel || !track) return;
 
-      const items = Array.from(track.children);
-      const N = items.length;
+  const items = Array.from(track.children);
+  const N = items.length;
 
-      const pill = document.getElementById('pickedPill');
-      const claim = document.getElementById('claimBtn');
-      const spin = document.getElementById('spinBtn');
+  const pill  = document.getElementById('pickedPill');
+  const claim = document.getElementById('claimBtn');
+  const spin  = document.getElementById('spinBtn');
 
-      /* Название -> ссылка (поменяй под себя) */
-      const bonusLinks = {
-        "Аудит": "https://t.me/sales_genius_aibot?start=audit",
-        "Мафия-оффер": "https://t.me/sales_genius_aibot?start=offer",
-        "Cust Dev": "https://t.me/sales_genius_aibot?start=custdev",
-        "Скидка": "https://t.me/sales_genius_aibot?start=sale",
-        "Консультация": "https://t.me/sales_genius_aibot?start=consult",
-        "Чек-лист": "https://t.me/sales_genius_aibot?start=check"
-      };
+  /* Название -> ссылка (поменяй под себя) */
+  const bonusLinks = {
+    "Кружка": "#profile",
+    "Футболка": "#profile",
+    "Фисташки": "#profile",
+    "Скидка": "#profile",
+    "Дегустация": "#profile",
+    "Монеты": "#profile"
+  };
 
-      /* ================== общие утилиты ================== */
-      let STEP = 114; // уточняем по факту
-      requestAnimationFrame(() => {
-        const a = items[0]?.getBoundingClientRect();
-        const b = items[1]?.getBoundingClientRect();
-        if (a && b) {
-          const dx = Math.round(b.left - a.left);
-          if (dx > 40 && dx < 300) STEP = dx;
-        }
-      });
+  /* ================== общие утилиты ================== */
+  let STEP = 114; // уточняем по факту после рендера
+  requestAnimationFrame(() => {
+    const a = items[0]?.getBoundingClientRect();
+    const b = items[1]?.getBoundingClientRect();
+    if (a && b) {
+      const dx = Math.round(b.left - a.left);
+      if (dx > 40 && dx < 300) STEP = dx;
+    }
+  });
 
-      let curr = 0; // «плавающее» положение
-      let startX = 0, startCurr = 0, dragging = false, lastX = 0, lastT = 0, vel = 0;
-      let interacted = false; // станет true после первого выбора
+  let curr = 0; // «плавающее» положение
+  let startX = 0, startCurr = 0, dragging = false, lastX = 0, lastT = 0, vel = 0;
+  let interacted = false; // станет true после первого выбора
+  let spinning = false;   // блок повторного старта
 
-      const mod = (a, n) => ((a % n) + n) % n;
-      const easeOut = t => 1 - Math.pow(1 - t, 3);
-      function nearest(curr, idx, n) {
-        let t = idx;
-        while (t - curr > n / 2) t -= n;
-        while (curr - t > n / 2) t += n;
-        return t;
+  const mod = (a, n) => ((a % n) + n) % n;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  function nearest(curr, idx, n) {
+    let t = idx;
+    while (t - curr > n / 2) t -= n;
+    while (curr - t > n / 2) t += n;
+    return t;
+  }
+
+  /* ===== Хаптики (Telegram + фоллбек) ===== */
+  const TG = window.Telegram && window.Telegram.WebApp;
+  function hapticPulse(level = 'light') {
+    try {
+      if (TG?.HapticFeedback) {
+        if (level === 'selection') return TG.HapticFeedback.selectionChanged();
+        TG.HapticFeedback.impactOccurred(level); // 'soft' | 'light' | 'medium' | 'heavy' | 'rigid'
+        return;
       }
+    } catch (_) {}
+    try { if (navigator.vibrate) { navigator.vibrate(level === 'heavy' ? 30 : level === 'medium' ? 20 : 12); } } catch (_) {}
+  }
 
-      /* ===== Хаптики (Telegram + фоллбек) ===== */
-      const TG = window.Telegram && window.Telegram.WebApp;
-      function hapticPulse(level = 'light') {
-        try {
-          if (TG?.HapticFeedback) {
-            if (level === 'selection') return TG.HapticFeedback.selectionChanged();
-            TG.HapticFeedback.impactOccurred(level); // 'soft' | 'light' | 'medium' | 'heavy' | 'rigid'
-            return;
-          }
-        } catch (_) { }
-        try { if (navigator.vibrate) { navigator.vibrate(level === 'heavy' ? 30 : level === 'medium' ? 20 : 12); } } catch (_) { }
-      }
+  /* ====== Кулдаун «Забрать бонус» + таймер ====== */
+  const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 часа
+  const UID = (TG?.initDataUnsafe?.user?.id) || 'anon';
+  const CLAIM_KEY = 'bonusClaim_ts_' + UID;
 
-      /* ====== Кулдаун 24ч для «Забрать бонус» + таймер ====== */
-      const COOLDOWN_MS = 0.1 * 60 * 60 * 1000; // 24 часа
-      const UID = (TG?.initDataUnsafe?.user?.id) || 'anon';
-      const CLAIM_KEY = 'bonusClaim_ts_' + UID;
+  function getLastClaim() { return +(localStorage.getItem(CLAIM_KEY) || 0); }
+  function setLastClaim(ts = Date.now()) { localStorage.setItem(CLAIM_KEY, String(ts)); }
+  function remainingMs() { return Math.max(0, getLastClaim() + COOLDOWN_MS - Date.now()); }
+  function fmtClock(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+  }
 
-      function getLastClaim() { return +(localStorage.getItem(CLAIM_KEY) || 0); }
-      function setLastClaim(ts = Date.now()) { localStorage.setItem(CLAIM_KEY, String(ts)); }
-      function remainingMs() { return Math.max(0, getLastClaim() + COOLDOWN_MS - Date.now()); }
-      function fmtClock(ms) {
-        const s = Math.floor(ms / 1000);
-        const h = Math.floor(s / 3600);
-        const m = Math.floor((s % 3600) / 60);
-        const ss = s % 60;
-        return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
-      }
+  let claimTimerId = null;
+  function refreshClaimState() {
+    if (!claim) return;
 
-      let claimTimerId = null;
-      function refreshClaimState() {
-        if (!claim) return;
+    const rem = remainingMs();
+    const canClaim = interacted && rem <= 0;
 
-        const rem = remainingMs();
-        const canClaim = interacted && rem <= 0;
-
-        if (canClaim) {
-          claim.disabled = false;
-          claim.textContent = 'Забрать бонус';
-          if (claimTimerId) { clearInterval(claimTimerId); claimTimerId = null; }
-        } else {
-          claim.disabled = true;
-          if (interacted && rem > 0) {
-            claim.textContent = 'Доступно через ' + fmtClock(rem);
-            if (!claimTimerId) {
-              claimTimerId = setInterval(() => {
-                const r = remainingMs();
-                if (r > 0) claim.textContent = 'Доступно через ' + fmtClock(r);
-                else {
-                  clearInterval(claimTimerId); claimTimerId = null;
-                  claim.textContent = 'Забрать бонус';
-                  claim.disabled = !interacted;
-                }
-              }, 1000);
+    if (canClaim) {
+      claim.disabled = false;
+      claim.textContent = 'Забрать бонус';
+      if (claimTimerId) { clearInterval(claimTimerId); claimTimerId = null; }
+    } else {
+      claim.disabled = true;
+      if (interacted && rem > 0) {
+        claim.textContent = 'Доступно через ' + fmtClock(rem);
+        if (!claimTimerId) {
+          claimTimerId = setInterval(() => {
+            const r = remainingMs();
+            if (r > 0) claim.textContent = 'Доступно через ' + fmtClock(r);
+            else {
+              clearInterval(claimTimerId); claimTimerId = null;
+              claim.textContent = 'Забрать бонус';
+              claim.disabled = !interacted;
             }
-          } else {
-            claim.textContent = 'Забрать бонус';
-            if (claimTimerId) { clearInterval(claimTimerId); claimTimerId = null; }
-          }
+          }, 1000);
         }
+      } else {
+        claim.textContent = 'Забрать бонус';
+        if (claimTimerId) { clearInterval(claimTimerId); claimTimerId = null; }
       }
+    }
+  }
 
-      /* ================== UI ================== */
-      function updatePillByIndex(idx) {
-        const it = items[idx];
-        const name = it?.dataset?.name || '—';
-        const img = it?.querySelector('img')?.src || '';
-        if (!pill) return;
-        pill.classList.remove('muted');
-        pill.innerHTML = img ? `<img src="${img}" alt=""><span>${name}</span>` : name;
-        if (claim) {
-          claim.disabled = false;
-          claim.dataset.bonus = name;
-        }
-      }
+  /* ================== UI ================== */
+  function updatePillByIndex(idx) {
+    const it = items[idx];
+    const name = it?.dataset?.name || '—';
+    const img = it?.querySelector('img')?.src || '';
+    if (!pill) return;
+    pill.classList.remove('muted');
+    pill.innerHTML = img ? `<img src="${img}" alt=""><span>${name}</span>` : name;
+    if (claim) {
+      claim.disabled = false;
+      claim.dataset.bonus = name;
+    }
+  }
 
-      function updateUI() {
-        // позиционирование как «кольцо»
-        items.forEach((el, i) => {
-          let dx = i - curr;
-          dx = mod(dx + N / 2, N) - N / 2; // (-N/2; N/2]
-          const x = dx * STEP;
-          const s = 1 - Math.min(Math.abs(dx) * 0.16, 0.48);
-          el.style.transform = `translate(-50%,-50%) translateX(${x}px) scale(${s})`;
-          el.style.zIndex = String(1000 - Math.abs(dx) * 10);
-          el.classList.toggle('active', Math.round(Math.abs(dx)) === 0);
-        });
+  function updateUI() {
+    // позиционирование как «кольцо»
+    items.forEach((el, i) => {
+      let dx = i - curr;
+      dx = mod(dx + N / 2, N) - N / 2; // (-N/2; N/2]
+      const x = dx * STEP;
+      const s = 1 - Math.min(Math.abs(dx) * 0.16, 0.48);
+      el.style.transform = `translate(-50%,-50%) translateX(${x}px) scale(${s})`;
+      el.style.zIndex = String(1000 - Math.abs(dx) * 10);
+      el.classList.toggle('active', Math.round(Math.abs(dx)) === 0);
+    });
 
-        if (interacted) {
-          updatePillByIndex(mod(Math.round(curr), N));
-        } else {
-          if (pill) { pill.classList.add('muted'); pill.textContent = 'Нажми «Крутануть»'; }
-          if (claim) { claim.disabled = true; delete claim.dataset.bonus; }
-        }
+    if (interacted) {
+      updatePillByIndex(mod(Math.round(curr), N));
+    } else {
+      if (pill) { pill.classList.add('muted'); pill.textContent = 'Нажми «Крутануть»'; }
+      if (claim) { claim.disabled = true; delete claim.dataset.bonus; }
+    }
 
-        // важное: синхронизация состояния кнопки с кулдауном
-        refreshClaimState();
-      }
+    // важное: синхронизация состояния кнопки с кулдауном
+    refreshClaimState();
+    // и с монетами
+    syncCoinsUI();
+  }
 
-      /* ====== Вращение со слабой вибрацией ====== */
-      function spinTo(targetIdx, laps = 1, dur = 1600) {
-        const base = nearest(curr, targetIdx, N);
-        const dir = (base >= curr ? 1 : -1) || 1;
-        const to = base + dir * (laps * N);
+  /* ====== Вращение со слабой вибрацией ====== */
+  function spinTo(targetIdx, laps = 1, dur = 1600) {
+    const base = nearest(curr, targetIdx, N);
+    const dir = (base >= curr ? 1 : -1) || 1;
+    const to = base + dir * (laps * N);
 
-        const from = curr, t0 = performance.now();
-        let lastPulse = 0;
+    const from = curr, t0 = performance.now();
+    let lastPulse = 0;
 
-        function tick(t) {
-          const k = Math.min((t - t0) / dur, 1);
-          curr = from + (to - from) * (1 - Math.pow(1 - k, 3)); // easeOut
-          updateUI();
+    function tick(t) {
+      const k = Math.min((t - t0) / dur, 1);
+      curr = from + (to - from) * (1 - Math.pow(1 - k, 3)); // easeOut
+      updateUI();
 
-          // лёгкие пульсы во время вращения (в начале чаще)
-          const period = 80 + 180 * k; // 80ms → 260ms
-          if (t - lastPulse >= period) { hapticPulse('light'); lastPulse = t; }
+      // лёгкие пульсы во время вращения (в начале чаще)
+      const period = 80 + 180 * k; // 80ms → 260ms
+      if (t - lastPulse >= period) { hapticPulse('light'); lastPulse = t; }
 
-          if (k < 1) {
-            requestAnimationFrame(tick);
-          } else {
-            curr = to;
-            interacted = true;
-            updateUI();
-          }
-        }
+      if (k < 1) {
         requestAnimationFrame(tick);
-      }
-
-      function snapTo(targetIdx, dur = 420) {
-        const to = nearest(curr, targetIdx, N);
-        const from = curr;
-        const t0 = performance.now();
-        function tick(t) {
-          const k = Math.min((t - t0) / dur, 1);
-          curr = from + (to - from) * easeOut(k);
-          updateUI();
-          if (k < 1) requestAnimationFrame(tick);
-          else { curr = to; interacted = true; updateUI(); }
-        }
-        requestAnimationFrame(tick);
-      }
-
-      /* ================== события ==================
-      // клик по карточке — центрируем её
-      track.addEventListener('click', (e) => {
-        const b = e.target.closest('.bonus'); if (!b) return;
-        const idx = items.indexOf(b);
-        if (idx >= 0) snapTo(idx, 320);
-      });
-
-      // свайп / drag
-      track.addEventListener('pointerdown', (e) => {
-        dragging = true; wheel.classList.add('dragging');
-        startX = lastX = e.clientX; lastT = e.timeStamp; startCurr = curr;
-        track.setPointerCapture(e.pointerId);
-      });
-      track.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        const dx = e.clientX - startX;
-        curr = startCurr - dx / STEP;               // бесконечная карусель
-        const dt = e.timeStamp - lastT;
-        if (dt > 0) { vel = (e.clientX - lastX) / dt; lastX = e.clientX; lastT = e.timeStamp; }
-        updateUI();
-      }, { passive: true });
-      function endDrag() {
-        if (!dragging) return;
-        dragging = false; wheel.classList.remove('dragging');
+      } else {
+        curr = to;
         interacted = true;
-        snapTo(mod(Math.round(curr - vel * 6), N), 480);
+        updateUI();
       }
-      track.addEventListener('pointerup', endDrag);
-      track.addEventListener('pointercancel', endDrag); */
+    }
+    requestAnimationFrame(tick);
+  }
 
-      // «Крутануть» — вращаем и сразу кидаем конфетти из кнопки
-      spin?.addEventListener('click', () => {
-        const idx = Math.floor(Math.random() * N);
-        spinTo(idx, 1, 1600);
+  function snapTo(targetIdx, dur = 420) {
+    const to = nearest(curr, targetIdx, N);
+    const from = curr;
+    const t0 = performance.now();
+    function tick(t) {
+      const k = Math.min((t - t0) / dur, 1);
+      curr = from + (to - from) * easeOut(k);
+      updateUI();
+      if (k < 1) requestAnimationFrame(tick);
+      else { curr = to; interacted = true; updateUI(); }
+    }
+    requestAnimationFrame(tick);
+  }
 
-        const r = spin.getBoundingClientRect();
-        confettiBurst(r.left + r.width / 2, r.top + r.height / 2);
-      });
+  /* ================== Кошелёк монет ================== */
+  const COIN_KEY = 'beer_coins';
+  const SPIN_COST = 100;
 
-      // «Забрать бонус» — учёт кулдауна + запись в профиль + переход по ссылке
-      claim?.addEventListener('click', () => {
-        if (claim.disabled) return; // на всякий
+  function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
+  function setCoins(v){
+    v = Math.max(0, v|0);
+    localStorage.setItem(COIN_KEY, String(v));
+    syncCoinsUI();
+  }
+  function addCoins(n){ setCoins(getCoins() + (n|0)); }
 
-        const idx = mod(Math.round(curr), N);
-        const name = items[idx]?.dataset?.name || '';
-        const url = bonusLinks[name];
+  function syncCoinsUI(){
+    ['coins-inline','coins-inline-2','coins-profile'].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.textContent = getCoins();
+    });
+    if (spin) spin.disabled = (getCoins() < SPIN_COST) || spinning;
+  }
 
-        // фиксируем время клика и обновляем кнопку/таймер
-        setLastClaim();
-        refreshClaimState();
+  // (опционально) стартовый баланс для теста:
+  if (getCoins() === 0) addCoins(300);
 
-        // ⬇️ ДОБАВЛЕНО: обновляем профиль (кэш + UI)
-        try {
-          window.Profile?.incPoints(100);     // +100 очков
-          window.Profile?.setPrize(name);   // последний приз
-        } catch (_) { }
+  /* ================== события ================== */
+  // клик по карточке — центрируем её
+  /*
+  track.addEventListener('click', (e) => {
+    const b = e.target.closest('.bonus'); if (!b) return;
+    const idx = items.indexOf(b);
+    if (idx >= 0) snapTo(idx, 320);
+  });
 
-        // переход по ссылке приза
-        if (!url) return;
-        if (url.startsWith('#')) location.hash = url;
-        else if (/^https?:\/\//.test(url)) window.open(url, '_blank');
-        else window.location.href = url;
-      });
+  // свайп / drag
+  track.addEventListener('pointerdown', (e) => {
+    dragging = true; wheel.classList.add('dragging');
+    startX = lastX = e.clientX; lastT = e.timeStamp; startCurr = curr;
+    track.setPointerCapture(e.pointerId);
+  });
+  track.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    curr = startCurr - dx / STEP;               // бесконечная карусель
+    const dt = e.timeStamp - lastT;
+    if (dt > 0) { vel = (e.clientX - lastX) / dt; lastX = e.clientX; lastT = e.timeStamp; }
+    updateUI();
+  }, { passive: true });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false; wheel.classList.remove('dragging');
+    interacted = true;
+    snapTo(mod(Math.round(curr - vel * 6), N), 480);
+  }
+  track.addEventListener('pointerup', endDrag);
+  track.addEventListener('pointercancel', endDrag);
+  */
 
+  /* ===== Крутануть с оплатой монет ===== */
+  spin?.addEventListener('click', () => {
+    if (spinning) return;
 
-      /* ================== конфетти ================== */
-      function confettiBurst(x, y) {
-        let layer = document.getElementById('confetti');
-        if (!layer) { layer = document.createElement('div'); layer.id = 'confetti'; document.body.appendChild(layer); }
-        const colors = ['#7b5bff', '#3de0c5', '#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
-        const rect = document.body.getBoundingClientRect();
-        const ox = (x ?? rect.width / 2), oy = (y ?? rect.height / 3);
-        for (let i = 0; i < 36; i++) {
-          const el = document.createElement('div');
-          el.className = 'confetti-piece';
-          el.style.background = colors[i % colors.length];
-          const angle = (i / 36) * Math.PI * 2;
-          const speed = 140 + Math.random() * 120;
-          const dx = Math.cos(angle) * speed, dy = Math.sin(angle) * speed + 220;
-          el.style.setProperty('--x', ox + 'px');
-          el.style.setProperty('--y', oy + 'px');
-          el.style.setProperty('--dx', dx + 'px');
-          el.style.setProperty('--dy', dy + 'px');
-          layer.appendChild(el);
-          setTimeout(() => el.remove(), 950);
-        }
-      }
+    if (getCoins() < SPIN_COST) {
+      hapticPulse('medium');
+      alert(`Нужно ${SPIN_COST} монет — сыграй, выполни миссию или приведи друга, чтобы накопить.`);
+      return;
+    }
 
-      /* старт */
-      updateUI();            // отрисовать колесо + плашку
-      refreshClaimState();   // сразу проверить кулдаун на кнопке
-    })();
-  </script>
+    // списываем монеты перед стартом
+    setCoins(getCoins() - SPIN_COST);
+    hapticPulse('light');
+
+    // запускаем вращение
+    spinning = true;
+    const idx = Math.floor(Math.random() * N);
+    spinTo(idx, 1, 1600);
+
+    // конфетти из кнопки (если нужно — оставь)
+    const r = spin.getBoundingClientRect();
+    confettiBurst(r.left + r.width / 2, r.top + r.height / 2);
+
+    // разблокируем по окончании анимации
+    setTimeout(() => {
+      spinning = false;
+      syncCoinsUI(); // на всякий — обновить кнопки/счётчики
+    }, 1650);
+  });
+
+  /* ===== «Забрать бонус» — учёт кулдауна + запись в профиль + переход ===== */
+  claim?.addEventListener('click', () => {
+    if (claim.disabled) return; // на всякий
+
+    const idx = mod(Math.round(curr), N);
+    const name = items[idx]?.dataset?.name || '';
+    const url = bonusLinks[name];
+
+    // фиксируем время клика и обновляем кнопку/таймер
+    setLastClaim();
+    refreshClaimState();
+
+    // обновляем профиль (если есть глобальный объект)
+    try {
+      window.Profile?.incPoints?.(100);   // +100 очков (пример)
+      window.Profile?.setPrize?.(name);   // последний приз
+    } catch (_) {}
+
+    // переход по ссылке приза
+    if (!url) return;
+    if (url.startsWith('#')) location.hash = url;
+    else if (/^https?:\/\//.test(url)) window.open(url, '_blank');
+    else window.location.href = url;
+  });
+
+  /* ================== конфетти ================== */
+  function confettiBurst(x, y) {
+    let layer = document.getElementById('confetti');
+    if (!layer) { layer = document.createElement('div'); layer.id = 'confetti'; document.body.appendChild(layer); }
+    const colors = ['#7b5bff', '#3de0c5', '#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
+    const rect = document.body.getBoundingClientRect();
+    const ox = (x ?? rect.width / 2), oy = (y ?? rect.height / 3);
+    for (let i = 0; i < 36; i++) {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.background = colors[i % colors.length];
+      const angle = (i / 36) * Math.PI * 2;
+      const speed = 140 + Math.random() * 120;
+      const dx = Math.cos(angle) * speed, dy = Math.sin(angle) * speed + 220;
+      el.style.setProperty('--x', ox + 'px');
+      el.style.setProperty('--y', oy + 'px');
+      el.style.setProperty('--dx', dx + 'px');
+      el.style.setProperty('--dy', dy + 'px');
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+  }
+
+  /* старт */
+  updateUI();          // отрисовать колесо + плашку
+  refreshClaimState(); // сразу проверить кулдаун на кнопке
+  syncCoinsUI();       // и с монетами
+})();
+</script>
+
 </body>
 </html>
