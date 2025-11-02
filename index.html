@@ -840,7 +840,7 @@ body.flappy-open{ overflow:hidden; }
   grid-template-areas:"ava about balance";
   gap:12px; align-items:center;
 }
-.pf-ava{ grid-area:ava; width:56px; height:56px; border-radius:50%; object-fit:cover;
+.pf-ava{ grid-area:ava; width:56px; height:56px; border-radius:30%; object-fit:cover;
          background:#222; border:1px solid rgba(255,255,255,.08); }
 .pf-about{ grid-area:about; }
 .pf-title{ font-weight:800; font-size:18px; }
@@ -3076,7 +3076,7 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
     const log = getJSON(PRIZES_KEY, []) || [];
     if (!log.length){ wrap.innerHTML = '<div class="pf-muted">Пока пусто. Крути колесо или участвуй в играх.</div>'; return; }
     wrap.innerHTML = log.slice(0,6).map(x =>
-      `<div class="pf-item"><i class="pf-dot"></i><div>✔️ ${esc(x.name)}</div><div class="pf-muted">📅 ${fmtDate(x.ts)}</div></div>`
+      `<div class="pf-item"><i class="pf-dot"></i><div>✅ ${esc(x.name)}</div><div class="pf-muted">📅 ${fmtDate(x.ts)}</div></div>`
     ).join('');
   }
 
