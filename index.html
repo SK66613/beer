@@ -632,8 +632,35 @@ body.flappy-open{ overflow:hidden; }
     }
   </style>
 
+<style>
+  /* Toasts ТОСТ ОКОШКО*/
+.toasts{
+  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
+}
+.toast{
+  pointer-events:auto; display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-radius:14px; color:#fff;
+  background:rgba(18,20,24,.96); border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  transform:translateX(120%); opacity:0; animation:toast-in .25s ease forwards;
+}
+.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
+.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
+.toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
+@keyframes toast-in { to { transform:translateX(0); opacity:1; } }
+@keyframes toast-out{ to { transform:translateX(120%); opacity:0; } }
+
+/* визуально «заблокируем», но клики ловим для тоста */
+#spinBtn.is-locked{ opacity:.6; }
+#spinBtn.is-locked:active{ transform:none; }
+
+</style>
+
+
 </head>
 <body>
+
   <canvas id="confetti"></canvas>
   <div class="wrap">
     <nav id="btm-nav" class="btm-nav" aria-label="Навигация">
@@ -646,6 +673,9 @@ body.flappy-open{ overflow:hidden; }
     </nav>
 
     <main>
+<!-- ТОСТ Окошко поп апп всплывающее -->
+      <div id="toasts" class="toasts" aria-live="polite"></div>
+
 
 
       <!-- Слайды Slider -->
@@ -2131,7 +2161,7 @@ for (const it of items){
 
 
 
-  <script>
+<script>
 (function () {
   const wheel = document.getElementById('bonusWheel');
   const track = document.getElementById('wheelTrack');
@@ -2193,7 +2223,7 @@ for (const it of items){
   }
 
   /* ====== Кулдаун «Забрать бонус» + таймер ====== */
-  const COOLDOWN_MS = 24 * 60 * 60 * 1000; // 24 часа
+  const COOLDOWN_MS = 0.1 * 60 * 60 * 1000; // 24 часа
   const UID = (TG?.initDataUnsafe?.user?.id) || 'anon';
   const CLAIM_KEY = 'bonusClaim_ts_' + UID;
 
@@ -2274,9 +2304,8 @@ for (const it of items){
       if (claim) { claim.disabled = true; delete claim.dataset.bonus; }
     }
 
-    // важное: синхронизация состояния кнопки с кулдауном
+    // важное: синхронизация состояния кнопки с кулдауном и монетами
     refreshClaimState();
-    // и с монетами
     syncCoinsUI();
   }
 
@@ -2340,11 +2369,66 @@ for (const it of items){
       const el = document.getElementById(id);
       if (el) el.textContent = getCoins();
     });
-    if (spin) spin.disabled = (getCoins() < SPIN_COST) || spinning;
+    if (spin){
+      const lock = (getCoins() < SPIN_COST) || spinning;
+      spin.classList.toggle('is-locked', lock);
+      // Не делаем spin.disabled — чтобы клик показывал тост
+    }
   }
 
   // (опционально) стартовый баланс для теста:
   if (getCoins() === 0) addCoins(300);
+
+  /* ================== Toasts (всплывашки) ================== */
+  function ensureToastStyles(){
+    if (document.getElementById('toast-styles')) return;
+    const css = `
+.toasts{
+  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
+}
+.toast{
+  pointer-events:auto; display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-radius:14px; color:#fff;
+  background:rgba(18,20,24,.96); border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  transform:translateX(120%); opacity:0; animation:toast-in .25s ease forwards;
+}
+.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
+.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
+.toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
+@keyframes toast-in { to { transform:translateX(0); opacity:1; } }
+@keyframes toast-out{ to { transform:translateX(120%); opacity:0; } }
+
+/* визуально «блок»: */
+#spinBtn.is-locked{ opacity:.6; }
+#spinBtn.is-locked:active{ transform:none; }
+
+/* простые конфетти */
+#confetti { position: fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:10000; }
+.confetti-piece{ position: fixed; left: var(--x); top: var(--y); width:8px; height:8px; border-radius:2px; transform: translate(-50%,-50%); animation: confetti-fall .95s ease-out forwards; }
+@keyframes confetti-fall { to { transform: translate(calc(var(--dx)), calc(var(--dy))) rotate(260deg); opacity:0; } }
+`;
+    const style = document.createElement('style');
+    style.id = 'toast-styles';
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  function showToast(msg, type='error', ms=3000){
+    ensureToastStyles();
+    const host = document.getElementById('toasts') || (()=>{
+      const d=document.createElement('div'); d.id='toasts'; d.className='toasts';
+      document.body.appendChild(d); return d;
+    })();
+    const el = document.createElement('div');
+    el.className = 'toast' + (type==='ok' ? ' toast--ok' : ' toast--error');
+    el.innerHTML = `<span>${msg}</span><button class="toast__close" aria-label="Закрыть">✕</button>`;
+    host.appendChild(el);
+    const close = ()=>{ el.style.animation='toast-out .22s ease forwards'; setTimeout(()=> el.remove(), 240); };
+    el.querySelector('.toast__close').addEventListener('click', close);
+    setTimeout(close, ms);
+  }
 
   /* ================== события ================== */
   // клик по карточке — центрируем её
@@ -2379,13 +2463,13 @@ for (const it of items){
   track.addEventListener('pointercancel', endDrag);
   */
 
-  /* ===== Крутануть с оплатой монет ===== */
+  /* ===== Крутануть с оплатой монет + тост при нехватке ===== */
   spin?.addEventListener('click', () => {
     if (spinning) return;
 
     if (getCoins() < SPIN_COST) {
       hapticPulse('medium');
-      alert(`Нужно ${SPIN_COST} монет — сыграй, выполни миссию или приведи друга, чтобы накопить.`);
+      showToast(`Недостаточно монет. Нужно ${SPIN_COST} 🪙`, 'error', 3000);
       return;
     }
 
@@ -2398,14 +2482,14 @@ for (const it of items){
     const idx = Math.floor(Math.random() * N);
     spinTo(idx, 1, 1600);
 
-    // конфетти из кнопки (если нужно — оставь)
+    // конфетти из кнопки
     const r = spin.getBoundingClientRect();
     confettiBurst(r.left + r.width / 2, r.top + r.height / 2);
 
     // разблокируем по окончании анимации
     setTimeout(() => {
       spinning = false;
-      syncCoinsUI(); // на всякий — обновить кнопки/счётчики
+      syncCoinsUI();
     }, 1650);
   });
 
@@ -2434,8 +2518,9 @@ for (const it of items){
     else window.location.href = url;
   });
 
-  /* ================== конфетти ================== */
+  /* ================== конфетти (DOM) ================== */
   function confettiBurst(x, y) {
+    ensureToastStyles(); // тут также лежит CSS для конфетти
     let layer = document.getElementById('confetti');
     if (!layer) { layer = document.createElement('div'); layer.id = 'confetti'; document.body.appendChild(layer); }
     const colors = ['#7b5bff', '#3de0c5', '#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
@@ -2463,6 +2548,7 @@ for (const it of items){
   syncCoinsUI();       // и с монетами
 })();
 </script>
+
 
 </body>
 </html>
