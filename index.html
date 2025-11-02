@@ -423,6 +423,8 @@ body.flappy-open{ overflow:hidden; }
   60% { box-shadow: 0 0 calc(var(--shield-glow-blur)*1.2) var(--shield-glow-color), 0 0 0 10px rgba(107,227,255,0); }
   100%{ box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color), 0 0 0 0 rgba(107,227,255,0); }
 }
+
+
 </style>
 
   <style>
@@ -1073,13 +1075,13 @@ body.flappy-open{ overflow:hidden; }
 <div class="card lb-card inner" id="leaderboard">
   <div class="lb-head">
     <div>
-      <div class="lb-title">Leaderboard</div>
-      <div class="lb-sub">Flappy · daily &amp; all-time</div>
+      <div class="lb-title">Bumblebee</div>
+      <div class="lb-sub">Турнирная таблица</div>
     </div>
 
     <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
-      <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">Daily</button>
-      <button type="button" class="js-lb-mode" data-mode="all">All-time</button>
+      <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">День</button>
+      <button type="button" class="js-lb-mode" data-mode="all">Все</button>
     </div>
   </div>
 
@@ -1099,7 +1101,7 @@ body.flappy-open{ overflow:hidden; }
   </div>
 
   <div class="lb-actions">
-    <button class="lb-btn" id="lb-refresh" type="button">Refresh</button>
+    <button class="lb-btn" id="lb-refresh" type="button">Обновить</button>
     <button class="lb-btn lb-btn--primary" type="button" data-open-flappy>Играть</button>
   </div>
 </div>
@@ -1598,49 +1600,42 @@ body.flappy-open{ overflow:hidden; }
   const cta    = document.getElementById('fl-cta');
 
   /* ===== ASSETS: поменяй пути/размеры под свои картинки ===== */
- // ЗАМЕНИ на свои картинки и размеры (CSS-пиксели, не обязаны совпадать с реальным размером PNG)
-const ASSETS = {
-  bird:   { img: 'bumblebee.png',  w: 56, h: 42 },        // птичка
-  pipes:  {                                  // трубы: верх/низ (если одна картинка — укажи её в обоих)
-    top:    'pipe_top.png',
-    bottom: 'pipe_bottom.png',
-    width:  54                                // ВАЖНО: видимая ширина трубы в px
-  },
-  coin:   { img: 'coin.png',   w: 32, h: 32, value: 5 },
-  shield: { img: 'shield.png', w: 34, h: 34, dur_ms: 6000 }
-};
-
+  const ASSETS = {
+    bird:   { img: 'bumblebee.png',  w: 56, h: 42 },
+    pipes:  { top:'pipe_top.png', bottom:'pipe_bottom.png', width:54 },
+    coin:   { img:'coin.png',   w:32, h:32, value:5 },
+    shield: { img:'shield.png', w:34, h:34, dur_ms:6000 }
+  };
 
   /* ===== TUNING ===== */
   const WORLD_RECORD     = 200;
-  const GRAVITY          = 1800;      // px/s^2
-  const FLAP_VELOCITY    = -520;      // px/s
-  const SPEED_X          = 220;       // базовая скорость труб
-  const ACCEL_EACH_MS    = 8000;      // автоускорение каждые N мс
-  const SPEED_STEP       = 28;        // шаг ускорения
-  const PIPE_SPAWN_MS    = 1300;      // частота спавна труб
-  const GAP_MIN          = 150;       // мин. зазор
-  const GAP_MAX          = 190;       // макс. зазор
-  const GAP_TOP_PAD      = 80;        // отступ от краёв
-  const BIRD_X_FACTOR    = 0.25;      // 25% ширины
+  const GRAVITY          = 1800;
+  const FLAP_VELOCITY    = -520;
+  const SPEED_X          = 220;
+  const ACCEL_EACH_MS    = 8000;
+  const SPEED_STEP       = 28;
+  const PIPE_SPAWN_MS    = 1300;
+  const GAP_MIN          = 150;
+  const GAP_MAX          = 190;
+  const GAP_TOP_PAD      = 80;
+  const BIRD_X_FACTOR    = 0.25;
   const ROT_UP           = -35, ROT_DOWN = 90;
   const SAFE_FLOOR_PAD   = 6;
 
   // items
-  const COIN_IN_GAP_PROB = 0.9;      // шанс монетки в каждой щели
-  const SHIELD_PROB      = 0.9;      // шанс щита (редкий)
-  const SHIELD_COOLDOWN  = 9000;      // не чаще одного раз в N мс
+  const COIN_IN_GAP_PROB = 0.9;
+  const SHIELD_PROB      = 0.9;
+  const SHIELD_COOLDOWN  = 9000;
 
-  // === Magnet (coins attract to bird when shield is active) ===
-const MAGNET_ENABLED   = true;  // можно выключить
-const MAGNET_RADIUS    = 140;   // радиус захвата, px
-const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/сек
-
+  // магнит монет при щите
+  const MAGNET_ENABLED   = true;
+  const MAGNET_RADIUS    = 140;
+  const MAGNET_PULL_PX_S = 300;
 
   // STATE
   let best     = Number(localStorage.getItem('flappy_best')||0);
   let running  = false, started=false;
-  let raf      = 0, spawnT=0, t0=0, backOff=null;
+  let raf      = 0, spawnT = Infinity, t0 = 0, backOff=null; // PATCH: spawnT=Infinity, t0=0
   let w=0,h=0, birdX=0, birdY=0, birdVY=0;
 
   let pipes=[];   // {x, gapY, gap, topEl, botEl, passed:false}
@@ -1650,6 +1645,15 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
   let score=0, coins=0;
   let shieldActive=false, shieldUntil=0;
 
+  // ---- Global wallet (общий баланс мини-аппа) ----
+const WALLET_KEY = 'beer_coins';
+function getWallet(){ return +(localStorage.getItem(WALLET_KEY)||0); }
+function setWallet(v){ localStorage.setItem(WALLET_KEY, String(Math.max(0, v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
+// Унифицировано: если у тебя уже есть window.addCoins — используем его.
+function addWallet(n){ if (typeof window.addCoins==='function') return window.addCoins(n|0); setWallet(getWallet()+(n|0)); }
+const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в общий баланс (поменяй при желании)
+
+
   // helpers
   const haptic = lvl=>{ try{ TG?.HapticFeedback?.impactOccurred(lvl||'light'); }catch(_){} };
   const clamp  = (v,a,b)=> Math.max(a, Math.min(b, v));
@@ -1657,7 +1661,6 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
 
   // apply assets → css vars & backgrounds
   function applyAssets(){
-    // bird
     document.documentElement.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
     document.documentElement.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
     if (ASSETS.bird.img){
@@ -1666,10 +1669,8 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
     } else {
       birdEl.classList.remove('fl-bird--sprite'); birdEl.style.backgroundImage = '';
     }
-    // pipes
     document.documentElement.style.setProperty('--pipe-w', (ASSETS.pipes.width||76)+'px');
-    // hud icons
-    if (ASSETS.coin.img) coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
+    if (ASSETS.coin.img)   coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
     if (ASSETS.shield.img) shIco.style.backgroundImage = `url(${ASSETS.shield.img})`;
     document.documentElement.style.setProperty('--coin-w', (ASSETS.coin.w||32)+'px');
     document.documentElement.style.setProperty('--coin-h', (ASSETS.coin.h||32)+'px');
@@ -1683,10 +1684,7 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
     birdX = w * BIRD_X_FACTOR;
     if (!started){ birdY = h * 0.45; applyBird(); }
   }
-  function applyBird(){
-    birdEl.style.left = birdX + 'px';
-    birdEl.style.top  = birdY + 'px';
-  }
+  function applyBird(){ birdEl.style.left = birdX + 'px'; birdEl.style.top = birdY + 'px'; }
   function setScore(v){ scoreEl.textContent = v; }
   function setCoins(v){ coinCnt.textContent = v; }
 
@@ -1718,7 +1716,7 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
       c.className = 'fl-coin';
       if (ASSETS.coin.img) c.style.backgroundImage = `url(${ASSETS.coin.img})`;
       stage.appendChild(c);
-      items.push({ type:'coin', x: p.x + 200, y: gapY, el: c }); // чуть правее появления трубы
+      items.push({ type:'coin', x: p.x + 200, y: gapY, el: c });
       positionItem(items[items.length-1]);
     }
 
@@ -1736,8 +1734,8 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
 
   function positionPipe(p){
     const pipeW = (ASSETS.pipes.width||76);
-    const th = p.gapY - p.gap/2;   // height of top pipe
-    const bt = p.gapY + p.gap/2;   // top of bottom pipe
+    const th = p.gapY - p.gap/2;
+    const bt = p.gapY + p.gap/2;
     p.topEl.style.left = p.x + 'px';
     p.topEl.style.top  = '0px';
     p.topEl.style.height = th + 'px';
@@ -1748,24 +1746,16 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
     p.botEl.style.width  = pipeW + 'px';
   }
 
-  function positionItem(it){
-    it.el.style.left = it.x + 'px';
-    it.el.style.top  = it.y + 'px';
-  }
-
+  function positionItem(it){ it.el.style.left = it.x + 'px'; it.el.style.top  = it.y + 'px'; }
   function removePipe(p){ p.topEl.remove(); p.botEl.remove(); }
   function removeItem(it){ it.el.remove(); }
 
   // collisions
-  function rectsOverlap(a,b){
-    return !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
-  }
+  function rectsOverlap(a,b){ return !(a.right<b.left||a.left>b.right||a.bottom<b.top||a.top>b.bottom); }
   function collidePipe(){
     const br = birdEl.getBoundingClientRect();
     for (const p of pipes){
-      if (rectsOverlap(br, p.topEl.getBoundingClientRect()) || rectsOverlap(br, p.botEl.getBoundingClientRect())){
-        return true;
-      }
+      if (rectsOverlap(br, p.topEl.getBoundingClientRect()) || rectsOverlap(br, p.botEl.getBoundingClientRect())) return true;
     }
     return false;
   }
@@ -1812,9 +1802,13 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
   function flap(){
     if (!running) return;
     if (!started){
+      // PATCH: первый тап — реальный старт
       started = true;
       hintEl.style.display = 'none';
       birdVY = FLAP_VELOCITY;
+      t0 = performance.now();        // старт таймеров
+      spawnT = t0;                   // разрешаем спавн
+      tick._prev = t0;               // сброс дельты
     } else {
       birdVY = FLAP_VELOCITY;
     }
@@ -1826,69 +1820,51 @@ const MAGNET_PULL_PX_S = 300;   // скорость притяжения, px/с�
     const now = performance.now();
     const dt  = Math.min(32, now - (tick._prev||now)); tick._prev = now;
 
-    // progress bar (просто «бежит»)
+    // PATCH: до старта — ничего не двигаем/не спавним/бар не бежит
+    if (!started){
+      birdY += Math.sin(now/300) * 0.12;  // лёгкое покачивание
+      applyBird();
+      updateShieldHud();
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+
+    // progress bar — только после старта
     const elapsed = now - t0;
     const prog = Math.min(1, elapsed / 45000);
     barEl.style.transform = `scaleX(${1-prog})`;
 
     // speed
-    const speed = SPEED_X + Math.floor((now - t0) / ACCEL_EACH_MS) * SPEED_STEP;
+    const speed = SPEED_X + Math.floor(elapsed / ACCEL_EACH_MS) * SPEED_STEP;
 
-    if (started){
-      birdVY += GRAVITY * (dt/1000);
-      birdY  += birdVY * (dt/1000);
+    // bird physics
+    birdVY += GRAVITY * (dt/1000);
+    birdY  += birdVY * (dt/1000);
+    const ang = clamp((birdVY/600)*45, ROT_UP, ROT_DOWN);
+    birdEl.style.transform = `translate(-50%,-50%) rotate(${ang}deg)`;
 
-      const ang = clamp((birdVY/600)*45, ROT_UP, ROT_DOWN);
-      birdEl.style.transform = `translate(-50%,-50%) rotate(${ang}deg)`;
+    const topLimit = 6;
+    const botLimit = h - SAFE_FLOOR_PAD;
+    if (birdY <= topLimit){ birdY = topLimit; birdVY = 0; }
+    if (birdY >= botLimit){ birdY = botLimit; if (!shieldActive){ crash(); return; } else { birdVY = -200; } }
 
-      const topLimit = 0 + 6;
-      const botLimit = h - SAFE_FLOOR_PAD;
-      if (birdY <= topLimit){ birdY = topLimit; birdVY = 0; }
-      if (birdY >= botLimit){ birdY = botLimit; if (!shieldActive){ crash(); return; } else { /* мягко отталкиваемся */ birdVY = -200; } }
-    } else {
-      birdY += Math.sin(now/300) * 0.12;
+    // move pipes/items (+ magnet)
+    const dx = speed * dt/1000;
+    for (const p of pipes){ p.x -= dx; positionPipe(p); }
+    for (const it of items){
+      it.x -= dx;
+      if (MAGNET_ENABLED && shieldActive && it.type === 'coin'){
+        const vx=birdX-it.x, vy=birdY-it.y, dist=Math.hypot(vx,vy);
+        if (dist < MAGNET_RADIUS){
+          const pull = MAGNET_PULL_PX_S * (dt/1000);
+          const step = Math.min(pull, dist||0);
+          const nx = vx/(dist||1), ny = vy/(dist||1);
+          it.x += nx*step; it.y += ny*step;
+          it.el.style.transform = 'translate(-50%,-50%) scale(1.08)';
+        } else it.el.style.transform = 'translate(-50%,-50%)';
+      } else it.el.style.transform = 'translate(-50%,-50%)';
+      positionItem(it);
     }
-
-// move pipes/items (+ coin magnet when shieldActive)
-const dx = speed * dt/1000;
-for (const p of pipes){ 
-  p.x -= dx; 
-  positionPipe(p); 
-}
-
-for (const it of items){
-  // обычный скролл сцены
-  it.x -= dx;
-
-  // магнит только для монет и только при активном щите
-  if (MAGNET_ENABLED && shieldActive && it.type === 'coin'){
-    const vx = birdX - it.x;
-    const vy = birdY - it.y;
-    const dist = Math.hypot(vx, vy);
-
-    if (dist < MAGNET_RADIUS){
-      // шаг притяжения (ограничиваем, чтобы не «перескакивало»)
-      const pull = MAGNET_PULL_PX_S * (dt/1000);
-      const step = Math.min(pull, dist || 0);
-      const nx = vx / (dist || 1);
-      const ny = vy / (dist || 1);
-
-      it.x += nx * step;
-      it.y += ny * step;
-
-      // лёгкий визуальный намёк: чуть увеличим монетку, когда в зоне магнита
-      it.el.style.transform = 'translate(-50%,-50%) scale(1.08)';
-    } else {
-      it.el.style.transform = 'translate(-50%,-50%)';
-    }
-  } else {
-    // вне магнита — обычный размер
-    it.el.style.transform = 'translate(-50%,-50%)';
-  }
-
-  positionItem(it);
-}
-
 
     // passed score
     for (const p of pipes){
@@ -1903,17 +1879,14 @@ for (const it of items){
 
     // collisions
     collideItems();
-    if (started && collidePipe()){
+    if (collidePipe()){
       if (shieldActive){
-        // гасим щит при касании трубы и даём микро-отдачу
         shieldActive = false; birdEl.classList.remove('fl-bird--shield'); shBar.style.transform = 'scaleX(0)';
         birdVY = -260;
-      } else {
-        crash(); return;
-      }
+      } else { crash(); return; }
     }
 
-    // spawn pipes
+    // spawn pipes — только после старта (тут мы уже после return’а)
     if (now - spawnT > PIPE_SPAWN_MS){ spawnT = now; spawnPipe(); }
 
     // HUD
@@ -1928,8 +1901,11 @@ for (const it of items){
     running=false; cancelAnimationFrame(raf);
     if (score > best){ best=score; try{ localStorage.setItem('flappy_best', String(best)); }catch(_){ } }
 
-      // ✨ ДОБАВЬ ЭТО:
-  try { window.Tournament?.submit(score); } catch(_) {}
+    // submit в турнир (как у тебя)
+    try { window.Tournament?.submit(score); } catch(_) {}
+
+    addWallet(Math.floor(coins * COIN_TO_WALLET)); // зачисляем все собранные за раунд
+
 
     document.getElementById('fl-best').textContent = best;
     document.getElementById('fl-world').textContent = WORLD_RECORD;
@@ -1942,21 +1918,23 @@ for (const it of items){
     items.forEach(removeItem); items = [];
     coins=0; setCoins(0);
     shieldActive=false; birdEl.classList.remove('fl-bird--shield'); shBar.style.transform = 'scaleX(0)';
-    // bird
+
+    // bird / hud
     started=false; score=0; setScore(0);
     hintEl.style.display = '';
     birdVY = 0; birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
+    barEl.style.transform = 'scaleX(1)';      // PATCH: бар полный на старте
     layout();
-    // spawn timer
-    spawnT = performance.now() + 400;
+
+    // PATCH: до первого тапа ничего не спавним
+    spawnT = Infinity;
     tick._prev = performance.now();
   }
 
   function openFlappy(){
     root.classList.add('is-open'); document.body.classList.add('flappy-open');
     try{
-      TG?.BackButton?.show?.();
-      backOff = ()=> closeFlappy();
+      TG?.BackButton?.show?.(); backOff = ()=> closeFlappy();
       TG?.BackButton?.onClick?.(backOff);
       TG?.disableVerticalSwipes?.(); TG?.expand?.();
     }catch(_){}
@@ -1966,7 +1944,9 @@ for (const it of items){
     applyAssets();
     layout(); resetScene();
 
-    running = true; t0 = performance.now(); raf = requestAnimationFrame(tick);
+    running = true;
+    // PATCH: НЕ стартуем таймер тут; ждём первый тап
+    raf = requestAnimationFrame(tick);
   }
 
   function closeFlappy(){
@@ -1999,8 +1979,7 @@ for (const it of items){
   });
 
   // resize
-  const ro = new ResizeObserver(()=> layout());
-  ro.observe(stage);
+  new ResizeObserver(()=> layout()).observe(stage);
 })();
 </script>
 
@@ -2607,7 +2586,7 @@ for (const it of items){
 </script>
 
 <script>
-/* ===== Tournament (Flappy) — local LB + optional Worker submit ===== */
+/* ===== Tournament (Flappy) — local LB + optional Worker submit ШМЕЛЬ ===== */
 (function(){
   const TG = window.Telegram && window.Telegram.WebApp;
 
