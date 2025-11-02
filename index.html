@@ -932,13 +932,24 @@ body.flappy-open{ overflow:hidden; }
 /* Мобилка — ничего особенного не нужно, наследуется от твоих общих стилей */
 @media (prefers-reduced-motion: reduce){ .ticker__track{ animation:none } }
 
-/* реверс направления */
-.ticker--reverse .ticker__track{
-  animation-direction: reverse;
+.ticker{ overflow:hidden; position:relative; }
+.ticker__track{
+  display:inline-flex; gap:8px; white-space:nowrap;
+  will-change: transform;
+  animation: tickerLoop var(--dur, 0s) linear infinite;
+}
+.ticker--reverse .ticker__track{ animation-direction: reverse; } /* опционально: реверс */
+
+@keyframes tickerLoop{
+  from{ transform: translateX(0); }
+  to  { transform: translateX(calc(-1 * var(--shift, 50%))); }
 }
 
 
 </style>
+
+
+
 
 <style>
 :root{ --card-pad:14px; }
@@ -1492,13 +1503,16 @@ body.flappy-open{ overflow:hidden; }
     <div class="panel__title">Последние призы</div>
   </div>
 
-  <!-- если не нужен тикер — убери внешнюю .ticker и оставь только .chips -->
-  <div class="ticker">
+  <div class="ticker js-ticker">
     <div class="chips ticker__track" id="pf-prizes">
       <span class="chip chip--muted">Пока пусто</span>
     </div>
+    <div class="chips ticker__track ticker__clone" aria-hidden="true"></div>
   </div>
 </div>
+
+
+
 
 </section>
 
@@ -3062,7 +3076,7 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
     const log = getJSON(PRIZES_KEY, []) || [];
     if (!log.length){ wrap.innerHTML = '<div class="pf-muted">Пока пусто. Крути колесо или участвуй в играх.</div>'; return; }
     wrap.innerHTML = log.slice(0,6).map(x =>
-      `<div class="pf-item"><i class="pf-dot"></i><div>${esc(x.name)}</div><div class="pf-muted">· ${fmtDate(x.ts)}</div></div>`
+      `<div class="pf-item"><i class="pf-dot"></i><div>✔️ ${esc(x.name)}</div><div class="pf-muted">📅 ${fmtDate(x.ts)}</div></div>`
     ).join('');
   }
 
@@ -3145,119 +3159,9 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
 })();
 </script>
 
-<script>
-/* ===== ПАСПОРТ СТИЛЕЙ Passport module ===== */
-(function Passport(){
-  const TG  = window.Telegram && window.Telegram.WebApp;
-  const UID = (TG?.initDataUnsafe?.user?.id) || 'anon';
-  const STORE_KEY = 'beer_passport_v1_' + UID;
-  const STYLES = ['Lager','IPA','Stout','Weizen','Sour','Cider'];
 
-  // ——— воркер (по желанию): заполни и включится отправка
-  const APP_CONFIG = window.APP_CONFIG || {};
-  // пример: window.APP_CONFIG = { WORKER_BASE:'https://your-worker.workers.dev', API_KEY:'dev-123' };
 
-  const grid = document.getElementById('passport-grid');
-  if (!grid) return;
 
-  /* ========== STORAGE ========== */
-  const load = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY))||{} } catch(_){ return {} } };
-  const save = (obj) => { try { localStorage.setItem(STORE_KEY, JSON.stringify(obj)); } catch(_){} };
-
-  /* ========== UI ========== */
-  function renderFromStore(){
-    const data = load();
-    STYLES.forEach(code=>{
-      const card  = grid.querySelector(`.pslot[data-code="${code}"]`);
-      if (!card) return;
-      const has = !!data[code];
-      card.classList.toggle('is-done', has);
-      const badge = card.querySelector('.pslot__badge');
-      if (badge) badge.textContent = has ? 'Штамп есть' : 'Нет штампа';
-    });
-    updateProfileCounters();
-    // событие для любых подписчиков
-    document.dispatchEvent(new CustomEvent('passport:change', { detail: { data } }));
-  }
-
-  function updateProfileCounters(){
-    const data = load();
-    const got = STYLES.filter(s => !!data[s]);
-    const cntEl  = document.getElementById('pf-pass-count');
-    const listEl = document.getElementById('pf-pass-list');
-    if (cntEl)  cntEl.textContent  = `${got.length}/6`;
-    if (listEl) listEl.textContent = got.length ? got.join(', ') : '—';
-    // на всякий — дернем профиль, если есть модуль
-    try { window.Profile?.updatePassport?.(got); } catch(_) {}
-  }
-
-  /* ========== PUBLIC API ========== */
-  async function setStamp(style, has=true, opts={}){
-    const map = { lager:'Lager', ipa:'IPA', stout:'Stout', weizen:'Weizen', sour:'Sour', cider:'Cider' };
-    const code = map[String(style).trim().toLowerCase()];
-    if (!code) return console.warn('[Passport] Unknown style:', style);
-
-    const data = load();
-    data[code] = !!has;
-    save(data);
-    renderFromStore();
-
-    // отправка воркеру (если указан)
-    if (APP_CONFIG.WORKER_BASE && APP_CONFIG.API_KEY){
-      try{
-        await sendToWorker('stamp_set', { style: code, has: !!has });
-      }catch(e){ console.warn('[Passport] worker error:', e); }
-    }
-  }
-
-  function reset(){
-    save({}); renderFromStore();
-    if (APP_CONFIG.WORKER_BASE && APP_CONFIG.API_KEY){
-      sendToWorker('stamp_reset', {});
-    }
-  }
-
-  async function sendToWorker(type, payload){
-    const url = APP_CONFIG.WORKER_BASE.replace(/\/+$/,'') + '/passport';
-    const body = {
-      type,
-      payload,
-      uid: UID,
-      initData: TG?.initData || '',   // для серверной верификации Telegram
-    };
-    const r = await fetch(url, {
-      method:'POST',
-      headers:{
-        'Content-Type':'application/json',
-        'X-Api-Key': APP_CONFIG.API_KEY
-      },
-      body: JSON.stringify(body)
-    });
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    return r.json();
-  }
-
-  // экспорт наружу
-  window.Passport = { setStamp, reset, render: renderFromStore, load };
-
-  /* ========== UX DEMO (можно удалить) ========== */
-  document.querySelector('[data-action="add-stamp"]')?.addEventListener('click', ()=>{
-    const val = prompt('Какой стиль выдать? (Lager, IPA, Stout, Weizen, Sour, Cider)');
-    if (!val) return;
-    setStamp(val, true);
-  });
-  // клик по карточке — toggle (удобно на тестах)
-  grid.addEventListener('click', (e)=>{
-    const card = e.target.closest('.pslot'); if (!card) return;
-    const code = card.dataset.code;
-    const has  = !card.classList.contains('is-done');
-    setStamp(code, has);
-  });
-
-  // первый рендер
-  renderFromStore();
-})();
-</script>
 
 
 
