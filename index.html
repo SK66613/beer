@@ -778,6 +778,8 @@ body.flappy-open{ overflow:hidden; }
 .trivia-start{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
 .trivia-start.is-hidden{ display:none !important; }
 
+/* Прячем заголовок, пока квиз идёт */
+.trivia-card.is-running .h1 { display: none !important; }
 
 
 
@@ -940,7 +942,7 @@ body.flappy-open{ overflow:hidden; }
 
 <template id="tpl-trivia">
   <div class="card trivia-card">
-    <div class="h1">Викторина «Угадай стиль»</div>
+    <div class="h1">Ответь на 4 простых вопроса и получи 100 монет</div>
 
     <!-- Стартовая плашка -->
     <div class="trivia-start" id="trivia-start">
@@ -2445,6 +2447,9 @@ for (const it of items){
   const elStart = ()=> document.getElementById('trivia-start');
   const elHint  = ()=> document.getElementById('trivia-start-hint');
 
+  const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
+
+
   // ===== Рендеры =====
   function renderStartRow(){
     const start = elStart(), hint = elHint();
@@ -2503,13 +2508,15 @@ for (const it of items){
     const box = elBody(); if (!box) return;
     box.innerHTML =
       `<div class="trivia-q">
-         <div class="trivia-title">Готово!</div>
+         <div class="trivia-title"></div>
          <p>Вы ответили на все вопросы. На счёт зачислено <b>${REWARD} 🪙</b>.</p>
        </div>`;
   }
 
   // ===== Флоу =====
   function startQuiz(){
+    rootCard()?.classList.add('is-running'); // спрятать заголовок
+
     // скрыть стартовую плашку
     elStart()?.classList.add('is-hidden');
     // стопнуть таймер, если был
@@ -2527,6 +2534,8 @@ for (const it of items){
 
     // через 1.4с показываем стартовую плашку с кулдауном
     setTimeout(renderStartRow, 1400);
+    rootCard()?.classList.remove('is-running'); // вернуть заголовок
+
   }
 
   // ===== Делегаты событий =====
