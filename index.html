@@ -675,57 +675,6 @@ body.flappy-open{ overflow:hidden; }
 </style>
 
 
-<style>
-  /* Beer Passport */
-.card.passport{
-  display:grid;
-  grid-template-columns: 140px 1fr;
-  gap:12px;
-  align-items: stretch;
-}
-.passport__media{
-  border-radius:14px;
-  overflow:hidden;
-  border:1px solid rgba(255,255,255,.08);
-  background:rgba(255,255,255,.04);
-  display:grid;
-  place-items:center;
-}
-.passport__media img{
-  width:100%;
-  height:100%;
-  object-fit:cover;
-  display:block;
-}
-.passport__body{ display:grid; gap:10px; }
-
-/* сетка штампов как и была, но чуть плотнее */
-#passport-grid{
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0,1fr));
-  gap:8px;
-}
-.stamp{
-  display:grid; place-items:center;
-  padding:10px; border-radius:12px;
-  border:1px solid rgba(255,255,255,.12);
-  background:rgba(255,255,255,.05);
-  font-weight:800; font-size:13px; text-align:center;
-  opacity:.85;
-}
-.stamp.is-done{
-  background:rgba(55,214,122,.16);
-  border-color:rgba(55,214,122,.4);
-  opacity:1;
-}
-
-/* мобильная адаптация: картинка сверху */
-@media (max-width:520px){
-  .card.passport{ grid-template-columns: 1fr; }
-  .passport__media{ height: 160px; } /* фикс высота превью */
-}
-</style>
-
 
 
 <style>
@@ -802,7 +751,7 @@ body.flappy-open{ overflow:hidden; }
 </style>
 
 
-<!-- Стили профиля (лаконичные, дружат с твоими .card/.btn) -->
+<!-- ПРОФИЛЬ Стили профиля (лаконичные, дружат с твоими .card/.btn) -->
 <style>
 /* ===== ровные отступы и лёгкая иерархия ===== */
 .card{ padding:14px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); }
@@ -954,8 +903,127 @@ body.flappy-open{ overflow:hidden; }
   display:inline-block;
   margin-left:14px;
 }
+/* Рамочная панель (как маленькая карточка) */
+.panel{
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:10px;
+  display:grid;
+  gap:8px;
+}
+.panel__head{ display:flex; align-items:center; gap:8px; }
+.panel__icon{ font-size:16px; line-height:1; }
+.panel__title{ font-weight:800; }
+
+/* Тикер (опционально) */
+.ticker{ overflow:hidden; }
+.ticker__track{
+  display:inline-flex; gap:8px; white-space:nowrap;
+  will-change: transform;
+  animation: ticker var(--ticker-dur, 20s) linear infinite;
+}
+.ticker:hover .ticker__track{ animation-play-state: paused; }
+@keyframes ticker{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+/* Чипы у тебя уже есть; на всякий «пригладим» внутри панели */
+.panel .chips{ padding-top:2px; }
+
+/* Мобилка — ничего особенного не нужно, наследуется от твоих общих стилей */
+@media (prefers-reduced-motion: reduce){ .ticker__track{ animation:none } }
+
+/* реверс направления */
+.ticker--reverse .ticker__track{
+  animation-direction: reverse;
+}
+
 
 </style>
+
+<style>
+:root{ --card-pad:14px; }
+
+/* ===== Карточка «Паспорт» (рамка) ===== */
+.card.passport{
+  padding: var(--card-pad);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* Левая картинка */
+.passport__media{
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255,255,255,.04);
+  display: grid; place-items: center;
+}
+.passport__media img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+
+/* Правая колонка */
+.passport__body{ display:grid; gap:10px; }
+
+/* ===== Сетка мини-карточек ===== */
+#passport-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:10px;
+}
+
+/* ЕДИНАЯ карточка стиля (название + бейдж внутри обводки) */
+.pslot{
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:10px;
+  display:grid; gap:8px;
+  transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+}
+.pslot__title{ font-weight:800; line-height:1.2; }
+
+/* бейдж статуса */
+.pslot__badge{
+  display:grid; place-items:center;
+  padding:8px 10px; border-radius:999px;
+  font-weight:800; font-size:13px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06); color:#fff; opacity:.95;
+}
+
+/* Подсветка при получении штампа — ВЕСЬ блок */
+.pslot.is-done{
+  border-color: rgba(55,214,122,.55);
+  background: rgba(55,214,122,.12);
+  box-shadow: 0 0 0 1px rgba(55,214,122,.25) inset;
+}
+.pslot.is-done .pslot__title{ color:#37d67a; }
+.pslot.is-done .pslot__badge{
+  border-color: rgba(55,214,122,.55);
+  background: linear-gradient(180deg, rgba(55,214,122,.9), rgba(55,214,122,.75));
+  color:#0b1a12;
+}
+
+/* ===== Мобилка: картинка full-bleed, 2 колонки сетки ===== */
+@media (max-width:520px){
+  .card.passport{ grid-template-columns: 1fr; }
+  .passport__media{
+    margin: calc(-1*var(--card-pad)) calc(-1*var(--card-pad)) 10px;
+    border-radius: 16px 16px 0 0;
+    aspect-ratio: 16/9;
+  }
+  #passport-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+</style>
+
+
+
 
 
 </head>
@@ -1086,30 +1154,56 @@ body.flappy-open{ overflow:hidden; }
   <div class="card passport">
     <!-- Левая колонка: картинка -->
     <figure class="passport__media">
-      <!-- Положи свой файл, например img/beer-passport.jpg -->
       <img src="beer_hero.jpg" alt="Пивной паспорт">
     </figure>
 
     <!-- Правая колонка: контент -->
     <div class="passport__body">
       <div>
-        <div class="h1" style="margin:0 0 6px">Пивной Паспорт стилей</div>
+        <div class="h1" style="margin:0 0 6px">Паспорт стилей</div>
         <p class="muted-sm" style="margin:0">
           Собери 6 штампов: <b>Lager</b>, <b>IPA</b>, <b>Stout</b>, <b>Weizen</b>, <b>Sour</b>, <b>Cider</b> — приз.
         </p>
       </div>
 
+      <!-- Сетка мини-карточек -->
       <div id="passport-grid">
-        <!-- JS сюда отрисует .stamp элементы -->
+        <div class="pslot" data-code="Lager">
+          <div class="pslot__title">Lager</div>
+          <div class="pslot__badge">Нет штампа</div>
+        </div>
+        <div class="pslot" data-code="IPA">
+          <div class="pslot__title">IPA</div>
+          <div class="pslot__badge">Нет штампа</div>
+        </div>
+        <div class="pslot" data-code="Stout">
+          <div class="pslot__title">Stout</div>
+          <div class="pslot__badge">Нет штампа</div>
+        </div>
+        <div class="pslot" data-code="Weizen">
+          <div class="pslot__title">Weizen</div>
+          <div class="pslot__badge">Нет штампа</div>
+        </div>
+        <div class="pslot" data-code="Sour">
+          <div class="pslot__title">Sour</div>
+          <div class="pslot__badge">Нет штампа</div>
+        </div>
+        <div class="pslot" data-code="Cider">
+          <div class="pslot__title">Cider</div>
+          <div class="pslot__badge">Нет штампа</div>
+        </div>
       </div>
 
-      <div class="g g2" style="margin-top:4px">
+      <div class="g g2" style="margin-top:6px">
         <button class="btn btn-primary" data-action="add-stamp">Добавить штамп</button>
-<!-- <button class="btn" data-action="reset-passport">Сбросить</button>-->
+        <!-- <button class="btn" data-action="reset-passport">Сбросить</button> -->
       </div>
     </div>
   </div>
 </template>
+
+
+
 
 
 
@@ -1392,12 +1486,19 @@ body.flappy-open{ overflow:hidden; }
   </div>===== -->
   <div aria-hidden="true" style="height:19px;"></div>
 
-    <div class="row">
-    <div class="row-title">🎁 Последние призы</div>
-    <div class="chips" id="pf-prizes">
-      <!-- JS подставит .chip элементы -->
+<div class="panel panel--prizes">
+  <div class="panel__head">
+    <span class="panel__icon">🎁</span>
+    <div class="panel__title">Последние призы</div>
+  </div>
+
+  <!-- если не нужен тикер — убери внешнюю .ticker и оставь только .chips -->
+  <div class="ticker">
+    <div class="chips ticker__track" id="pf-prizes">
+      <span class="chip chip--muted">Пока пусто</span>
     </div>
   </div>
+</div>
 
 </section>
 
@@ -2982,19 +3083,6 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
     document.getElementById('pf-all-rank').textContent    = ixAll>=0   ? (ixAll+1)   : '—';
   }
 
-  // --- Паспорт стилей
-  function renderPassport(){
-    const data = getJSON(PASSPORT_KEY, {stamps:[]}) || {stamps:[]};
-    // фоллбек: собрать из DOM, если сайт уже отметил штампы
-    if (!data.stamps?.length){
-      const dom = Array.from(document.querySelectorAll('#passport-grid .stamp.is-done')).map(el=> el.dataset?.code || el.textContent.trim());
-      data.stamps = dom;
-    }
-    const unique = Array.from(new Set(data.stamps||[]));
-    const total  = 6;
-    document.getElementById('pf-pass-count').textContent = `${Math.min(unique.length,total)}/${total}`;
-    document.getElementById('pf-pass-list').textContent  = unique.slice(0,total).join(', ') || '—';
-  }
 
   // --- Рефералы
   function renderRefs(){
@@ -3056,6 +3144,121 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
   else initProfilePage();
 })();
 </script>
+
+<script>
+/* ===== ПАСПОРТ СТИЛЕЙ Passport module ===== */
+(function Passport(){
+  const TG  = window.Telegram && window.Telegram.WebApp;
+  const UID = (TG?.initDataUnsafe?.user?.id) || 'anon';
+  const STORE_KEY = 'beer_passport_v1_' + UID;
+  const STYLES = ['Lager','IPA','Stout','Weizen','Sour','Cider'];
+
+  // ——— воркер (по желанию): заполни и включится отправка
+  const APP_CONFIG = window.APP_CONFIG || {};
+  // пример: window.APP_CONFIG = { WORKER_BASE:'https://your-worker.workers.dev', API_KEY:'dev-123' };
+
+  const grid = document.getElementById('passport-grid');
+  if (!grid) return;
+
+  /* ========== STORAGE ========== */
+  const load = () => { try { return JSON.parse(localStorage.getItem(STORE_KEY))||{} } catch(_){ return {} } };
+  const save = (obj) => { try { localStorage.setItem(STORE_KEY, JSON.stringify(obj)); } catch(_){} };
+
+  /* ========== UI ========== */
+  function renderFromStore(){
+    const data = load();
+    STYLES.forEach(code=>{
+      const card  = grid.querySelector(`.pslot[data-code="${code}"]`);
+      if (!card) return;
+      const has = !!data[code];
+      card.classList.toggle('is-done', has);
+      const badge = card.querySelector('.pslot__badge');
+      if (badge) badge.textContent = has ? 'Штамп есть' : 'Нет штампа';
+    });
+    updateProfileCounters();
+    // событие для любых подписчиков
+    document.dispatchEvent(new CustomEvent('passport:change', { detail: { data } }));
+  }
+
+  function updateProfileCounters(){
+    const data = load();
+    const got = STYLES.filter(s => !!data[s]);
+    const cntEl  = document.getElementById('pf-pass-count');
+    const listEl = document.getElementById('pf-pass-list');
+    if (cntEl)  cntEl.textContent  = `${got.length}/6`;
+    if (listEl) listEl.textContent = got.length ? got.join(', ') : '—';
+    // на всякий — дернем профиль, если есть модуль
+    try { window.Profile?.updatePassport?.(got); } catch(_) {}
+  }
+
+  /* ========== PUBLIC API ========== */
+  async function setStamp(style, has=true, opts={}){
+    const map = { lager:'Lager', ipa:'IPA', stout:'Stout', weizen:'Weizen', sour:'Sour', cider:'Cider' };
+    const code = map[String(style).trim().toLowerCase()];
+    if (!code) return console.warn('[Passport] Unknown style:', style);
+
+    const data = load();
+    data[code] = !!has;
+    save(data);
+    renderFromStore();
+
+    // отправка воркеру (если указан)
+    if (APP_CONFIG.WORKER_BASE && APP_CONFIG.API_KEY){
+      try{
+        await sendToWorker('stamp_set', { style: code, has: !!has });
+      }catch(e){ console.warn('[Passport] worker error:', e); }
+    }
+  }
+
+  function reset(){
+    save({}); renderFromStore();
+    if (APP_CONFIG.WORKER_BASE && APP_CONFIG.API_KEY){
+      sendToWorker('stamp_reset', {});
+    }
+  }
+
+  async function sendToWorker(type, payload){
+    const url = APP_CONFIG.WORKER_BASE.replace(/\/+$/,'') + '/passport';
+    const body = {
+      type,
+      payload,
+      uid: UID,
+      initData: TG?.initData || '',   // для серверной верификации Telegram
+    };
+    const r = await fetch(url, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'X-Api-Key': APP_CONFIG.API_KEY
+      },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    return r.json();
+  }
+
+  // экспорт наружу
+  window.Passport = { setStamp, reset, render: renderFromStore, load };
+
+  /* ========== UX DEMO (можно удалить) ========== */
+  document.querySelector('[data-action="add-stamp"]')?.addEventListener('click', ()=>{
+    const val = prompt('Какой стиль выдать? (Lager, IPA, Stout, Weizen, Sour, Cider)');
+    if (!val) return;
+    setStamp(val, true);
+  });
+  // клик по карточке — toggle (удобно на тестах)
+  grid.addEventListener('click', (e)=>{
+    const card = e.target.closest('.pslot'); if (!card) return;
+    const code = card.dataset.code;
+    const has  = !card.classList.contains('is-done');
+    setStamp(code, has);
+  });
+
+  // первый рендер
+  renderFromStore();
+})();
+</script>
+
 
 
 </body>
