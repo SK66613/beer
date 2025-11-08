@@ -3218,6 +3218,24 @@ claim?.addEventListener('click', () => {
   };
 </script>
 
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const ALLOW = 'input, textarea, select, [contenteditable], .selectable';
+
+  document.addEventListener('selectstart', (e) => {
+    if (e.target.closest(ALLOW)) return;
+    e.preventDefault();
+  }, { passive:false });
+
+  document.addEventListener('contextmenu', (e) => {
+    if (e.target.closest(ALLOW)) return;
+    e.preventDefault();
+  }, { passive:false });
+
+  // (опц.) На iOS бывает «жест зума» → рубим
+  window.addEventListener('gesturestart', (e) => e.preventDefault(), { passive:false });
+});
+</script>
 
 
 
