@@ -1047,30 +1047,29 @@ body.flappy-open{ overflow:hidden; }
 
 <style>
 <style>
-/* Анти-выделение + анти-длинный тап по всему приложению */
-:root, html, body {
-  -webkit-user-select: none;
-          user-select: none;
-  -webkit-touch-callout: none;       /* без iOS-меню по долгому тапу */
+<style>
+/* Глобально запрещаем выделение + контекст по долгому тапу */
+*, *::before, *::after{
+  -webkit-user-select: none !important;
+          user-select: none !important;
+  -webkit-touch-callout: none !important;
   -webkit-tap-highlight-color: transparent;
-  touch-action: manipulation;        /* меньше «жестов», быстрее клики */
-  overscroll-behavior: none;         /* без «протяжки» */
 }
 
-/* Но в формах и на помеченных блоках — можно выделять/копировать */
-input, textarea, select, [contenteditable], .selectable {
-  -webkit-user-select: text;
-          user-select: text;
-  -webkit-touch-callout: default;
+/* Но в полях ввода и отмеченных блоках — можно */
+input, textarea, select, [contenteditable], .selectable, .allow-select{
+  -webkit-user-select: text !important;
+          user-select: text !important;
+  -webkit-touch-callout: default !important;
 }
 
-/* Рекомендации для игр/канвасов, чтобы не ловить жесты зума/скролла */
-canvas, .game, .no-gesture {
-  touch-action: none;
-}
+/* На всякий случай не даём браузеру интерпретировать жесты как зум/скролл на игровых слоях */
+canvas, .game, .no-gesture { touch-action: none; }
 
-/* (опц.) Чтоб не было «подсветки» при тапе по ссылкам/кнопкам */
-a, button { -webkit-user-select: none; user-select: none; }
+/* Если есть нижний таббар, чтобы шторка его перекрывала */
+.sheet{ z-index: 12000 !important; }
+</style>
+
 </style>
 
 </style>
@@ -3220,22 +3219,31 @@ claim?.addEventListener('click', () => {
 
 <script>
 document.addEventListener('DOMContentLoaded', () => {
-  const ALLOW = 'input, textarea, select, [contenteditable], .selectable';
+  const ALLOW = 'input, textarea, select, [contenteditable], .selectable, .allow-select';
 
+  // Блокируем начало выделения за пределами разрешённых мест
   document.addEventListener('selectstart', (e) => {
     if (e.target.closest(ALLOW)) return;
     e.preventDefault();
   }, { passive:false });
 
+  // Рубим системное меню по долгому тапу (iOS/Android)
   document.addEventListener('contextmenu', (e) => {
     if (e.target.closest(ALLOW)) return;
     e.preventDefault();
   }, { passive:false });
 
-  // (опц.) На iOS бывает «жест зума» → рубим
-  window.addEventListener('gesturestart', (e) => e.preventDefault(), { passive:false });
+  // Если что-то всё же выделилось — снимаем выделение
+  document.addEventListener('selectionchange', () => {
+    const activeOk = document.activeElement && document.activeElement.matches(ALLOW);
+    if (!activeOk) {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.rangeCount) sel.removeAllRanges();
+    }
+  });
 });
 </script>
+
 
 
 
