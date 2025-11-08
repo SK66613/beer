@@ -1045,9 +1045,35 @@ body.flappy-open{ overflow:hidden; }
 
 </style>
 
+<style>
+<style>
+/* Анти-выделение + анти-длинный тап по всему приложению */
+:root, html, body {
+  -webkit-user-select: none;
+          user-select: none;
+  -webkit-touch-callout: none;       /* без iOS-меню по долгому тапу */
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;        /* меньше «жестов», быстрее клики */
+  overscroll-behavior: none;         /* без «протяжки» */
+}
 
+/* Но в формах и на помеченных блоках — можно выделять/копировать */
+input, textarea, select, [contenteditable], .selectable {
+  -webkit-user-select: text;
+          user-select: text;
+  -webkit-touch-callout: default;
+}
 
+/* Рекомендации для игр/канвасов, чтобы не ловить жесты зума/скролла */
+canvas, .game, .no-gesture {
+  touch-action: none;
+}
 
+/* (опц.) Чтоб не было «подсветки» при тапе по ссылкам/кнопкам */
+a, button { -webkit-user-select: none; user-select: none; }
+</style>
+
+</style>
 
 </head>
 <body>
