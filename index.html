@@ -3480,5 +3480,57 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
+  <script>
+// === API bridge (worker) + apply fresh_state ===
+(function(){
+  var TG = (window.Telegram && window.Telegram.WebApp) || null;
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+
+  async function apiCall(type, data){
+    const res = await fetch(API_BASE + "/api/mini/event", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ type, data:(data||{}), tg_init: TG?.initData || "" })
+    });
+    const j = await res.json().catch(()=>({ok:false}));
+    if (j && j.fresh_state && window.applyServerState) window.applyServerState(j.fresh_state);
+    return j;
+  }
+  window.api = apiCall;
+
+  window.addCoins = async function(delta, src){
+    const r = await apiCall('coins.ledger', { delta:Number(delta||0), src: src||'ui' });
+    return r;
+  };
+
+  // Первичная загрузка
+  async function bootstrap(){
+    try{
+      await fetch(API_BASE + "/api/mini/bootstrap", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: TG?.initDataUnsafe?.start_param || "" } })
+      });
+    }catch(_){}
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "" })
+      });
+      const st = await r.json().catch(()=>null);
+      if (st && st.ok && window.applyServerState) window.applyServerState(st);
+    }catch(_){}
+  }
+
+  // Простейшая очередь, чтобы не было двойных сабмитов
+  let busy=false;
+  window.runAction = async (fn)=>{ if (busy) return; busy=true; try{ await fn(); } finally{ busy=false; } };
+
+  // Запуск
+  try{ TG?.ready(); TG?.expand(); }catch(_){}
+  bootstrap();
+})();
+</script>
+
+
 </body>
 </html>
