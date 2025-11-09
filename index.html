@@ -3607,5 +3607,183 @@ document.addEventListener('DOMContentLoaded', () => {
 </script>
 
 
+
+<!-- ===== FINAL PATCH: Server-driven state (no local wallet/leaderboard), spin cost at claim, stamps & leaderboard from GAS ===== -->
+<script>
+(function(){
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG?.ready(); TG?.expand(); TG?.disableVerticalSwipes?.(); }catch(_){}
+
+  const API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+
+  // ----- Helpers
+  const $ = (sel) => document.querySelector(sel);
+  const $$ = (sel) => Array.from(document.querySelectorAll(sel));
+  const setText = (sel, v) => { const el = $(sel); if (el) el.textContent = (v==null? "": String(v)); };
+
+  // Freeze helper to prevent later overrides
+  function defineFinalGlobal(name, fn){
+    try {
+      Object.defineProperty(window, name, { value: fn, writable: false, configurable: false });
+    } catch(_){
+      window[name] = fn;
+    }
+  }
+
+  async function apiCall(type, data){
+    const body = { type, data:(data||{}), tg_init: TG?.initData || "" };
+    const res = await fetch(API_BASE + "/api/mini/event", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body)
+    });
+    const j = await res.json().catch(()=>({ ok:false }));
+    if (j && j.fresh_state) applyServerState(j.fresh_state);
+    return j;
+  }
+
+  // Expose unified API
+  defineFinalGlobal("api", apiCall);
+
+  // Public actions (used by UI)
+  defineFinalGlobal("claimPrize", async function(prizeName, prizeValue, extra){
+    // Списание SPIN_COST произойдёт на сервере тут
+    return await api("bonus.claim", { prize_name: String(prizeName||""), prize_value: Number(prizeValue||0), ...(extra||{}) });
+  });
+  defineFinalGlobal("addStamp", async function(styleId){
+    return await api("style.collect", { style_id: String(styleId||""), status:"collected" });
+  });
+  defineFinalGlobal("quizFinished", async function(quizId, correct, total, durationMs){
+    return await api("quiz.result", { quiz_id: String(quizId||"default"), correct: Number(correct||0), total: Number(total||0), duration_ms: Number(durationMs||0) });
+  });
+  defineFinalGlobal("submitGameScore", async function(score, gameId, mode){
+    return await api("game.submit", { score:Number(score||0), game_id:String(gameId||"flappy_bee"), mode:String(mode||"daily") });
+  });
+
+  // Renderers
+  function renderLeaderboard(lb){
+    const root = document.querySelector("#leaderboard .lb-list") || document.getElementById("lb-list");
+    if (!root) return;
+    root.innerHTML = "";
+    (lb||[]).forEach((row, i) => {
+      const div = document.createElement("div");
+      div.className = "lb-row " + (i===0?"lb-medal-1": i===1?"lb-medal-2": i===2?"lb-medal-3":"");
+      div.innerHTML = `
+        <div class="lb-rank">${i+1}</div>
+        <div class="lb-avatar">${(row.username||"@?").slice(0,1).toUpperCase()}</div>
+        <div class="lb-name">${row.username ? "@"+row.username : row.tg_id}</div>
+        <div class="lb-score">${row.score|0}</div>
+      `;
+      root.appendChild(div);
+    });
+  }
+
+  function renderPassportStamps(styles, last_name, last_id){
+    // Counter
+    if (Array.isArray(styles)){
+      // Try both ids if present
+      setText("#pf-stamps-count", `${styles.length}/${window.__styles_total||6}`);
+      // Update grid if present
+      const grid = document.getElementById("passport-grid");
+      if (grid){
+        const owned = new Set(styles.map(String));
+        grid.querySelectorAll(".pslot").forEach(card => {
+          const code = String(card.getAttribute("data-code")||"");
+          const badge = card.querySelector(".pslot__badge");
+          if (owned.has(code)){
+            card.classList.add("is-done");
+            if (badge) badge.textContent = "Получен";
+          } else {
+            card.classList.remove("is-done");
+            if (badge) badge.textContent = "Нет штампа";
+          }
+        });
+      }
+    }
+    // Last stamp name
+    const label = last_name || last_id || "—";
+    setText("#pf-last-stamp", label);
+    setText("#prof-last-stamp", label);
+  }
+
+  // Final, authoritative applyServerState
+  function applyServerState(state){
+    if (!state || state.ok===false) return;
+    window.__state = state;
+
+    // Balance
+    if (typeof state.coins === "number"){
+      setText("#pf-coins", state.coins|0);
+      // keep legacy LS keys (some widgets may read)
+      try{ localStorage.setItem("beer_coins", String(state.coins)); }catch(_){}
+    }
+
+    // Config (spin cost)
+    if (state.config && typeof state.config.SPIN_COST === "number"){
+      setText("#spin-cost", state.config.SPIN_COST);
+    }
+
+    // Prizes history -> legacy keys for existing widgets
+    const claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
+    try {
+      const v1 = claims.map(x => ({ name: x.prize_name || "Приз", ts: Date.parse(x.ts||new Date()) || Date.now() }));
+      const v2 = claims.map(x => ({ ts: Date.parse(x.ts||new Date()) || Date.now(), source: "bonus", prize: x.prize_name || "Приз" }));
+      localStorage.setItem("bonus_log_v1", JSON.stringify(v1.slice(0,30)));
+      localStorage.setItem("beer_rewards", JSON.stringify(v2.slice(0,30)));
+    }catch(_){}
+
+    // Stamps
+    try{
+      const styles = Array.isArray(state.styles) ? state.styles : [];
+      window.__styles_total = state.styles_total || 6;
+      // legacy passport cache
+      const map = {}; styles.forEach(s => map[String(s)] = 1);
+      localStorage.setItem("beer_passport", JSON.stringify(map));
+      localStorage.setItem("beer_passport_v1", JSON.stringify({ stamps: styles }));
+      renderPassportStamps(styles, state.last_stamp_name, state.last_stamp_id);
+    }catch(_){}
+
+    // Leaderboard + my stats
+    renderLeaderboard(state.leaderboard_today || []);
+    setText("#lb-me-best", state.game_today_best || 0);
+
+    // Hooks if the page defined render functions
+    try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+    try{ window.renderRewards && window.renderRewards(); }catch(_){}
+    try{ window.renderPassport && window.renderPassport(); }catch(_){}
+  }
+  defineFinalGlobal("applyServerState", applyServerState);
+
+  // Bootstrap + initial state (ensure Telegram initData is ready)
+  (function init(){
+    const t0 = Date.now();
+    const wait = () => {
+      if (TG && TG.initData && TG.initData.length>0) return start();
+      if (Date.now()-t0>3000) return start();
+      setTimeout(wait, 60);
+    };
+    wait();
+  })();
+
+  async function start(){
+    try{
+      const start_param = TG?.initDataUnsafe?.start_param || "";
+      await fetch(API_BASE + "/api/mini/bootstrap", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param } })
+      });
+    }catch(_){}
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", {
+        method:"POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "" })
+      });
+      const st = await r.json().catch(()=>null);
+      if (st && st.ok) applyServerState(st);
+    }catch(_){}
+  }
+})();
+</script>
+
 </body>
 </html>
