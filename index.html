@@ -7,80 +7,88 @@
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
-// === Early TG init + GAS API (moved to head) ===
-// --- Server sync helpers (coins, prizes, passport) ---
-window.applyServerState = function(state){
-  try{
-    if (!state || state.ok===false) return;
-
-    // 1) coins
-    if (typeof state.coins === 'number'){
-      try{ localStorage.setItem('beer_coins', String(state.coins)); }catch(_){}
-    }
-
-    // 2) prizes -> both keys used in app
-    var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
-    var prA = claims.map(function(x){ return {name: (x.prize_name||x.name||'Приз'), ts: Date.parse(x.ts||x.claim_ts||new Date().toISOString())||Date.now()}; });
-    var prB = claims.map(function(x){ return {ts: Date.parse(x.ts||x.claim_ts||new Date().toISOString())||Date.now(), source: 'bonus', prize: (x.prize_name||x.name||'Приз')}; });
-    try{ localStorage.setItem('bonus_log_v1', JSON.stringify(prA.slice(0,30))); }catch(_){}
-    try{ localStorage.setItem('beer_rewards', JSON.stringify(prB.slice(0,30))); }catch(_){}
-
-    // 3) passport styles -> both keys
-    var styles = Array.isArray(state.styles) ? state.styles : [];
-    var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
-    try{ localStorage.setItem('beer_passport', JSON.stringify(map)); }catch(_){}
-    try{ localStorage.setItem('beer_passport_v1', JSON.stringify({stamps: styles})); }catch(_){}
-
-    // Trigger UI re-renders if present
-    try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
-    try{ window.renderRewards && window.renderRewards(); }catch(_){}
-    try{ window.renderPassport && window.renderPassport(); }catch(_){}
-    try{ window.Profile && window.Profile.refresh && window.Profile.refresh(); }catch(_){}
-  }catch(e){ try{ console.warn('applyServerState error', e); }catch(_){ } }
-};
-
-window.syncFromServer = function(){
-  return window.api('state.get', {}, 'profile').then(function(res){
-    if (res && res.ok) window.applyServerState(res);
-    return res;
-  });
-};
-
+// === Telegram init + Server sync via Worker (state from Google Sheet) ===
 (function(){
-  // Defaults (will be overridden by existing window.APP if present)
-  var defaults = {
-    BOT_USERNAME: 'CineCraft_robot',
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbwMG0iup6TBkZWkiordrweyHoI3PVzADFz_Vcy1JCOWl39YGlWRBye1t7x-rDtILRCo9Q/exec'
-  };
-  window.APP = Object.assign({}, defaults, (window.APP || {}));
-
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  window.TG = TG;
-  if (TG){ try{ TG.ready(); TG.expand(); TG.disableVerticalSwipes?.(); }catch(e){} }
+  try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  window.api = async function(type, data={}, sub=''){
-    var url = window.APP && window.APP.GAS_URL;
-    if (!url) { return {ok:false, error:'no_gas_url'}; }
-    var payload = {
-      type: type, sub: sub, app:'beer_craft',
-      ts: new Date().toISOString(),
-      tg_init: TG?.initData || '',
-      data: data
-    };
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  async function apiBootstrap(){
+    var start_param = TG && TG.initDataUnsafe ? (TG.initDataUnsafe.start_param||"") : "";
     try{
-      var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      return await res.json();
-    }catch(err){
-      return {ok:false, error:String(err)};
-    }
+      const r = await fetch(API_BASE + "/api/mini/bootstrap", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param } })
+      });
+      return await r.json();
+    }catch(err){ return { ok:false, error:String(err) }; }
+  }
+  async function apiState(){
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "" })
+      });
+      return await r.json();
+    }catch(err){ return { ok:false, error:String(err) }; }
+  }
+  // expose generic event sender in case app uses window.api(type,data)
+  window.api = async function(type, data){
+    try{
+      const r = await fetch(API_BASE + "/api/mini/event", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
+      });
+      return await r.json();
+    }catch(err){ return { ok:false, error:String(err) }; }
   };
 
-  // Bootstrap asap
-  setTimeout(function(){
+  window.applyServerState = function(state){
+    if (!state || state.ok === false) return;
     try{
-      window.api && window.api('profile.bootstrap', { start_param: TG?.initDataUnsafe?.start_param || '' }, 'profile');
+      // coins
+      if (typeof state.coins === 'number') {
+        localStorage.setItem('beer_coins', String(state.coins));
+      }
+      // last prizes -> two keys used by UI variants
+      var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
+      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
+      var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
+      localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
+      localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
+
+      // passport styles -> two formats
+      var styles = Array.isArray(state.styles) ? state.styles : [];
+      var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
+      localStorage.setItem('beer_passport', JSON.stringify(map));
+      localStorage.setItem('beer_passport_v1', JSON.stringify({ stamps: styles }));
+
+      // refresh UI if hooks present
+      try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+      try{ window.renderRewards && window.renderRewards(); }catch(_){}
+      try{ window.renderPassport && window.renderPassport(); }catch(_){}
     }catch(_){}
-  }, 0);
+  };
+
+  function waitInitData(cb){
+    var t0 = Date.now();
+    (function tick(){
+      if (TG && TG.initData && TG.initData.length>0) return cb();
+      if (Date.now()-t0 > 3000) return cb();  // timeout, still try
+      setTimeout(tick, 60);
+    })();
+  }
+
+  waitInitData(async function(){
+    try{ await apiBootstrap(); }catch(_){}
+    try{
+      const st = await apiState();
+      if (st && st.ok) window.applyServerState(st);
+    }catch(_){}
+  });
 })();
 </script>
 
@@ -1749,8 +1757,7 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     // ===== App State & Storage =====
     const APP = {
-      BOT_USERNAME: 'CineCraft_robot',
-      GAS_URL: 'https://script.google.com/macros/s/AKfycby5qENgLQrnKl9wC7Ojo6zvzmDg8aG_0WVg21es80zTOIXKOLY_eom4NNnKaB_opDZlbw/exec', // TODO: замените на @имя_бота
+      BOT_USERNAME: 'CineCraft_robot', // TODO: замените на @имя_бота
       WORKER_BASE: 'https://your-worker.example.dev/', // TODO: замените на ваш Worker
       API_KEY: 'dev-123',
       COOLDOWN_SPIN_HOURS: 24,
@@ -1851,7 +1858,6 @@ canvas, .game, .no-gesture { touch-action: none; }
       const S = style.trim(); if (!STYLES.includes(S)) return alert('Неизвестный стиль');
       const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
       const data = store.get(SKEY.passport, {}); data[S] = 1; store.set(SKEY.passport, data); renderPassport(); addCoins(100); confettiBurst(); logReward({source:'passport', prize:'Штамп '+S});
-      try{ window.api && window.api('style.collect', { style_id: S, status:'collected' }, 'style'); }catch(_){}
     }
     function resetPassport(){ store.set(SKEY.passport, {}); renderPassport(); }
 
@@ -2784,8 +2790,6 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
 
     // списываем монеты перед стартом
     setCoins(getCoins() - SPIN_COST);
-    try{ window.api && window.api('coins.ledger', { delta: -SPIN_COST, src:'bonus_spin', ref_id:'', note:'spin' }, 'bonus'); }catch(_){ }
-    try{ window.api && window.api('bonus.spin', { event_id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), cost_coins: SPIN_COST, outcome:'pending' }, 'bonus'); }catch(_){}
     hapticPulse('light');
 
     // запускаем вращение
@@ -2819,7 +2823,6 @@ claim?.addEventListener('click', () => {
   try {
     window.Profile?.incPoints?.(100);
     window.Profile?.setPrize?.(name);
-  try{ window.api && window.api('bonus.claim', { event_id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), prize_name: name, prize_value: 0, claim_status:'ok', delivery:'', contact:'' }, 'bonus'); }catch(_){}
   } catch (_) {}
 
   // Открываем шторку с последними призами
@@ -2984,7 +2987,6 @@ claim?.addEventListener('click', () => {
   function finishQuiz(){
     addCoins(REWARD);
     logPrize(`+${REWARD}🪙 за викторину`);
-    try{ window.api && window.api('quiz.result', { quiz_id: 'beer_trivia_v1', score: REWARD, correct_cnt: null, duration_ms: 0, reward_coins: REWARD }, 'quiz'); }catch(_){}
     setLast(); haptic('light');
 
     renderFinish();
@@ -3097,7 +3099,8 @@ claim?.addEventListener('click', () => {
         if (base){
           const headers = {'content-type':'application/json'}; if (key) headers['x-api-key']=key;
           const body = (mode)=> JSON.stringify({game:this.GAME, mode, score, user:u});
-          try{ window.api && window.api('game.submit', { game_id: this.GAME, mode:'daily', score, duration_ms:0 }, 'game'); window.api && window.api('game.submit', { game_id: this.GAME, mode:'all', score, duration_ms:0 }, 'game'); }catch(_){}
+          fetch(base+'games/submit', {method:'POST', headers, body: body('daily')});
+          fetch(base+'games/submit', {method:'POST', headers, body: body('all')});
         }
       }catch(_){}
     },
@@ -3253,11 +3256,10 @@ claim?.addEventListener('click', () => {
 
   // Публичный API (можно дергать из колеса/игр)
   window.Profile = {
-    async incPoints(n){ // +монеты
+    incPoints(n){ // +монеты
       const cur = +(localStorage.getItem(WALLET_KEY)||0);
       localStorage.setItem(WALLET_KEY, String(Math.max(0, cur + (n|0))));
       renderCoins(); try{ window.syncCoinsUI?.(); }catch(_){}
-      try{ window.api && window.api('coins.ledger', { delta:(n|0), src:'ui', ref_id:'', note:'profile.incPoints' }, 'bonus'); }catch(_){}
     },
     setPrize(name){ // лог приза
       const log = getJSON(PRIZES_KEY, [])||[];
@@ -3330,9 +3332,6 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 });
 </script>
-
-
-
 
 
 
