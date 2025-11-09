@@ -1046,8 +1046,7 @@ body.flappy-open{ overflow:hidden; }
 </style>
 
 <style>
-<style>
-<style>
+ <style>
 /* Глобально запрещаем выделение + контекст по долгому тапу */
 *, *::before, *::after{
   -webkit-user-select: none !important;
@@ -1069,10 +1068,10 @@ canvas, .game, .no-gesture { touch-action: none; }
 /* Если есть нижний таббар, чтобы шторка его перекрывала */
 .sheet{ z-index: 12000 !important; }
 </style>
-
+ 
 </style>
 
-</style>
+
 
 </head>
 <body>
@@ -1106,25 +1105,29 @@ canvas, .game, .no-gesture { touch-action: none; }
       <div class="intro__slides" id="intro-slides">
         <!-- 1 -->
         <section class="intro__slide active">
-          <h2 class="intro__h1">Welcome fren</h2>
-          <p class="intro__p">Подтверди, что тебе точно уже есть 18+.</p>
+          <h2 class="intro__h1">Привет друг!</h2>
+          <p class="intro__p">Здесь культура крафта! Это приложение про игры, бонусы и знание пивных стилей.
+Продолжая, подтверждаешь возраст 18+ и согласие с правилами.</p>
         </section>
         <!-- 2 -->
         <section class="intro__slide">
-          <h2 class="intro__h1">Коротко о нас</h2>
-          <p class="intro__p">У нас кравтовое пиво собственного производства. варим так сказать по дедушкину рецепту</p>
+          <h2 class="intro__h1">Как это работает?</h2>
+          <p class="intro__p">Играй в «Шмеля», проходи викторины, собирай Паспорт стилей.
+За активность — монеты. Монеты — колесо бонусов, мерч, снеки, купоны.</p>
         </section>
 
         <!-- 3 -->
         <section class="intro__slide">
-          <h2 class="intro__h1">Что тут делать</h2>
-          <p class="intro__p">В этом мини апп ты можешь играть и выигрывать бонусы и цееные призы, начни с рулеточки</p>
+          <h2 class="intro__h1">Про сообщество</h2>
+          <p class="intro__p">Мы локальная команда: свежесть, малые пивоварни, сезонные партии.
+Есть безалкогольные позиции, дружим с локальными закусками и мерчем.</p>
         </section>
 
                 <!-- 4 -->
         <section class="intro__slide">
-          <h2 class="intro__h1">Отлично!</h2>
-          <p class="intro__p">Ну все начали бро, жми кнопку и погнали</p>
+          <h2 class="intro__h1">Отлично! Погнали</h2>
+          <p class="intro__p">Первый спин — в подарок. В профиле видны баланс, призы и рефералы.
+Играй честно, бонусы забирай в магазине.</p>
         </section>
       </div>
     </div>
@@ -1174,7 +1177,7 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     <!-- CTA -->
     <div id="fl-cta" class="fl-cta">
-      <button class="btn" data-open-flappy>Попробывать еше раз</button>
+      <button class="btn" data-open-flappy>Попробывать еще раз</button>
     </div>
   </div>
 </div>
@@ -1769,6 +1772,7 @@ canvas, .game, .no-gesture { touch-action: none; }
       const S = style.trim(); if (!STYLES.includes(S)) return alert('Неизвестный стиль');
       const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
       const data = store.get(SKEY.passport, {}); data[S] = 1; store.set(SKEY.passport, data); renderPassport(); addCoins(100); confettiBurst(); logReward({source:'passport', prize:'Штамп '+S});
+      try{ window.api && window.api('style.collect', { style_id: S, status:'collected' }, 'style'); }catch(_){}
     }
     function resetPassport(){ store.set(SKEY.passport, {}); renderPassport(); }
 
@@ -1800,7 +1804,7 @@ canvas, .game, .no-gesture { touch-action: none; }
     actions: {
       0: [ // Слайд 1 — две рядом
         { label:'Нет', type:'ghost', do:'navigate', value:'no' },
-        { label:'Да',  type:'primary', do:'answer', to:'next' } // перейти в раздел "Запись"
+        { label:'Есть 18',  type:'primary', do:'answer', to:'next' } // перейти в раздел "Запись"
       ],
       1: [ // Слайд 0 — одна кнопка
         { label:'Продолжить', type:'primary', do:'next' }
@@ -2701,6 +2705,8 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
 
     // списываем монеты перед стартом
     setCoins(getCoins() - SPIN_COST);
+    try{ window.api && window.api('coins.ledger', { delta: -SPIN_COST, src:'bonus_spin', ref_id:'', note:'spin' }, 'bonus'); }catch(_){}}
+    try{ window.api && window.api('bonus.spin', { event_id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), cost_coins: SPIN_COST, outcome:'pending' }, 'bonus'); }catch(_){}
     hapticPulse('light');
 
     // запускаем вращение
@@ -2734,6 +2740,7 @@ claim?.addEventListener('click', () => {
   try {
     window.Profile?.incPoints?.(100);
     window.Profile?.setPrize?.(name);
+  try{ window.api && window.api('bonus.claim', { event_id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), prize_name: name, prize_value: 0, claim_status:'ok', delivery:'', contact:'' }, 'bonus'); }catch(_){}
   } catch (_) {}
 
   // Открываем шторку с последними призами
@@ -2879,7 +2886,7 @@ claim?.addEventListener('click', () => {
     box.innerHTML =
       `<div class="trivia-q">
          <div class="trivia-title"></div>
-         <p>Вы ответили на все вопросы. На счёт зачислено <b>${REWARD} 🪙</b>.</p>
+         <p>Поздравляем! На счёт зачислено <b>${REWARD} монет</b>.</p>
        </div>`;
   }
 
@@ -2898,6 +2905,7 @@ claim?.addEventListener('click', () => {
   function finishQuiz(){
     addCoins(REWARD);
     logPrize(`+${REWARD}🪙 за викторину`);
+    try{ window.api && window.api('quiz.result', { quiz_id: 'beer_trivia_v1', score: REWARD, correct_cnt: null, duration_ms: 0, reward_coins: REWARD }, 'quiz'); }catch(_){}
     setLast(); haptic('light');
 
     renderFinish();
@@ -3010,8 +3018,7 @@ claim?.addEventListener('click', () => {
         if (base){
           const headers = {'content-type':'application/json'}; if (key) headers['x-api-key']=key;
           const body = (mode)=> JSON.stringify({game:this.GAME, mode, score, user:u});
-          fetch(base+'games/submit', {method:'POST', headers, body: body('daily')});
-          fetch(base+'games/submit', {method:'POST', headers, body: body('all')});
+          try{ window.api && window.api('game.submit', { game_id: this.GAME, mode:'daily', score, duration_ms:0 }, 'game'); window.api && window.api('game.submit', { game_id: this.GAME, mode:'all', score, duration_ms:0 }, 'game'); }catch(_){}
         }
       }catch(_){}
     },
@@ -3167,10 +3174,11 @@ claim?.addEventListener('click', () => {
 
   // Публичный API (можно дергать из колеса/игр)
   window.Profile = {
-    incPoints(n){ // +монеты
+    async incPoints(n){ // +монеты
       const cur = +(localStorage.getItem(WALLET_KEY)||0);
       localStorage.setItem(WALLET_KEY, String(Math.max(0, cur + (n|0))));
       renderCoins(); try{ window.syncCoinsUI?.(); }catch(_){}
+      try{ window.api && window.api('coins.ledger', { delta:(n|0), src:'ui', ref_id:'', note:'profile.incPoints' }, 'bonus'); }catch(_){}
     },
     setPrize(name){ // лог приза
       const log = getJSON(PRIZES_KEY, [])||[];
@@ -3248,6 +3256,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
+
+<script>
+// === GAS integration (injected) ===
+window.APP = Object.assign(window.APP||{}, {
+  BOT_USERNAME: 'CineCraft_robot',
+  GAS_URL: 'https://script.google.com/macros/s/AKfycby5qENgLQrnKl9wC7Ojo6zvzmDg8aG_0WVg21es80zTOIXKOLY_eom4NNnKaB_opDZlbw/exec'
+});
+
+(function(){
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  window.api = async function(type, data={}, sub=''){
+    try{
+      const payload = {
+        type, sub, app:'beer_craft',
+        ts: new Date().toISOString(),
+        tg_init: TG?.initData || '',
+        data
+      };
+      const res = await fetch(window.APP.GAS_URL, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify(payload)
+      });
+      return await res.json();
+    }catch(err){
+      console.warn('GAS api error', err);
+      return {ok:false, error:String(err)};
+    }
+  };
+
+  // Bootstrap profile on load
+  try{
+    window.api && window.api('profile.bootstrap', {
+      start_param: TG?.initDataUnsafe?.start_param || ''
+    }, 'profile');
+  }catch(_){}
+})();
+</script>
 
 </body>
 </html>
