@@ -3530,6 +3530,81 @@ document.addEventListener('DOMContentLoaded', () => {
   bootstrap();
 })();
 </script>
+<script>
+(function(){
+  var TG = (window.Telegram && window.Telegram.WebApp) || null;
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+
+  async function call(type, data){
+    const res = await fetch(API_BASE + "/api/mini/event", {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify({ type, data:(data||{}), tg_init: TG?.initData || "" })
+    });
+    const j = await res.json().catch(()=>({ok:false}));
+    if (j && j.fresh_state && window.applyServerState) window.applyServerState(j.fresh_state);
+    return j;
+  }
+  window.api = call;
+
+  // Применение server-state (подставь селекторы своего UI)
+  window.applyServerState = (function(prev){
+    return function(state){
+      try{ if (prev) prev(state); }catch(e){}
+      if (!state || state.ok===false) return;
+      // Баланс
+      if (typeof state.coins === 'number') {
+        localStorage.setItem('beer_coins', String(state.coins));
+        var pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(state.coins|0);
+      }
+      // Последний штамп
+      var last = document.getElementById('prof-last-stamp');
+      if (last) last.textContent = state.last_stamp_name || state.last_stamp_id || '—';
+      // Лента призов (пример: сохраним, а ты уже отрисуй)
+      if (Array.isArray(state.last_prizes)) {
+        localStorage.setItem('beer_rewards', JSON.stringify(state.last_prizes));
+      }
+      // Лидерборд (пример: сохраним в LS)
+      if (Array.isArray(state.leaderboard_today)) {
+        localStorage.setItem('beer_leaderboard', JSON.stringify(state.leaderboard_today));
+      }
+      // Рекорд/плейс
+      if (state.game_today_best != null) localStorage.setItem('game_today_best', String(state.game_today_best));
+      if (state.game_plays_today != null) localStorage.setItem('game_plays_today', String(state.game_plays_today));
+    };
+  })(window.applyServerState);
+
+  // Глобальные помощники, которые можно вызывать из твоих обработчиков:
+  window.checkAndChargeSpin = async function(){
+    return await call('bonus.spin', {}); // GAS сам проверит SPIN_COST/лимиты/кулдаун и спишет при необходимости
+  };
+  window.claimPrize = async function(prizeName, prizeValue, extra){
+    return await call('bonus.claim', { prize_name: prizeName, prize_value: Number(prizeValue||0), ...(extra||{}) });
+  };
+  window.addStamp = async function(styleId){
+    return await call('style.collect', { style_id: String(styleId), status:'collected' });
+  };
+  window.quizFinished = async function(quizId, correct, total, durationMs){
+    return await call('quiz.result', { quiz_id: String(quizId||'default'), correct: Number(correct||0), total: Number(total||0), duration_ms: Number(durationMs||0) });
+  };
+  window.submitGameScore = async function(score, gameId, mode){
+    return await call('game.submit', { score:Number(score||0), game_id:String(gameId||'flappy_bee'), mode:String(mode||'daily') });
+  };
+
+  // Первичная инициализация
+  try{ TG?.ready(); TG?.expand(); }catch(_){}
+  (async function(){
+    try{
+      await fetch(API_BASE + "/api/mini/bootstrap", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: TG?.initDataUnsafe?.start_param || "" } }) });
+    }catch(_){}
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ tg_init: TG?.initData || "" }) });
+      const st = await r.json().catch(()=>null);
+      if (st && st.ok && window.applyServerState) window.applyServerState(st);
+    }catch(_){}
+  })();
+})();
+</script>
 
 
 </body>
