@@ -6,6 +6,46 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+// === Early TG init + GAS API (moved to head) ===
+(function(){
+  // Defaults (will be overridden by existing window.APP if present)
+  var defaults = {
+    BOT_USERNAME: 'CineCraft_robot',
+    GAS_URL: 'https://script.google.com/macros/s/AKfycby5qENgLQrnKl9wC7Ojo6zvzmDg8aG_0WVg21es80zTOIXKOLY_eom4NNnKaB_opDZlbw/exec'
+  };
+  window.APP = Object.assign({}, defaults, (window.APP || {}));
+
+  var TG = (window.Telegram && window.Telegram.WebApp) || null;
+  window.TG = TG;
+  if (TG){ try{ TG.ready(); TG.expand(); TG.disableVerticalSwipes?.(); }catch(e){} }
+
+  window.api = async function(type, data={}, sub=''){
+    var url = window.APP && window.APP.GAS_URL;
+    if (!url) { return {ok:false, error:'no_gas_url'}; }
+    var payload = {
+      type: type, sub: sub, app:'beer_craft',
+      ts: new Date().toISOString(),
+      tg_init: TG?.initData || '',
+      data: data
+    };
+    try{
+      var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+      return await res.json();
+    }catch(err){
+      return {ok:false, error:String(err)};
+    }
+  };
+
+  // Bootstrap asap
+  setTimeout(function(){
+    try{
+      window.api && window.api('profile.bootstrap', { start_param: TG?.initDataUnsafe?.start_param || '' }, 'profile');
+    }catch(_){}
+  }, 0);
+})();
+</script>
+
 
   <style>
     :root{
@@ -3258,42 +3298,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-<script>
-// === GAS integration (injected) ===
-window.APP = Object.assign(window.APP||{}, {
-  BOT_USERNAME: 'CineCraft_robot',
-  GAS_URL: 'https://script.google.com/macros/s/AKfycby5qENgLQrnKl9wC7Ojo6zvzmDg8aG_0WVg21es80zTOIXKOLY_eom4NNnKaB_opDZlbw/exec'
-});
 
-(function(){
-  const TG = (window.Telegram && window.Telegram.WebApp) || null;
-  window.api = async function(type, data={}, sub=''){
-    try{
-      const payload = {
-        type, sub, app:'beer_craft',
-        ts: new Date().toISOString(),
-        tg_init: TG?.initData || '',
-        data
-      };
-      const res = await fetch(window.APP.GAS_URL, {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify(payload)
-      });
-      return await res.json();
-    }catch(err){
-      console.warn('GAS api error', err);
-      return {ok:false, error:String(err)};
-    }
-  };
-
-  // Bootstrap profile on load
-  try{
-    window.api && window.api('profile.bootstrap', {
-      start_param: TG?.initDataUnsafe?.start_param || ''
-    }, 'profile');
-  }catch(_){}
-})();
-</script>
 
 </body>
 </html>
