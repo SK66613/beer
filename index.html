@@ -22,17 +22,15 @@
 
   window.api = async function(type, data={}, sub=''){
     var url = window.APP && window.APP.GAS_URL;
-    if (!url) { return {ok:false, error:'no_gas_url'}; }
-    var payload = {
-      type: type, sub: sub, app:'beer_craft',
-      ts: new Date().toISOString(),
-      tg_init: TG?.initData || '',
-      data: data
-    };
+    if (!url) { window.API_DIAG && window.API_DIAG.log('no GAS_URL', {}); return {ok:false, error:'no_gas_url'}; }
+    var payload = { type:type, sub:sub, app:'beer_craft', ts:new Date().toISOString(), tg_init: TG?.initData || '', data:data };
     try{
       var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      return await res.json();
+      var json = await res.json();
+      try{ window.API_DIAG && window.API_DIAG.log(type+' ✓', json); }catch(_){}
+      return json;
     }catch(err){
+      try{ window.API_DIAG && window.API_DIAG.log(type+' ✗', String(err)); }catch(_){}
       return {ok:false, error:String(err)};
     }
   };
