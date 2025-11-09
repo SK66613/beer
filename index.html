@@ -6,6 +6,175 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script>
+// === EARLY: Telegram init + API binding to Worker (with fresh_state support) ===
+(function(){
+  var TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
+
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+
+  async function apiCall(type, data){
+    try{
+      const res = await fetch(API_BASE + "/api/mini/event", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
+      });
+      const j = await res.json();
+      if (j && j.fresh_state && window.applyServerState) {
+        window.applyServerState(j.fresh_state);
+      }
+      return j;
+    }catch(e){ return { ok:false, error: String(e) }; }
+  }
+  window.api = apiCall;
+
+  window.applyServerState = function(state){
+    if (!state || state.ok === false) return;
+    try{
+      // coins
+      if (typeof state.coins === 'number') {
+        localStorage.setItem('beer_coins', String(state.coins));
+        try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+        var pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(state.coins|0);
+      }
+      // last prizes -> two keys used by UI variants
+      var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
+      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
+      var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
+      localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
+      localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
+      try{ window.renderRewards && window.renderRewards(); }catch(_){}
+
+      // passport styles -> two formats
+      var styles = Array.isArray(state.styles) ? state.styles : [];
+      var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
+      localStorage.setItem('beer_passport', JSON.stringify(map));
+      localStorage.setItem('beer_passport_v1', JSON.stringify({ stamps: styles }));
+      try{ window.renderPassport && window.renderPassport(); }catch(_){}
+    }catch(_){}
+  };
+
+  async function bootstrapAndLoad(){
+    try{
+      const sp = TG?.initDataUnsafe?.start_param || "";
+      await fetch(API_BASE + "/api/mini/bootstrap", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: sp } })
+      });
+    }catch(_){}
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "" })
+      });
+      const st = await r.json();
+      if (st && st.ok && window.applyServerState) window.applyServerState(st);
+    }catch(_){}
+  }
+
+  function waitInit(cb){
+    const t0 = Date.now();
+    (function tick(){
+      if (TG && TG.initData && TG.initData.length>0) return cb();
+      if (Date.now()-t0 > 3000) return cb();  // timeout — всё равно попробуем
+      setTimeout(tick, 60);
+    })();
+  }
+
+  waitInit(bootstrapAndLoad);
+})();
+</script>
+
+<script>
+// === Telegram init + Server sync via Worker (state from Google Sheet) ===
+(function(){
+  var TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
+
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  async function apiBootstrap(){
+    var start_param = TG && TG.initDataUnsafe ? (TG.initDataUnsafe.start_param||"") : "";
+    try{
+      const r = await fetch(API_BASE + "/api/mini/bootstrap", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param } })
+      });
+      return await r.json();
+    }catch(err){ return { ok:false, error:String(err) }; }
+  }
+  async function apiState(){
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "" })
+      });
+      return await r.json();
+    }catch(err){ return { ok:false, error:String(err) }; }
+  }
+  // expose generic event sender in case app uses window.api(type,data)
+  window.api = async function(type, data){
+    try{
+      const r = await fetch(API_BASE + "/api/mini/event", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
+      });
+      return await r.json();
+    }catch(err){ return { ok:false, error:String(err) }; }
+  };
+
+  window.applyServerState = function(state){
+    if (!state || state.ok === false) return;
+    try{
+      // coins
+      if (typeof state.coins === 'number') {
+        localStorage.setItem('beer_coins', String(state.coins));
+      }
+      // last prizes -> two keys used by UI variants
+      var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
+      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
+      var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
+      localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
+      localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
+
+      // passport styles -> two formats
+      var styles = Array.isArray(state.styles) ? state.styles : [];
+      var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
+      localStorage.setItem('beer_passport', JSON.stringify(map));
+      localStorage.setItem('beer_passport_v1', JSON.stringify({ stamps: styles }));
+
+      // refresh UI if hooks present
+      try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+      try{ window.renderRewards && window.renderRewards(); }catch(_){}
+      try{ window.renderPassport && window.renderPassport(); }catch(_){}
+    }catch(_){}
+  };
+
+  function waitInitData(cb){
+    var t0 = Date.now();
+    (function tick(){
+      if (TG && TG.initData && TG.initData.length>0) return cb();
+      if (Date.now()-t0 > 3000) return cb();  // timeout, still try
+      setTimeout(tick, 60);
+    })();
+  }
+
+  waitInitData(async function(){
+    try{ await apiBootstrap(); }catch(_){}
+    try{
+      const st = await apiState();
+      if (st && st.ok) window.applyServerState(st);
+    }catch(_){}
+  });
+})();
+</script>
+
 
   <style>
     :root{
@@ -1671,7 +1840,7 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     // ===== App State & Storage =====
     const APP = {
-      BOT_USERNAME: 'your_bot_username', // TODO: замените на @имя_бота
+      BOT_USERNAME: '@CineCraft_robot', // TODO: замените на @имя_бота
       WORKER_BASE: 'https://your-worker.example.dev/', // TODO: замените на ваш Worker
       API_KEY: 'dev-123',
       COOLDOWN_SPIN_HOURS: 24,
@@ -3252,107 +3421,64 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-<!-- ===== PATCH: Server-backed coins/bonuses wiring (worker + GAS) ===== -->
+<!-- === LATE PATCH: server-backed coins/bonuses/game logging (fresh_state aware) === -->
 <script>
 (function(){
-  // Worker base (origin only, no trailing /api)
-  window.APP = window.APP || {};
-  window.APP.WORKER_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
-  window.APP.BOT_USERNAME = '@CineCraft_robot';
-
-  // Safe helpers
   function toast(msg){ try{ window.showToast?.(msg); }catch(_){ console.log('[toast]', msg); } }
   function safeNum(x){ const n = Number(x); return Number.isFinite(n) ? n : 0; }
 
-  // Unified API call (uses window.api created earlier)
   async function call(type, data){
-    try{
-      const res = await (window.api ? window.api(type, data||{}) : Promise.resolve({ok:false, error:'no_api'}));
-      return res;
-    }catch(e){ return { ok:false, error: String(e) }; }
+    try{ return await (window.api ? window.api(type, data||{}) : Promise.resolve({ok:false, error:'no_api'})); }
+    catch(e){ return { ok:false, error:String(e) }; }
   }
 
-  // State refresh from server
-  async function refreshState(){
-    const st = await call('state.get', {});
-    if (st && st.ok && window.applyServerState) window.applyServerState(st);
-    return st;
-  }
-
-  // ---- Coins bridge (used by quiz/wheel/etc. if window.addCoins exists) ----
-  const COIN_KEY = 'beer_coins';
+  // Coins
+  const COIN_KEY='beer_coins';
   function setLocalCoins(v){
     localStorage.setItem(COIN_KEY, String(Math.max(0, v|0)));
-    try{ window.syncCoinsUI?.(); }catch(_){}
+    try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
     const pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(v|0);
   }
   window.addCoins = async function(delta, src){
     delta = safeNum(delta)||0;
     const res = await call('coins.ledger', { delta, src: src || 'ui' });
-    if (res && res.ok && typeof res.balance === 'number'){
-      setLocalCoins(res.balance);
-      return res;
-    }
-    toast('Не удалось обновить баланс');
+    if (res && res.ok && typeof res.balance === 'number'){ setLocalCoins(res.balance); }
+    else toast('Не удалось обновить баланс');
     return res;
   };
 
-  // ---- Generic prize logger used in different parts of UI ----
-  window.logReward = async function(rec){
-    // rec: {source, prize, value}
-    const payload = {
-      prize_id:    rec && rec.id || '',
-      prize_name:  rec && (rec.prize || rec.source) || 'reward',
-      prize_value: rec && (rec.value || rec.amount) || 0,
-      src:         rec && (rec.source || rec.src) || 'client',
-      claim_status:'auto'
-    };
-    return call('bonus.claim', payload);
-  };
-
-  // ---- Wheel: log claims server-side ----
+  // Wheel claim
   document.addEventListener('click', async (e)=>{
     const btn = e.target.closest('#claimBtn');
     if (!btn) return;
     const prize = btn.dataset && btn.dataset.bonus || '—';
     await call('bonus.claim', { prize_name: prize, src:'wheel' });
-    await refreshState();
   });
 
-  // ---- Passport: add stamp -> log server-side ----
+  // Passport stamp
   document.addEventListener('click', async (e)=>{
     const t = e.target.closest('[data-action="add-stamp"]');
     if (!t) return;
     const styleId = t.dataset && (t.dataset.styleId || t.getAttribute('data-style-id')) || '';
     await call('style.collect', { style_id: styleId, status:'collected' });
-    await refreshState();
   });
 
-  // ---- Trivia: on finish -> write score + coins via server ----
+  // Quiz finish (custom event)
   document.addEventListener('trivia:finish', async (e)=>{
-    const data = e.detail || {}; // {correct,total,score}
-    await call('quiz.result', {
-      quiz_id: data.quiz_id || 'beer_trivia_v1',
-      correct: data.correct|0, total: data.total|0
-    });
-    if (data.reward_coins) await window.addCoins(data.reward_coins, 'quiz');
-    await refreshState();
+    const d = e.detail || {};
+    await call('quiz.result', { quiz_id: d.quiz_id || 'beer_trivia_v1', correct: d.correct|0, total: d.total|0, reward_coins: d.reward_coins|0 });
+    if (d.reward_coins) await window.addCoins(d.reward_coins, 'quiz');
   });
 
-  // ---- Game submit hook (flappy/runner) ----
+  // Game submit
   window.Tournament = window.Tournament || {};
   const _submit = window.Tournament.submit;
   window.Tournament.submit = async function(score){
     try{ if (typeof _submit === 'function') _submit(score); }catch(_){}
-    await call('game.submit', { game_id:'flappy_bee', score: score|0 });
-    await refreshState();
+    await call('game.submit', { game_id:'flappy_bee', score: score|0, mode:'daily' });
   };
-
-  // Initial hard sync on load (if server available)
-  refreshState();
 })();
 </script>
-<!-- ===== /PATCH ===== -->
 
 </body>
 </html>
