@@ -1671,7 +1671,8 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     // ===== App State & Storage =====
     const APP = {
-      BOT_USERNAME: 'your_bot_username', // TODO: замените на @имя_бота
+      BOT_USERNAME: 'CineCraft_robot',
+      GAS_URL: 'https://script.google.com/macros/s/AKfycby5qENgLQrnKl9wC7Ojo6zvzmDg8aG_0WVg21es80zTOIXKOLY_eom4NNnKaB_opDZlbw/exec', // TODO: замените на @имя_бота
       WORKER_BASE: 'https://your-worker.example.dev/', // TODO: замените на ваш Worker
       API_KEY: 'dev-123',
       COOLDOWN_SPIN_HOURS: 24,
@@ -2705,7 +2706,7 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
 
     // списываем монеты перед стартом
     setCoins(getCoins() - SPIN_COST);
-    try{ window.api && window.api('coins.ledger', { delta: -SPIN_COST, src:'bonus_spin', ref_id:'', note:'spin' }, 'bonus'); }catch(_){}}
+    try{ window.api && window.api('coins.ledger', { delta: -SPIN_COST, src:'bonus_spin', ref_id:'', note:'spin' }, 'bonus'); }catch(_){ }
     try{ window.api && window.api('bonus.spin', { event_id: (crypto.randomUUID && crypto.randomUUID()) || String(Date.now()), cost_coins: SPIN_COST, outcome:'pending' }, 'bonus'); }catch(_){}
     hapticPulse('light');
 
