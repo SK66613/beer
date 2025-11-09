@@ -8,11 +8,49 @@
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script>
 // === Early TG init + GAS API (moved to head) ===
+// --- Server sync helpers (coins, prizes, passport) ---
+window.applyServerState = function(state){
+  try{
+    if (!state || state.ok===false) return;
+
+    // 1) coins
+    if (typeof state.coins === 'number'){
+      try{ localStorage.setItem('beer_coins', String(state.coins)); }catch(_){}
+    }
+
+    // 2) prizes -> both keys used in app
+    var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
+    var prA = claims.map(function(x){ return {name: (x.prize_name||x.name||'Приз'), ts: Date.parse(x.ts||x.claim_ts||new Date().toISOString())||Date.now()}; });
+    var prB = claims.map(function(x){ return {ts: Date.parse(x.ts||x.claim_ts||new Date().toISOString())||Date.now(), source: 'bonus', prize: (x.prize_name||x.name||'Приз')}; });
+    try{ localStorage.setItem('bonus_log_v1', JSON.stringify(prA.slice(0,30))); }catch(_){}
+    try{ localStorage.setItem('beer_rewards', JSON.stringify(prB.slice(0,30))); }catch(_){}
+
+    // 3) passport styles -> both keys
+    var styles = Array.isArray(state.styles) ? state.styles : [];
+    var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
+    try{ localStorage.setItem('beer_passport', JSON.stringify(map)); }catch(_){}
+    try{ localStorage.setItem('beer_passport_v1', JSON.stringify({stamps: styles})); }catch(_){}
+
+    // Trigger UI re-renders if present
+    try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+    try{ window.renderRewards && window.renderRewards(); }catch(_){}
+    try{ window.renderPassport && window.renderPassport(); }catch(_){}
+    try{ window.Profile && window.Profile.refresh && window.Profile.refresh(); }catch(_){}
+  }catch(e){ try{ console.warn('applyServerState error', e); }catch(_){ } }
+};
+
+window.syncFromServer = function(){
+  return window.api('state.get', {}, 'profile').then(function(res){
+    if (res && res.ok) window.applyServerState(res);
+    return res;
+  });
+};
+
 (function(){
   // Defaults (will be overridden by existing window.APP if present)
   var defaults = {
     BOT_USERNAME: 'CineCraft_robot',
-    GAS_URL: 'https://script.google.com/macros/s/AKfycbzoNhWDHPs89EtSlFJxDvbxza8LqSV3opCbgpJslajzl0m0UoKx9zTGyELtAlmzRys8nw/exec'
+    GAS_URL: 'https://script.google.com/macros/s/AKfycbxUm0Bxohup46EkAixgm7oFs2vjdsUI3FlvLHhdoaRnwGKgAIq1kwVBx7NRNgGQbH-Zig/exec'
   };
   window.APP = Object.assign({}, defaults, (window.APP || {}));
 
@@ -22,15 +60,17 @@
 
   window.api = async function(type, data={}, sub=''){
     var url = window.APP && window.APP.GAS_URL;
-    if (!url) { window.API_DIAG && window.API_DIAG.log('no GAS_URL', {}); return {ok:false, error:'no_gas_url'}; }
-    var payload = { type:type, sub:sub, app:'beer_craft', ts:new Date().toISOString(), tg_init: TG?.initData || '', data:data };
+    if (!url) { return {ok:false, error:'no_gas_url'}; }
+    var payload = {
+      type: type, sub: sub, app:'beer_craft',
+      ts: new Date().toISOString(),
+      tg_init: TG?.initData || '',
+      data: data
+    };
     try{
       var res = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) });
-      var json = await res.json();
-      try{ window.API_DIAG && window.API_DIAG.log(type+' ✓', json); }catch(_){}
-      return json;
+      return await res.json();
     }catch(err){
-      try{ window.API_DIAG && window.API_DIAG.log(type+' ✗', String(err)); }catch(_){}
       return {ok:false, error:String(err)};
     }
   };
