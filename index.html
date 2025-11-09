@@ -54,7 +54,54 @@
       localStorage.setItem('beer_passport_v1', JSON.stringify({ stamps: styles }));
       try{ window.renderPassport && window.renderPassport(); }catch(_){}
     }catch(_){}
-  };
+  
+      // === PATCH: server-driven profile/leaderboard/passport ===
+      try{
+        // Passport counters + last stamp
+        var total = Number(state.styles_total || 6);
+        var cnt   = (Array.isArray(state.styles) ? state.styles.length : 0);
+        var lastLabel = state.last_stamp_name || state.last_stamp_id || '—';
+        var elCnt = document.getElementById('pf-pass-count'); if (elCnt) elCnt.textContent = String(cnt + '/' + total);
+        var elVal = document.getElementById('pf-pass-list');  if (elVal) elVal.textContent = String(lastLabel);
+        if (elVal && elVal.parentElement){ var lbl = elVal.parentElement.querySelector('.metric__lbl'); if (lbl) lbl.textContent = 'Последний штамп'; }
+
+        // Mark stamps in grid (case-insensitive)
+        var grid = document.getElementById('passport-grid');
+        if (grid){
+          var owned = {}; (Array.isArray(state.styles)?state.styles:[]).forEach(function(s){ owned[String(s).toLowerCase()] = 1; });
+          grid.querySelectorAll('.pslot').forEach(function(card){
+            var code = String(card.getAttribute('data-code')||'').toLowerCase();
+            var ok = !!owned[code];
+            card.classList.toggle('is-done', ok);
+            var b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Нет штампа';
+          });
+        }
+
+        // Leaderboard (server only)
+        if (state.leaderboard_today){
+          var box = document.getElementById('lb-list');
+          if (box){
+            var lb = state.leaderboard_today || [];
+            if (!lb.length){
+              box.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>';
+            } else {
+              box.innerHTML = lb.map(function(r,i){
+                var medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
+                var name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
+                var ava   = (r.username||'U').slice(0,1).toUpperCase();
+                return '<div class="lb-row'+medal+'">'+
+                  '<div class="lb-rank">'+(i+1)+'</div>'+
+                  '<div class="lb-avatar">'+ava+'</div>'+
+                  '<div class="lb-name">'+name+'</div>'+
+                  '<div class="lb-score">'+(r.score|0)+'</div>'+
+                '</div>';
+              }).join('');
+            }
+          }
+          var meScore = document.getElementById('lb-you-score'); if (meScore) meScore.textContent = String(state.game_today_best||0);
+        }
+      }catch(_){}
+};
 
   async function bootstrapAndLoad(){
     try{
@@ -3608,139 +3655,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
 
 
-<!-- ===== FINAL PATCH v2: server-driven UI (stamps/leaderboard/profile), robust selectors ===== -->
 <script>
-(function(){
-  const TG = (window.Telegram && window.Telegram.WebApp) || null;
-  try{ TG?.ready(); TG?.expand(); TG?.disableVerticalSwipes?.(); }catch(_){}
-
-  const API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
-
-  // -------- Helpers
-  const $ = (sel) => document.querySelector(sel);
-  const setTextMulti = (sels, v) => { (Array.isArray(sels)?sels:[sels]).forEach(s => { const el = document.querySelector(s); if (el) el.textContent = (v==null?'':String(v)); }); };
-
-  // Prevent late overrides
-  function sealGlobal(name, fn){
-    try { Object.defineProperty(window, name, { value: fn, writable:false, configurable:false }); } catch(_){ window[name]=fn; }
-  }
-
-  async function apiCall(type, data){
-    const body = { type, data:(data||{}), tg_init: TG?.initData || "" };
-    const res = await fetch(API_BASE + "/api/mini/event", {
-      method:"POST", headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify(body)
-    });
-    const j = await res.json().catch(()=>({ok:false}));
-    if (j && j.fresh_state) applyServerState(j.fresh_state);
-    return j;
-  }
-  sealGlobal("api", apiCall);
-
-  // Public actions
-  sealGlobal("claimPrize", async (name, value, extra)=> apiCall("bonus.claim", { prize_name:String(name||""), prize_value:Number(value||0), ...(extra||{}) }));
-  sealGlobal("addStamp", async (styleId)=> apiCall("style.collect", { style_id:String(styleId||""), status:"collected" }));
-  sealGlobal("quizFinished", async (quizId, correct, total, durationMs)=> apiCall("quiz.result", { quiz_id:String(quizId||"default"), correct:Number(correct||0), total:Number(total||0), duration_ms:Number(durationMs||0) }));
-  sealGlobal("submitGameScore", async (score, gameId, mode)=> apiCall("game.submit", { score:Number(score||0), game_id:String(gameId||"flappy_bee"), mode:String(mode||"daily") }));
-
-  function renderLeaderboard(lb){
-    const roots = ["#leaderboard .lb-list", "#lb-list", '[data-list="leaderboard"]'];
-    let root = null;
-    for (const sel of roots){ const el = document.querySelector(sel); if (el){ root = el; break; } }
-    if (!root) return;
-    root.innerHTML = "";
-    (lb||[]).forEach((row,i)=>{
-      const el = document.createElement("div");
-      el.className = "lb-row";
-      el.innerHTML = `
-        <div class="lb-rank">${i+1}</div>
-        <div class="lb-name">${row.username ? "@"+row.username : row.tg_id}</div>
-        <div class="lb-score">${row.score|0}</div>
-      `;
-      root.appendChild(el);
-    });
-  }
-
-  function renderPassport(styles, last_name, last_id, total){
-    // counter
-    setTextMulti(["#pf-stamps-count",".js-stamps-count","[data-bind='stamps-count']"], `${(styles||[]).length}/${total||6}`);
-    // last stamp label
-    const label = last_name || last_id || "—";
-    setTextMulti(["#pf-last-stamp","#prof-last-stamp",".js-last-stamp","[data-bind='last-stamp']"], label);
-    setTextMulti(["#pf-last-stamp-label","#prof-last-stamp-label",".js-last-stamp-label","[data-bind='last-stamp-label']"], "Последний штамп");
-
-    // mark collected in grid
-    const grid = document.getElementById("passport-grid");
-    if (grid){
-      const owned = new Set((styles||[]).map(String));
-      grid.querySelectorAll(".pslot").forEach(card => {
-        const code = String(card.getAttribute("data-code")||"");
-        const badge = card.querySelector(".pslot__badge, .pslot-badge, [data-role='pslot-badge']");
-        const got = owned.has(code);
-        card.classList.toggle("is-done", got);
-        if (badge) badge.textContent = got ? "Получен" : "Нет штампа";
-      });
-    }
-  }
-
-  function applyServerState(state){
-    if (!state || state.ok===false) return;
-    window.__state = state;
-
-    // Balance
-    if (typeof state.coins === "number"){
-      setTextMulti(["#pf-coins",".js-coins","[data-bind='coins']"], state.coins|0);
-      try{ localStorage.setItem("beer_coins", String(state.coins)); }catch(_){}
-    }
-
-    // Spin cost
-    if (state.config && typeof state.config.SPIN_COST === "number"){
-      setTextMulti(["#spin-cost",".js-spin-cost","[data-bind='spin-cost']"], state.config.SPIN_COST);
-    }
-
-    // Save rewards compatibility
-    const claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
-    try{
-      const log1 = claims.map(x => ({ name: x.prize_name || "Приз", ts: Date.parse(x.ts||new Date())||Date.now() }));
-      const log2 = claims.map(x => ({ ts: Date.parse(x.ts||new Date())||Date.now(), source:"bonus", prize: x.prize_name || "Приз" }));
-      localStorage.setItem("bonus_log_v1", JSON.stringify(log1.slice(0,30)));
-      localStorage.setItem("beer_rewards", JSON.stringify(log2.slice(0,30)));
-    }catch(_){}
-
-    // Stamps
-    try{
-      const styles = Array.isArray(state.styles) ? state.styles : [];
-      const total = state.styles_total || 6;
-      localStorage.setItem("beer_passport", JSON.stringify(Object.fromEntries(styles.map(s=>[String(s),1]))));
-      localStorage.setItem("beer_passport_v1", JSON.stringify({ stamps: styles }));
-      renderPassport(styles, state.last_stamp_name, state.last_stamp_id, total);
-    }catch(_){}
-
-    // Leaderboard + my stats
-    renderLeaderboard(state.leaderboard_today || []);
-    setTextMulti(["#lb-me-best",".js-lb-me-best","[data-bind='lb-me-best']"], state.game_today_best||0);
-  }
-  sealGlobal("applyServerState", applyServerState);
-
-  // Bootstrap + initial state
-  (async function init(){
-    try{
-      const start_param = TG?.initDataUnsafe?.start_param || "";
-      await fetch(API_BASE + "/api/mini/bootstrap", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param } })
-      });
-    }catch(_){}
-    try{
-      const r = await fetch(API_BASE + "/api/mini/state", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "" })
-      });
-      const st = await r.json().catch(()=>null);
-      if (st && st.ok) applyServerState(st);
-    }catch(_){}
-  })();
-})();
+// PATCH: click on stamp card -> collect (case-insensitive code)
+document.addEventListener('click', async function(e){
+  var card = e.target.closest('#passport-grid .pslot');
+  if (!card) return;
+  var code = String(card.getAttribute('data-code')||'').trim();
+  if (!code) return;
+  try {
+    await (window.api ? window.api('style.collect', { style_id: code.toLowerCase(), status:'collected' }) : Promise.resolve());
+  } catch(_) {}
+}, { passive:true });
 </script>
+
 </body>
 </html>
