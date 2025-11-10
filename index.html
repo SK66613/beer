@@ -3668,5 +3668,107 @@ document.addEventListener('click', async function(e){
 }, { passive:true });
 </script>
 
+  <script>
+(function(){
+  // универсальный вызов API из твоего фронта
+  async function call(type, data){
+    try{
+      return await (window.api ? window.api(type, data||{}) : Promise.resolve({ok:false, error:'no_api'}));
+    }catch(e){ return {ok:false, error:String(e)}; }
+  }
+
+  // === 1) ШТАМПЫ: клики по .pslot -> style.collect (data-code -> style_id)
+  document.addEventListener('click', async (e)=>{
+    const card = e.target.closest('.pslot');
+    if (!card) return;
+    const code = (card.getAttribute('data-code')||'').trim().toLowerCase();
+    if (!code) return;
+    // отправляем событие
+    const res = await call('style.collect', { style_id: code, status:'collected' });
+    // если пришло свежее состояние — применим
+    if (res && res.ok && res.fresh_state) try{ window.applyServerState(res.fresh_state); }catch(_){}
+  });
+
+  // === 2) ЛИДЕРБОРД: рендерим ИСКЛЮЧИТЕЛЬНО серверный leaderboard_today
+  function renderServerLB(state){
+    const box = document.getElementById('lb-list');
+    if (!box) return;
+
+    const lb = (state && Array.isArray(state.leaderboard_today)) ? state.leaderboard_today : [];
+    if (!lb.length){
+      box.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>';
+      const my = document.getElementById('lb-you-score'); if (my) my.textContent = '0';
+      return;
+    }
+
+    box.innerHTML = lb.slice(0,10).map((r,i)=>{
+      const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
+      const name  = r.username
+        ? r.username
+        : [r.first_name, r.last_name].filter(Boolean).join(' ') || ('ID ' + (r.tg_id||''));
+      return `
+        <div class="lb-row${medal}">
+          <div class="lb-rank">${i+1}</div>
+          <div class="lb-avatar">${String(name||'U').slice(0,1)}</div>
+          <div class="lb-name">${name}</div>
+          <div class="lb-score">${r.best_score||0}</div>
+        </div>`;
+    }).join('');
+
+    // "ты" (берём из списка, если есть)
+    const uid = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
+    const me = lb.find(x=>String(x.tg_id)===String(uid));
+    const you = document.getElementById('lb-you-score'); if (you) you.textContent = me?.best_score || 0;
+  }
+
+  // === 3) ПРОФИЛЬ + ПАСПОРТ: читаем с сервера (styles, styles_total, last_stamp_name)
+  function applyProfileFromState(state){
+    // счётчик N/Total
+    const total = Number(state?.styles_total || 6);
+    const cnt   = Array.isArray(state?.styles) ? state.styles.length : 0;
+    const elCnt = document.getElementById('pf-pass-count'); if (elCnt) elCnt.textContent = `${cnt}/${total}`;
+
+    // «последний штамп»
+    const lastName = state?.last_stamp_name || state?.last_stamp_id || '—';
+    const elLast = document.getElementById('pf-pass-list'); if (elLast) elLast.textContent = lastName;
+    if (elLast && elLast.parentElement){
+      const lbl = elLast.parentElement.querySelector('.metric__lbl');
+      if (lbl) lbl.textContent = 'Последний штамп';
+    }
+
+    // отметить собранные в сетке .pslot
+    try{
+      const owned = {}; (state?.styles||[]).forEach(s=> owned[String(s).toLowerCase()] = 1);
+      document.querySelectorAll('#passport-grid .pslot').forEach(card=>{
+        const code = String(card.getAttribute('data-code')||'').toLowerCase();
+        const ok = !!owned[code];
+        card.classList.toggle('is-done', ok);
+        const badge = card.querySelector('.pslot__badge');
+        if (badge) badge.textContent = ok ? 'Получен' : 'Нет штампа';
+      });
+    }catch(_){}
+  }
+
+  // === 4) Встраиваемся в уже существующий applyServerState
+  const _apply = window.applyServerState;
+  window.applyServerState = function(state){
+    try{ if (_apply) _apply(state); }catch(_){}
+    try{
+      applyProfileFromState(state);
+      renderServerLB(state);
+    }catch(_){}
+  };
+
+  // === 5) Кнопка "Обновить" в лидерборде — тянем свежее состояние с воркера
+  document.addEventListener('click', async (e)=>{
+    if (e.target.id !== 'lb-refresh') return;
+    const st = await call('state.get', {});
+    if (st && st.ok) window.applyServerState(st);
+  });
+
+})();
+</script>
+
+
 </body>
 </html>
