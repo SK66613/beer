@@ -6,13 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script>
+// === KV-first: in-memory localStorage shim (no persistent cache) ===
+(function(){
+  try{
+    const mem = new Map();
+    const real = window.localStorage;
+    const passthrough = new Set(); // add keys if you need persistence
+
+    const _set = real.setItem.bind(real);
+    const _get = real.getItem.bind(real);
+    const _rem = real.removeItem.bind(real);
+    const _clr = real.clear.bind(real);
+
+    Object.defineProperties(window.localStorage, {
+      setItem: { value: function(k,v){ if (passthrough.has(k)) return _set(k,v); mem.set(String(k), String(v)); } },
+      getItem: { value: function(k){ if (passthrough.has(k)) return _get(k); return mem.has(String(k)) ? mem.get(String(k)) : null; } },
+      removeItem: { value: function(k){ mem.delete(String(k)); if (passthrough.has(k)) _rem(k); } },
+      clear: { value: function(){ mem.clear(); if (passthrough.size>0) _clr(); } }
+    });
+  }catch(_){}
+})();
+</script>
+
 <script>
 // === EARLY: Telegram init + API binding to Worker (with fresh_state support) ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function apiCall(type, data){
     try{
@@ -31,7 +55,9 @@
   window.api = apiCall;
 
   window.applyServerState = function(state){
-    if (!state || state.ok === false) return;
+    
+    try{ window.MiniState = state; }catch(_){}
+if (!state || state.ok === false) return;
     try{
       // coins
       if (typeof state.coins === 'number') {
@@ -142,7 +168,7 @@
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
   async function apiBootstrap(){
     var start_param = TG && TG.initDataUnsafe ? (TG.initDataUnsafe.start_param||"") : "";
     try{
@@ -3531,7 +3557,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // === API bridge (worker) + apply fresh_state ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function apiCall(type, data){
     const res = await fetch(API_BASE + "/api/mini/event", {
@@ -3580,7 +3606,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function call(type, data){
     const res = await fetch(API_BASE + "/api/mini/event", {
