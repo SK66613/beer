@@ -3668,107 +3668,191 @@ document.addEventListener('click', async function(e){
 }, { passive:true });
 </script>
 
-  <script>
+
+<!-- === CLEAN FRONT CORE (server-driven) === -->
+<script>
 (function(){
-  // универсальный вызов API из твоего фронта
-  async function call(type, data){
-    try{
-      return await (window.api ? window.api(type, data||{}) : Promise.resolve({ok:false, error:'no_api'}));
-    }catch(e){ return {ok:false, error:String(e)}; }
+  const API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG?.ready(); TG?.expand(); TG?.disableVerticalSwipes?.(); }catch(_){}
+
+  const $ = (sel)=>document.querySelector(sel);
+
+  // --- Utils
+  function setText(selList, v){
+    (Array.isArray(selList)?selList:[selList]).forEach(sel=>{
+      const el = document.querySelector(sel);
+      if (el) el.textContent = (v==null? "" : String(v));
+    });
+  }
+  function jsonPost(url, body){
+    return fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body||{})
+    }).then(r=>r.json().catch(()=>({ok:false})));
+  }
+  function seal(name, fn){
+    try { Object.defineProperty(window, name, { value: fn, writable:false, configurable:false }); }
+    catch(_) { window[name] = fn; }
   }
 
-  // === 1) ШТАМПЫ: клики по .pslot -> style.collect (data-code -> style_id)
-  document.addEventListener('click', async (e)=>{
-    const card = e.target.closest('.pslot');
-    if (!card) return;
-    const code = (card.getAttribute('data-code')||'').trim().toLowerCase();
-    if (!code) return;
-    // отправляем событие
-    const res = await call('style.collect', { style_id: code, status:'collected' });
-    // если пришло свежее состояние — применим
-    if (res && res.ok && res.fresh_state) try{ window.applyServerState(res.fresh_state); }catch(_){}
-  });
+  // --- Final API
+  async function api(type, data){
+    const payload = { type, data:(data||{}), tg_init: TG?.initData || "" };
+    const res = await jsonPost(API_BASE + "/api/mini/event", payload);
+    if (res && res.fresh_state) applyServerState(res.fresh_state);
+    return res;
+  }
+  seal("api", api);
 
-  // === 2) ЛИДЕРБОРД: рендерим ИСКЛЮЧИТЕЛЬНО серверный leaderboard_today
-  function renderServerLB(state){
-    const box = document.getElementById('lb-list');
+  // public helpers used elsewhere
+  seal("submitGameScore", async (score, gameId="flappy_bee", mode="daily")=>api("game.submit",{ score:Number(score||0), game_id:String(gameId), mode:String(mode) }));
+  seal("claimPrize", async (name, value)=>api("bonus.claim",{ prize_name:String(name||""), prize_value:Number(value||0) }));
+  seal("addStamp", async (styleId)=>api("style.collect",{ style_id:String(styleId||""), status:"collected" }));
+
+  // --- Style id normalizer
+  const MAP_RU = {
+    "лагер":"lager","лаґер":"lager","лягер":"lager",
+    "стаут":"stout",
+    "вайцен":"weizen","вeйцен":"weizen","вeйцeн":"weizen",
+    "витбир":"wit","вітбир":"wit","витбирь":"wit","wit":"wit",
+    "портер":"porter",
+    "пилснер":"pils","пилс":"pils","пильзнер":"pils",
+    "сауэр":"sour","зауэр":"sour",
+    "сидр":"cider",
+    "ipa":"ipa","ипа":"ipa"
+  };
+  function slugify(txt){
+    if (!txt) return "";
+    txt = String(txt).trim().toLowerCase();
+    if (MAP_RU[txt]) return MAP_RU[txt];
+    // fallback: latin slug
+    return txt.normalize('NFKD').replace(/[^\w]+/g,'').replace(/_/g,'') || txt;
+  }
+  function styleIdFromCard(card){
+    if (!card) return "";
+    const ds = card.dataset || {};
+    if (ds.code) return String(ds.code).trim().toLowerCase();
+    if (ds.styleId) return String(ds.styleId).trim().toLowerCase();
+    // try common title elements
+    const titleEl = card.querySelector(".pslot__title, .pslot-title, .pslot__label, .pslot-label, .title, .name");
+    const txt = titleEl ? titleEl.textContent : card.textContent;
+    return slugify(txt);
+  }
+
+  // --- Passport click handler (once)
+  function bindPassportClicks(){
+    const grid = document.querySelector("#passport-grid");
+    if (!grid || grid.__psInit) return;
+    grid.__psInit = true;
+    grid.addEventListener("click", async (e)=>{
+      const card = e.target.closest(".pslot");
+      if (!card) return;
+      const code = styleIdFromCard(card);
+      if (!code) return;
+      card.classList.add("is-pending");
+      try{
+        const res = await api("style.collect",{ style_id: code, status:"collected" });
+        if (!(res && res.ok)) card.classList.remove("is-pending");
+      }catch(_){ card.classList.remove("is-pending"); }
+    });
+  }
+
+  // --- Leaderboard render (server only)
+  function renderLeaderboard(lb){
+    const box = document.querySelector("#lb-list") || document.querySelector("#leaderboard .lb-list");
     if (!box) return;
-
-    const lb = (state && Array.isArray(state.leaderboard_today)) ? state.leaderboard_today : [];
-    if (!lb.length){
-      box.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>';
-      const my = document.getElementById('lb-you-score'); if (my) my.textContent = '0';
+    const rows = Array.isArray(lb) ? lb : [];
+    if (!rows.length){
+      box.innerHTML = '<div class="muted-sm">Пока нет результатов</div>';
+      setText(["#lb-you-score",".js-lb-me-best","[data-bind='lb-me-best']"], 0);
       return;
     }
-
-    box.innerHTML = lb.slice(0,10).map((r,i)=>{
-      const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
-      const name  = r.username
-        ? r.username
-        : [r.first_name, r.last_name].filter(Boolean).join(' ') || ('ID ' + (r.tg_id||''));
-      return `
-        <div class="lb-row${medal}">
-          <div class="lb-rank">${i+1}</div>
-          <div class="lb-avatar">${String(name||'U').slice(0,1)}</div>
-          <div class="lb-name">${name}</div>
-          <div class="lb-score">${r.best_score||0}</div>
-        </div>`;
-    }).join('');
-
-    // "ты" (берём из списка, если есть)
-    const uid = window.Telegram?.WebApp?.initDataUnsafe?.user?.id;
-    const me = lb.find(x=>String(x.tg_id)===String(uid));
-    const you = document.getElementById('lb-you-score'); if (you) you.textContent = me?.best_score || 0;
+    box.innerHTML = rows.slice(0,10).map((r,i)=>{
+      const best = (r.best_score!=null? r.best_score : r.score)||0;
+      const uname = r.username ? "@"+r.username : (r.tg_id||"user");
+      return `<div class="lb-row">
+        <div class="lb-rank">${i+1}</div>
+        <div class="lb-name">${uname}</div>
+        <div class="lb-score">${best}</div>
+      </div>`;
+    }).join("");
   }
 
-  // === 3) ПРОФИЛЬ + ПАСПОРТ: читаем с сервера (styles, styles_total, last_stamp_name)
-  function applyProfileFromState(state){
-    // счётчик N/Total
-    const total = Number(state?.styles_total || 6);
-    const cnt   = Array.isArray(state?.styles) ? state.styles.length : 0;
-    const elCnt = document.getElementById('pf-pass-count'); if (elCnt) elCnt.textContent = `${cnt}/${total}`;
+  // --- Profile & passport from server
+  function paintProfile(state){
+    const coins = Number(state?.coins||0);
+    setText(["#pf-coins",".js-coins","[data-bind='coins']"], coins);
+    try{ localStorage.setItem("beer_coins", String(coins)); }catch(_){}
 
-    // «последний штамп»
-    const lastName = state?.last_stamp_name || state?.last_stamp_id || '—';
-    const elLast = document.getElementById('pf-pass-list'); if (elLast) elLast.textContent = lastName;
-    if (elLast && elLast.parentElement){
-      const lbl = elLast.parentElement.querySelector('.metric__lbl');
-      if (lbl) lbl.textContent = 'Последний штамп';
+    const total = Number(state?.styles_total || 6);
+    const styles = Array.isArray(state?.styles) ? state.styles : [];
+    setText(["#pf-pass-count","#pf-stamps-count",".js-stamps-count","[data-bind='stamps-count']"], `${styles.length}/${total}`);
+
+    const lastLabel = state?.last_stamp_name || state?.last_stamp_id || "—";
+    setText(["#pf-pass-list","#pf-last-stamp","#prof-last-stamp",".js-last-stamp","[data-bind='last-stamp']"], lastLabel);
+    // change caption to "Последний штамп" near pf-pass-list if found
+    const el = document.getElementById("pf-pass-list");
+    if (el && el.parentElement){
+      const lbl = el.parentElement.querySelector(".metric__lbl, .label");
+      if (lbl) lbl.textContent = "Последний штамп";
     }
 
-    // отметить собранные в сетке .pslot
+    // mark collected in grid
     try{
-      const owned = {}; (state?.styles||[]).forEach(s=> owned[String(s).toLowerCase()] = 1);
-      document.querySelectorAll('#passport-grid .pslot').forEach(card=>{
-        const code = String(card.getAttribute('data-code')||'').toLowerCase();
-        const ok = !!owned[code];
-        card.classList.toggle('is-done', ok);
-        const badge = card.querySelector('.pslot__badge');
-        if (badge) badge.textContent = ok ? 'Получен' : 'Нет штампа';
+      const owned = new Set(styles.map(s=>String(s).toLowerCase()));
+      document.querySelectorAll("#passport-grid .pslot").forEach(card=>{
+        const code = styleIdFromCard(card);
+        const got = code && owned.has(code);
+        card.classList.toggle("is-done", !!got);
+        const badge = card.querySelector(".pslot__badge, .pslot-badge, [data-role='pslot-badge']");
+        if (badge) badge.textContent = got ? "Получен" : "Нет штампа";
       });
     }catch(_){}
   }
 
-  // === 4) Встраиваемся в уже существующий applyServerState
-  const _apply = window.applyServerState;
-  window.applyServerState = function(state){
-    try{ if (_apply) _apply(state); }catch(_){}
+  // --- Final apply
+  function applyServerState(state){
+    if (!state || state.ok===false) return;
+    window.__state = state;
+    // config: spin cost
+    if (state.config && typeof state.config.SPIN_COST === "number"){
+      setText(["#spin-cost",".js-spin-cost","[data-bind='spin-cost']"], state.config.SPIN_COST);
+    }
+    paintProfile(state);
+    renderLeaderboard(state.leaderboard_today);
+    // legacy logs
     try{
-      applyProfileFromState(state);
-      renderServerLB(state);
+      const claims = Array.isArray(state.last_prizes)?state.last_prizes:[];
+      const log = claims.map(x=>({ts: Date.parse(x.ts||new Date())||Date.now(), source:"bonus", prize: x.prize_name||"Приз"}));
+      localStorage.setItem("beer_rewards", JSON.stringify(log.slice(0,30)));
     }catch(_){}
-  };
+    bindPassportClicks();
+  }
+  try { Object.defineProperty(window, "applyServerState", { value: applyServerState, writable:false, configurable:false }); }
+  catch(_) { window.applyServerState = applyServerState; }
 
-  // === 5) Кнопка "Обновить" в лидерборде — тянем свежее состояние с воркера
-  document.addEventListener('click', async (e)=>{
-    if (e.target.id !== 'lb-refresh') return;
-    const st = await call('state.get', {});
-    if (st && st.ok) window.applyServerState(st);
+  // --- Initial bootstrap & state
+  (async function init(){
+    try{
+      const start_param = TG?.initDataUnsafe?.start_param || "";
+      await jsonPost(API_BASE + "/api/mini/bootstrap", { tg_init: TG?.initData || "", data:{ start_param } });
+    }catch(_){}
+    try{
+      const st = await jsonPost(API_BASE + "/api/mini/state", { tg_init: TG?.initData || "" });
+      if (st && st.ok) applyServerState(st);
+    }catch(_){}
+  })();
+
+  // manual refresh buttons (optional)
+  document.addEventListener("click", async (e)=>{
+    if (e.target.matches("#lb-refresh, [data-action='lb-refresh']")){
+      const st = await jsonPost(API_BASE + "/api/mini/state", { tg_init: TG?.initData || "" });
+      if (st && st.ok) applyServerState(st);
+    }
   });
-
 })();
 </script>
-
-
 </body>
 </html>
