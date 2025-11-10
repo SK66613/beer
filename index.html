@@ -12,15 +12,12 @@
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = window.__API_BASE__;
 
   async function apiCall(type, data){
     try{
-      const res = await fetch(API_BASE + "/api/mini/event", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
-      });
+      const res = await // replaced by __api__.event(..)
+
       const j = await res.json();
       if (j && j.fresh_state && window.applyServerState) {
         window.applyServerState(j.fresh_state);
@@ -106,18 +103,10 @@
   async function bootstrapAndLoad(){
     try{
       const sp = TG?.initDataUnsafe?.start_param || "";
-      await fetch(API_BASE + "/api/mini/bootstrap", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: sp } })
-      });
+      await window.__api__.bootstrap().then(out => { if(out.fresh_state) applyServerState(out.fresh_state); }).catch(console.error);
     }catch(_){}
     try{
-      const r = await fetch(API_BASE + "/api/mini/state", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "" })
-      });
+      const r = await window.__api__.state().then(out => { applyServerState(out); }).catch(console.error);
       const st = await r.json();
       if (st && st.ok && window.applyServerState) window.applyServerState(st);
     }catch(_){}
@@ -142,36 +131,25 @@
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = window.__API_BASE__;
   async function apiBootstrap(){
     var start_param = TG && TG.initDataUnsafe ? (TG.initDataUnsafe.start_param||"") : "";
     try{
-      const r = await fetch(API_BASE + "/api/mini/bootstrap", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param } })
-      });
+      const r = await window.__api__.bootstrap().then(out => { if(out.fresh_state) applyServerState(out.fresh_state); }).catch(console.error);
       return await r.json();
     }catch(err){ return { ok:false, error:String(err) }; }
   }
   async function apiState(){
     try{
-      const r = await fetch(API_BASE + "/api/mini/state", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "" })
-      });
+      const r = await window.__api__.state().then(out => { applyServerState(out); }).catch(console.error);
       return await r.json();
     }catch(err){ return { ok:false, error:String(err) }; }
   }
   // expose generic event sender in case app uses window.api(type,data)
   window.api = async function(type, data){
     try{
-      const r = await fetch(API_BASE + "/api/mini/event", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
-      });
+      const r = await // replaced by __api__.event(..)
+
       return await r.json();
     }catch(err){ return { ok:false, error:String(err) }; }
   };
@@ -3531,14 +3509,11 @@ document.addEventListener('DOMContentLoaded', () => {
 // === API bridge (worker) + apply fresh_state ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = window.__API_BASE__;
 
   async function apiCall(type, data){
-    const res = await fetch(API_BASE + "/api/mini/event", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ type, data:(data||{}), tg_init: TG?.initData || "" })
-    });
+    const res = await // replaced by __api__.event(..)
+
     const j = await res.json().catch(()=>({ok:false}));
     if (j && j.fresh_state && window.applyServerState) window.applyServerState(j.fresh_state);
     return j;
@@ -3553,16 +3528,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Первичная загрузка
   async function bootstrap(){
     try{
-      await fetch(API_BASE + "/api/mini/bootstrap", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: TG?.initDataUnsafe?.start_param || "" } })
-      });
+      await window.__api__.bootstrap().then(out => { if(out.fresh_state) applyServerState(out.fresh_state); }).catch(console.error);
     }catch(_){}
     try{
-      const r = await fetch(API_BASE + "/api/mini/state", {
-        method:"POST", headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "" })
-      });
+      const r = await window.__api__.state().then(out => { applyServerState(out); }).catch(console.error);
       const st = await r.json().catch(()=>null);
       if (st && st.ok && window.applyServerState) window.applyServerState(st);
     }catch(_){}
@@ -3580,14 +3549,11 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = window.__API_BASE__;
 
   async function call(type, data){
-    const res = await fetch(API_BASE + "/api/mini/event", {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
-      body: JSON.stringify({ type, data:(data||{}), tg_init: TG?.initData || "" })
-    });
+    const res = await // replaced by __api__.event(..)
+
     const j = await res.json().catch(()=>({ok:false}));
     if (j && j.fresh_state && window.applyServerState) window.applyServerState(j.fresh_state);
     return j;
@@ -3618,15 +3584,68 @@ document.addEventListener('DOMContentLoaded', () => {
       // Рекорд/плейс
       if (state.game_today_best != null) localStorage.setItem('game_today_best', String(state.game_today_best));
       if (state.game_plays_today != null) localStorage.setItem('game_plays_today', String(state.game_plays_today));
-    };
+    
+
+// === Worker→UI glue (coins, prizes, passport, leaderboard) ===============
+try {
+  // coins
+  var cp = document.getElementById('coins-profile');
+  if (cp && typeof state.coins === 'number') cp.textContent = String(state.coins|0);
+
+  // prizes list (if container exists)
+  var ul = document.getElementById('prizes');
+  if (ul && Array.isArray(state.last_prizes)) {
+    ul.innerHTML = state.last_prizes.map(function(p){
+      try{ var d = new Date(p.ts); }catch(_){ var d=null; }
+      var dt = d ? d.toLocaleString() : '';
+      return '<li>'+dt+' — <b>'+ (p.name||'') +'</b> ('+ (p.value||0) +')</li>';
+    }).join('');
+  }
+
+  // passport grid: prefer styles_dict
+  var grid = document.getElementById('passport-grid');
+  if (grid) {
+    var dict = Array.isArray(state.styles_dict) && state.styles_dict.length ? state.styles_dict : [];
+    var have = new Set((state.styles||[]).map(function(x){return String(x).toLowerCase();}));
+    if (!dict.length) {
+      dict = ['lager','ipa','stout','weizen','sour','cider'].map(function(id){return {id:id,title:id.toUpperCase()};});
+    }
+    grid.innerHTML = dict.map(function(item){
+      var ok = have.has(String(item.id).toLowerCase());
+      var cls = ok ? 'badge badge--green' : 'badge';
+      return '<div class="card" style="text-align:center"><div style="font-weight:800">'
+        + (item.title||item.id)
+        + '</div><div class="'+cls+'" style="margin-top:6px">'
+        + (ok?'Штамп есть':'Нет штампа')
+        + '</div></div>';
+    }).join('');
+  }
+
+  // last stamp label
+  var ls = document.getElementById('last-stamp');
+  if (ls && (state.last_stamp_name || state.last_stamp_id)) {
+    ls.textContent = state.last_stamp_name || state.last_stamp_id;
+  }
+
+  // leaderboard_today → LB module localStorage (if used elsewhere)
+  if (Array.isArray(state.leaderboard_today)) {
+    var dayKey = new Date().toISOString().slice(0,10);
+    var list = state.leaderboard_today.map(function(r,i){
+      return { uid: String(r.tg_id||('u'+i)), name: r.username||('ID '+(r.tg_id||'')), score: Number(r.score||0), ts: Date.now() };
+    });
+    try { localStorage.setItem('lb_flappy_'+dayKey, JSON.stringify(list.slice(0,100))); } catch(_){}
+  }
+} catch(_){}
+
+};
   })(window.applyServerState);
 
   // Глобальные помощники, которые можно вызывать из твоих обработчиков:
   window.checkAndChargeSpin = async function(){
-    return await call('bonus.spin', {}); // GAS сам проверит SPIN_COST/лимиты/кулдаун и спишет при необходимости
+    return await call(\"bonus.claim\", {}); // GAS сам проверит SPIN_COST/лимиты/кулдаун и спишет при необходимости
   };
   window.claimPrize = async function(prizeName, prizeValue, extra){
-    return await call('bonus.claim', { prize_name: prizeName, prize_value: Number(prizeValue||0), ...(extra||{}) });
+    return await call('bonus.claim', { prize_name: prizeName, prize_value: Number(prizeValue||0), .....(extra||{}) });
   };
   window.addStamp = async function(styleId){
     return await call('style.collect', { style_id: String(styleId), status:'collected' });
@@ -3642,10 +3661,10 @@ document.addEventListener('DOMContentLoaded', () => {
   try{ TG?.ready(); TG?.expand(); }catch(_){}
   (async function(){
     try{
-      await fetch(API_BASE + "/api/mini/bootstrap", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: TG?.initDataUnsafe?.start_param || "" } }) });
+      await window.__api__.bootstrap().then(out => { if(out.fresh_state) applyServerState(out.fresh_state); }).catch(console.error);
     }catch(_){}
     try{
-      const r = await fetch(API_BASE + "/api/mini/state", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify({ tg_init: TG?.initData || "" }) });
+      const r = await window.__api__.state().then(out => { applyServerState(out); }).catch(console.error);
       const st = await r.json().catch(()=>null);
       if (st && st.ok && window.applyServerState) window.applyServerState(st);
     }catch(_){}
@@ -3668,5 +3687,78 @@ document.addEventListener('click', async function(e){
 }, { passive:true });
 </script>
 
+<script>
+// === Unified API bridge (Worker endpoints) ===============================
+(function(){
+  // 1) API base (set via localStorage.API_BASE or hardcode your Worker URL below)
+  const API_BASE = window.__API_BASE__;
+  window.__API_BASE__ = API_BASE;
+
+  // 2) Telegram initData reader (works in Telegram; empty on desktop)
+  function getTgInit(){
+    try { return (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || ""; }
+    catch(e){ return ""; }
+  }
+  window.__getTgInit__ = getTgInit;
+
+  // 3) POST helper
+  async function post(path, body){
+    const res = await fetch(API_BASE + path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body||{})
+    });
+    const out = await res.json().catch(()=>({ok:false,error:"bad_json"}));
+    if (!res.ok) throw new Error(out && out.error || ("HTTP "+res.status));
+    return out;
+  }
+  window.__api__ = {
+    bootstrap: (data)=>post("/api/mini/bootstrap", { tg_init: getTgInit(), data: data||{} }),
+    state:     ()=>post("/api/mini/state", { tg_init: getTgInit() }),
+    event:     (type, data)=>post("/api/mini/event", { tg_init: getTgInit(), type, data: data||{} }),
+  };
+})();
+</script>
+<script>
+// === Event helpers bound to Worker =======================================
+window.__claimPrize = function(prizeName, prizeValue, cost, extra){
+  return window.__api__.event("bonus.claim", {
+    prize_name: String(prizeName||""),
+    prize_value: Number(prizeValue||0),
+    cost: Number(cost||0),
+    extra: extra||{}
+  }).then(function(out){
+    if (out && out.fresh_state) window.applyServerState(out.fresh_state);
+    return out;
+  });
+};
+
+window.__collectStyle = function(styleId){
+  return window.__api__.event("style.collect", { style_id:String(styleId||"") })
+    .then(function(out){
+      if (out && out.fresh_state) window.applyServerState(out.fresh_state);
+      return out;
+    });
+};
+
+window.__submitScore = function(score, gameId, mode, durationMs){
+  return window.__api__.event("game.submit", {
+    score: Number(score||0),
+    game_id: String(gameId||"flappy"),
+    mode: String(mode||"flappy"),
+    duration_ms: Number(durationMs||0)
+  }).then(function(out){
+    if (out && out.fresh_state) window.applyServerState(out.fresh_state);
+    return out;
+  });
+};
+
+// One-time initial load
+(function(){
+  try {
+    window.__api__.state().then(function(out){ window.applyServerState(out); }).catch(function(e){ console.warn('state load fail', e); });
+  } catch(e){}
+})();
+</script>
 </body>
 </html>
