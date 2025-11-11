@@ -1560,8 +1560,8 @@ canvas, .game, .no-gesture { touch-action: none; }
     </div>
 
     <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
-      <button type="button" data-lb-tab="today" aria-pressed="true">День</button>
-      <button type="button" data-lb-tab="all">Все</button>
+      <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">День</button>
+      <button type="button" class="js-lb-mode" data-mode="all">Все</button>
     </div>
   </div>
 
@@ -3574,16 +3574,6 @@ document.addEventListener('click', async function(e){
   let KV_VER = 0;            // защита от старых ответов
   let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
 
-  function updateLbSeg(){
-    try{
-      document.querySelectorAll('.lb-seg [data-lb-tab]').forEach(btn=>{
-        const on = (btn.getAttribute('data-lb-tab') === CURRENT_LB);
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-      });
-    }catch(_) {}
-  }
-
-
   // 1) Полностью вырубаем локальный "кэш" лидерборда/скорингов
   (function killLocalLB(){
     const DROP = ['leaderboard','lb_','score','best']; // подстроки ключей, которые блокируем
@@ -3615,13 +3605,12 @@ document.addEventListener('click', async function(e){
     KV_VER = v || Date.now();
     window.MiniState = state;
     try { prevApply && prevApply(state); } catch {}
-    updateLbSeg(); renderLeaderboard();
+    renderLeaderboard();
     return true;
   }
 
   // 4) Единый рендер лидерборда — только из state.* c воркера
   function renderLeaderboard(){
-    updateLbSeg();
     const st = window.MiniState || {};
     const list = document.querySelector('#lb-list');        // список
     const you  = document.querySelector('#lb-you');         // блок "YOU best score" (если есть)
@@ -3670,7 +3659,7 @@ document.addEventListener('click', async function(e){
     const tab = e.target.closest('[data-lb-tab]');
     if (tab){
       CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
-      updateLbSeg(); renderLeaderboard();
+      renderLeaderboard();
       return;
     }
     if (e.target.closest('[data-action="lb-refresh"]')){
@@ -3720,13 +3709,12 @@ document.addEventListener('click', async function(e){
     KV_VER = v || Date.now();
     window.MiniState = state;
     try { prevApply && prevApply(state); } catch {}
-    updateLbSeg(); renderLeaderboard();
+    renderLeaderboard();
     return true;
   }
 
   // 4) Единый рендер лидерборда — только из state.* c воркера
   function renderLeaderboard(){
-    updateLbSeg();
     const st = window.MiniState || {};
     const list = document.querySelector('#lb-list');        // список
     const you  = document.querySelector('#lb-you');         // блок "YOU best score" (если есть)
@@ -3775,7 +3763,7 @@ document.addEventListener('click', async function(e){
     const tab = e.target.closest('[data-lb-tab]');
     if (tab){
       CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
-      updateLbSeg(); renderLeaderboard();
+      renderLeaderboard();
       return;
     }
     if (e.target.closest('[data-action="lb-refresh"]')){
@@ -3784,6 +3772,143 @@ document.addEventListener('click', async function(e){
       applyIfNew(s);
     }
   });
+})();
+</script>
+
+
+<!-- ===== Final safety patch: LB tabs + server-only stamps ===== -->
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || (window.__API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+  let CURRENT_LB = (window.CURRENT_LB || 'today');
+  let KV_VER = (window.KV_VER || 0);
+
+  function jpost(path, body){
+    return fetch(API_BASE + path, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+      cache:'no-store',
+      body: JSON.stringify(body||{})
+    }).then(r=>r.json()).catch(()=>({ok:false, error:'net'}));
+  }
+
+  // Normalize LB buttons
+  function normalizeLbTabs(){
+    const seg = document.querySelector('.lb-seg'); if (!seg) return;
+    const btns = seg.querySelectorAll('button, [role="button"], .seg-btn, .seg-item, .seg');
+    btns.forEach(btn => {
+      const t = (btn.textContent||'').trim().toLowerCase();
+      if (t==='день'||t==='day') btn.setAttribute('data-lb-tab','today');
+      if (t==='все'||t==='all')  btn.setAttribute('data-lb-tab','all');
+      btn.setAttribute('role','button');
+      btn.setAttribute('tabindex','0');
+      btn.style.pointerEvents = 'auto';
+    });
+  }
+  function updateLbSeg(){
+    document.querySelectorAll('[data-lb-tab]').forEach(b=>{
+      const on = (b.getAttribute('data-lb-tab')===CURRENT_LB);
+      b.setAttribute('aria-pressed', on?'true':'false');
+    });
+  }
+  function renderLBfromState(){
+    if (!window.MiniState) return;
+    const arr = CURRENT_LB==='all' ? (window.MiniState.leaderboard_alltime||[]) : (window.MiniState.leaderboard_today||[]);
+    const list = document.querySelector('#lb-list');
+    if (list){
+      list.innerHTML = (arr||[]).map((r,i)=>{
+        const nm = r.username?('@'+r.username):(r.tg_id||'—');
+        const sc = (r.score|0);
+        const m = (i<3)?(' lb-medal-'+(i+1)) : '';
+        return `<div class="lb-row${m}"><div class="lb-rank">${i+1}</div><div class="lb-avatar">${(r.username||'U').slice(0,1).toUpperCase()}</div><div class="lb-name">${nm}</div><div class="lb-score">${sc}</div></div>`;
+      }).join('');
+      if (!arr.length) list.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
+    }
+    updateLbSeg();
+  }
+
+  // Gate applyServerState by kv_ver (keep existing if already there)
+  const prevApply = window.applyServerState;
+  window.applyServerState = function(state){
+    if (!state || state.ok===false) return;
+    const v = Number(state.kv_ver||0);
+    if (v && KV_VER && v <= KV_VER) return;
+    KV_VER = v || Date.now();
+    window.MiniState = state;
+    try{ prevApply && prevApply(state); }catch(_){}
+    try{ window.renderPassport && window.renderPassport(); }catch(_){}
+    try{ window.renderRewards && window.renderRewards(); }catch(_){}
+    renderLBfromState();
+  };
+
+  // Click handlers
+  document.addEventListener('click', async function(e){
+    const tab = e.target.closest('[data-lb-tab]');
+    if (tab){
+      CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
+      updateLbSeg();
+      renderLBfromState();
+      // optional: pull fresh when switching to ALL (to be safe)
+      if (CURRENT_LB==='all'){
+        const tg_init = TG?.initData || '';
+        try{
+          const s = await jpost('/api/mini/state', { tg_init, fresh: 1 });
+          if (s && s.ok) window.applyServerState(s);
+        }catch(_){}
+      }
+      return;
+    }
+
+    // Passport cell click
+    const slot = e.target.closest('.pslot,[data-style-id]');
+    if (slot){
+      const sid = slot.getAttribute('data-code') || slot.getAttribute('data-style-id') || '';
+      if (!sid) return;
+      e.preventDefault(); e.stopPropagation();
+
+      const pinBtn = document.querySelector('[data-action="add-stamp"]');
+      if (pinBtn && pinBtn.getAttribute('data-require-pin')==='1'){
+        const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin!=='1111') return alert('PIN неверный');
+      }
+
+      const tg_init = TG?.initData || '';
+      const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id:sid } });
+      if (r && r.ok && r.fresh_state){ window.applyServerState(r.fresh_state); }
+      else if (r && r.error){ alert('Ошибка: '+r.error); }
+      return;
+    }
+
+    // Button "Добавить штамп"
+    const act = e.target.closest('[data-action="add-stamp"]');
+    if (act){
+      e.preventDefault();
+      const tg_init = TG?.initData || '';
+      // показать список из GAS
+      try{
+        const dictRes = await fetch(API_BASE+'/api/mini/styles').then(r=>r.json()).catch(()=>({}));
+        const styles = dictRes.styles || dictRes.items || [];
+        const name = prompt('Стиль ('+styles.map(s=>s.name||s.id).join(', ')+')');
+        if (!name) return;
+        const pick = styles.find(s => (s.name||s.id).toLowerCase() === name.trim().toLowerCase()) || styles.find(s => String(s.id).toLowerCase()===name.trim().toLowerCase());
+        if (!pick) return alert('Неизвестный стиль');
+        const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin!=='1111') return alert('PIN неверный');
+        const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id:String(pick.id) } });
+        if (r && r.ok && r.fresh_state){ window.applyServerState(r.fresh_state); }
+      }catch(err){ console.error(err); }
+    }
+  });
+
+  // keyboard support
+  document.addEventListener('keydown', (e)=>{
+    if ((e.key==='Enter'||e.key===' ') && e.target && e.target.hasAttribute && e.target.hasAttribute('data-lb-tab')){
+      e.preventDefault(); e.target.click();
+    }
+  });
+
+  // normalize once DOM ready
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', ()=>{ normalizeLbTabs(); updateLbSeg(); renderLBfromState(); });
+  else { normalizeLbTabs(); updateLbSeg(); renderLBfromState(); }
 })();
 </script>
 
