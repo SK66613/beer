@@ -1891,12 +1891,22 @@ canvas, .game, .no-gesture { touch-action: none; }
     function initSheet(title){
       if (/паспорт/i.test(title)) {
         let st = window.MiniState || {};
+        let list = Array.isArray(st.styles) ? st.styles : (Array.isArray(st.styles_user) ? st.styles_user : []);
+        try {
+          const cached = JSON.parse(localStorage.getItem('beer_passport')||'null');
+          const cList = (cached && Array.isArray(cached.styles)) ? cached.styles : [];
+          if (!Array.isArray(list) || !list.length || (Array.isArray(cList) && cList.length > list.length)) {
+            st = {styles: cList};
+          }
+        } catch(_) {}
+        try { paintBadgesFromState(st); } catch(_) {}
+      };
         if (!(Array.isArray(st.styles) || Array.isArray(st.styles_user))) {
           try { const cached = JSON.parse(localStorage.getItem('beer_passport')||'null');
                 if (cached && Array.isArray(cached.styles)) st = {styles: cached.styles}; } catch(_) {}
         }
         try { paintBadgesFromState(st); } catch(_) {}
-        try { bindPassportClicks(); } catch(_) {}
+        try { } catch(_) {}
       }
       if (/колесо/i.test(title)) initSpin();
       if (/реферал|друз/i.test(title)) initRef();
@@ -3385,9 +3395,17 @@ document.addEventListener('click', async function(e){
     });
   }
   function jsonPost(url, body){
-    return fetch(url, {
-      method:"POST",
-      headers:{ "Content-Type":"application/json" },
+    return (async ()=>{
+      try{
+        const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body||{}) });
+        const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+        if (ct && ct.indexOf('application/json')>=0){
+          try { return await res.json(); } catch(_) { return {ok: res.ok}; }
+        }
+        return {ok: res.ok};
+      }catch(_){ return {ok:false, error:'net'}; }
+    })();
+  },
       body: JSON.stringify(body||{})
     }).then(r=>r.json().catch(()=>({ok:false})));
   }
@@ -3441,18 +3459,7 @@ document.addEventListener('click', async function(e){
   }
 
   // --- Passport click handler (once)
-  function bindPassportClicks(){
-    const grid = document.querySelector("#passport-grid");
-    if (!grid || grid.__psInit) return;
-    grid.__psInit = true;
-    grid.addEventListener("click", async (e)=>{
-      const card = e.target.closest(".pslot");
-      if (!card) return;
-      const code = styleIdFromCard(card);
-      if (!code) return;
-      card.classList.add("is-pending");
-      try{
-        const res = await api("style.collect",{ style_id: code, status:"collected" });
+  function bindPassportClicks(){});
         if (!(res && res.ok)) card.classList.remove("is-pending");
       }catch(_){ card.classList.remove("is-pending"); }
     });
@@ -3533,8 +3540,7 @@ try { paintBadgesFromState(state); } catch(_) {}
       const log = claims.map(x=>({ts: Date.parse(x.ts||new Date())||Date.now(), source:"bonus", prize: x.prize_name||"Приз"}));
       localStorage.setItem("beer_rewards", JSON.stringify(log.slice(0,30)));
     }catch(_){}
-    bindPassportClicks();
-  }
+    }
   try { Object.defineProperty(window, "applyServerState", { value: applyServerState, writable:false, configurable:false }); }
   catch(_) { window.applyServerState = applyServerState; }
 
@@ -3589,9 +3595,22 @@ try { paintBadgesFromState(state); } catch(_) {}
 
   // 2) Запросы к воркеру
   async function jpost(path, body){
-    const res = await fetch(API_BASE + path, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+    return (async ()=>{
+      try{
+        const res = await fetch((API_BASE||'') + path, {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+          cache:'no-store',
+          body: JSON.stringify(body||{})
+        });
+        const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+        if (ct && ct.indexOf('application/json')>=0){
+          try { return await res.json(); } catch(_) { return {ok: res.ok}; }
+        }
+        return {ok: res.ok};
+      }catch(_){ return {ok:false, error:'net'}; }
+    })();
+  },
       cache:'no-store',
       body: JSON.stringify(body||{})
     });
@@ -3899,6 +3918,30 @@ try { paintBadgesFromState(state); } catch(_) {}
     if (!pinOkSession){
       const pin = prompt('PIN сотрудника (демо: 1111)');
       if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+      pinOkSession = true; showOk('PIN ОК');
+    }
+    const tg_init = getTgInit();
+    const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
+    if (r && r.ok && r.fresh_state){
+      window.applyServerState(r.fresh_state);
+    } else if (r && r.ok){
+      // optimistic: merge into cache and repaint
+      try{
+        const code = String(styleId||'').toLowerCase();
+        const cached = JSON.parse(localStorage.getItem('beer_passport')||'null') || {styles:[]};
+        const set = new Set((Array.isArray(cached.styles)?cached.styles:[]).map(x=>String(x).toLowerCase()));
+        if (code) set.add(code);
+        const next = Array.from(set);
+        localStorage.setItem('beer_passport', JSON.stringify({styles: next, ts: Date.now()}));
+        paintBadgesFromState({styles: next});
+        showOk('Штамп получен');
+      }catch(_){}
+    } else if (r && r.error){
+      alert('Ошибка: '+r.error);
+    } else {
+      alert('Ошибка сети');
+    }
+  }
       pinOkSession = true; showOk('PIN ОК');
     }
     const tg_init = getTgInit();
