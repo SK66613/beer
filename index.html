@@ -6,13 +6,37 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+<script>
+// === KV-first: in-memory localStorage shim (no persistent cache) ===
+(function(){
+  try{
+    const mem = new Map();
+    const real = window.localStorage;
+    const passthrough = new Set(); // add keys if you need persistence
+
+    const _set = real.setItem.bind(real);
+    const _get = real.getItem.bind(real);
+    const _rem = real.removeItem.bind(real);
+    const _clr = real.clear.bind(real);
+
+    Object.defineProperties(window.localStorage, {
+      setItem: { value: function(k,v){ if (passthrough.has(k)) return _set(k,v); mem.set(String(k), String(v)); } },
+      getItem: { value: function(k){ if (passthrough.has(k)) return _get(k); return mem.has(String(k)) ? mem.get(String(k)) : null; } },
+      removeItem: { value: function(k){ mem.delete(String(k)); if (passthrough.has(k)) _rem(k); } },
+      clear: { value: function(){ mem.clear(); if (passthrough.size>0) _clr(); } }
+    });
+  }catch(_){}
+})();
+</script>
+
 <script>
 // === EARLY: Telegram init + API binding to Worker (with fresh_state support) ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function apiCall(type, data){
     try{
@@ -31,7 +55,9 @@
   window.api = apiCall;
 
   window.applyServerState = function(state){
-    if (!state || state.ok === false) return;
+    
+    try{ window.MiniState = state; }catch(_){}
+if (!state || state.ok === false) return;
     try{
       // coins
       if (typeof state.coins === 'number') {
@@ -142,7 +168,7 @@
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
   async function apiBootstrap(){
     var start_param = TG && TG.initDataUnsafe ? (TG.initDataUnsafe.start_param||"") : "";
     try{
@@ -3531,7 +3557,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // === API bridge (worker) + apply fresh_state ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function apiCall(type, data){
     const res = await fetch(API_BASE + "/api/mini/event", {
@@ -3580,7 +3606,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function call(type, data){
     const res = await fetch(API_BASE + "/api/mini/event", {
@@ -3854,61 +3880,41 @@ document.addEventListener('click', async function(e){
   });
 })();
 </script>
-
-<!-- === KV Instant Patch: two-phase load + server stamps === -->
-<script>
-(function(){
-  const TG = window.Telegram && window.Telegram.WebApp;
-  const API_BASE = (typeof window.API_BASE === 'string' && window.API_BASE) || "https://craftbeer-demo.cyberian13.workers.dev";
-  let KV_VER = 0;
-
-  function post(path, body){
-    return fetch(API_BASE + path, {
-      method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store',
-      body: JSON.stringify(body||{})
-    });
-  }
-  async function jpost(path, body){ const r = await post(path, body); try{ return await r.json(); }catch(_){ return {ok:false, error:'bad_json'}; } }
-
-  // gate by kv_ver to avoid older snapshots
-  const _prevApply = window.applyServerState;
-  window.applyServerState = function(state){
-    if (!state || state.ok===false) return;
-    const v = Number(state.kv_ver||0);
-    if (v && KV_VER && v <= KV_VER) return;
-    KV_VER = v || Date.now();
-    try{ _prevApply && _prevApply(state); }catch(_){}
-  };
-
-  // two-phase boot
-  async function KV_boot(){
-    const tg_init = TG?.initData || '';
-    try{ const b = await jpost('/api/mini/bootstrap', { tg_init, data:{ start_param: TG?.initDataUnsafe?.start_param || '' } }); if (b && b.ok !== false) window.applyServerState(b); }catch(_){}
-    try{ const s = await jpost('/api/mini/state', { tg_init, fresh: 1 }); if (s && s.ok !== false) window.applyServerState(s); }catch(_){}
-  }
-  // run when Telegram init is available (or after small timeout)
-  (function waitInit(t0){ t0=t0||Date.now(); if (TG && TG.initData && TG.initData.length){ KV_boot(); return; } if (Date.now()-t0>2500){ KV_boot(); return; } setTimeout(()=>waitInit(t0), 60); })();
-
-  // override addStampPrompt to server-side style.collect
-  const NAME2CODE = { 'Lager':'lager','IPA':'ipa','Stout':'stout','Weizen':'weizen','Sour':'sour','Cider':'cider' };
-  const _addStampPrompt = (typeof window.addStampPrompt === 'function') ? window.addStampPrompt : null;
-  window.addStampPrompt = async function(){
-    try{
-      const style = prompt('Какой стиль? (Lager, IPA, Stout, Weizen, Sour, Cider)'); if (!style) return;
-      const S = style.trim(); if (!NAME2CODE[S]) return alert('Неизвестный стиль');
-      // (опционально) PIN-проверка, оставим как есть:
-      const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
-      const tg_init = TG?.initData || '';
-      const r = await jpost('/api/mini/event', { tg_init, type: 'style.collect', data: { style_id: NAME2CODE[S] } });
-      if (r && r.ok && r.fresh_state){ window.applyServerState(r.fresh_state); confettiBurst && confettiBurst(); }
-      else if (r && r.error){ alert('Ошибка: '+r.error); }
-    }catch(e){ console.error('stamp error', e); }
-  };
-})();
-</script>
-
 </body>
 </html>
 
-<!-- ===== Instant bootstrap + Leaderboard tabs + styles.dict ===== -->
-<script>(function(){const TG=window.Telegram&&window.Telegram.WebApp;const API_BASE=window.API_BASE||"https://craftbeer-demo.cyberian13.workers.dev";let KV_VER=0;let CURRENT_LB='today';async function jget(p){const r=await fetch(API_BASE+p,{method:'GET',headers:{'Cache-Control':'no-store'},cache:'no-store'});try{return await r.json()}catch{return{ok:false}}}async function jpost(p,b){const r=await fetch(API_BASE+p,{method:'POST',headers:{'Content-Type':'application/json','Cache-Control':'no-store'},cache:'no-store',body:JSON.stringify(b||{})});try{return await r.json()}catch{return{ok:false}}}function renderLeaderboardFrom(s){const box=document.getElementById('lb-list');if(!box)return;const a=CURRENT_LB==='all'?(s.leaderboard_alltime||[]):(s.leaderboard_today||[]);if(!a.length){box.innerHTML='<div class="muted-sm">Пока пусто.</div>';return}box.innerHTML=a.map((r,i)=>{const m=(i<3?(' lb-medal-'+(i+1)):'');const n=r.username?('@'+r.username):(r.tg_id||'—');const ava=(r.username||'U').slice(0,1).toUpperCase();return '<div class="lb-row'+m+'><div class=\'lb-rank\'>'+ (i+1) +'</div><div class=\'lb-avatar\'>'+ava+'</div><div class=\'lb-name\'>'+n+'</div><div class=\'lb-score\'>'+ (r.score|0) +'</div></div>'}).join('')}const prevApply=window.applyServerState;window.applyServerState=function(s){if(!s||s.ok===false)return;const v=Number(s.kv_ver||0);if(v&&KV_VER&&v<=KV_VER)return;KV_VER=v||Date.now();window.MiniState=s;try{prevApply&&prevApply(s)}catch{}try{window.renderPassport&&window.renderPassport()}catch{}try{window.renderRewards&&window.renderRewards()}catch{}renderLeaderboardFrom(s);const d=document.getElementById('lb-tab-day');const a=document.getElementById('lb-tab-all');if(d&&a){d.setAttribute('aria-pressed',CURRENT_LB==='today'?'true':'false');a.setAttribute('aria-pressed',CURRENT_LB==='all'?'true':'false')}};async function boot(){const tg_init=TG?.initData||'';const start_param=TG?.initDataUnsafe?.start_param||'';try{const b=await jpost('/api/mini/bootstrap',{tg_init,data:{start_param}});if(b&&b.ok!==false)window.applyServerState(b.fresh_state?b.fresh_state:b)}catch(_){}try{const s=await jpost('/api/mini/state',{tg_init,fresh:1});if(s&&s.ok!==false)window.applyServerState(s)}catch(_){}}(function wait(t0){t0=t0||Date.now();if(TG?.initData?.length){boot();return}if(Date.now()-t0>2500){boot();return}setTimeout(()=>wait(t0),40)})();document.addEventListener('click',function(e){const t=e.target.closest('[data-lb-tab]');if(!t)return;const tab=t.getAttribute('data-lb-tab');if(!tab)return;CURRENT_LB=tab;const st=window.MiniState||{};renderLeaderboardFrom(st);const d=document.getElementById('lb-tab-day');const a=document.getElementById('lb-tab-all');if(d&&a){d.setAttribute('aria-pressed',CURRENT_LB==='today'?'true':'false');a.setAttribute('aria-pressed',CURRENT_LB==='all'?'true':'false')}});window._stylesDict=null;async function ensureStylesDict(){if(window._stylesDict)return window._stylesDict;const r=await jget('/api/mini/styles');if(r?.ok&&(Array.isArray(r.styles)||Array.isArray(r.items))){const arr=r.styles||r.items;window._stylesDict=arr.map(x=>({id:String(x.id||x.code||x.value),name:String(x.name||x.title||x.label||x.id)}));return window._stylesDict}return[]}const _add=window.addStampPrompt;window.addStampPrompt=async function(){const dict=await ensureStylesDict();if(!dict.length){alert('Список стилей недоступен');return}const list=dict.map(d=>d.name).join(', ');const picked=prompt('Какой стиль? ('+list+')');if(!picked)return;const item=dict.find(d=>d.name.toLowerCase()===picked.trim().toLowerCase());if(!item){alert('Неизвестный стиль');return}const pin=prompt('PIN сотрудника (демо: 1111)');if(pin!=='1111'){alert('PIN неверный');return}const tg_init=TG?.initData||'';const r=await jpost('/api/mini/event',{tg_init,type:'style.collect',data:{style_id:item.id}});if(r?.ok){if(r.fresh_state)window.applyServerState(r.fresh_state);try{window.confettiBurst&&window.confettiBurst()}catch(_){}}else if(r?.error){alert(r.error)}};})();</script>
+<!-- ===== Instant loader patch (KV-first + fresh) ===== -->
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
+  let KV_VER = 0;
+  function applyIfNew(state){
+    if (!state || state.ok === false) return;
+    const v = Number(state.kv_ver||0);
+    if (v && KV_VER && v <= KV_VER) return;
+    KV_VER = v || Date.now();
+    try{ window.MiniState = state; }catch(_){}
+    try{ window.applyServerState && window.applyServerState(state); }catch(_){}
+  }
+  async function post(path, body){
+    const res = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store', body: JSON.stringify(body||{}) });
+    return await res.json();
+  }
+  // override global api() to auto-apply fresh_state
+  (function(prev){
+    window.api = async function(type, data){
+      const tg_init = TG?.initData || '';
+      const r = await post('/api/mini/event', { tg_init, type, data });
+      if (r && r.fresh_state) applyIfNew(r.fresh_state);
+      return r;
+    };
+  })(window.api);
+  // two-phase boot: KV snapshot -> guaranteed fresh
+  (async function(){
+    const tg_init = TG?.initData || '';
+    try{ const b = await post('/api/mini/bootstrap', { tg_init, data:{ start_param: TG?.initDataUnsafe?.start_param || '' } }); applyIfNew(b); }catch(_){}
+    try{ const s = await post('/api/mini/state', { tg_init, fresh: 1 }); applyIfNew(s); }catch(_){}
+  })();
+})();
+</script>
