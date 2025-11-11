@@ -1907,23 +1907,7 @@ canvas, .game, .no-gesture { touch-action: none; }
       box.innerHTML = r.slice(0,8).map(x=>`<div>• ${new Date(x.ts).toLocaleString()} — ${x.source}: <b>${x.prize}</b></div>`).join('');
     }
 
-    // ===== Passport =====
-    const STYLES = ['Lager','IPA','Stout','Weizen','Sour','Cider'];
-    function renderPassport(){
-      const data = store.get(SKEY.passport, {});
-      const grid = document.getElementById('passport-grid'); if (!grid) return;
-      grid.innerHTML = STYLES.map(s=>{
-        const c = data[s]||0; const done = c>0 ? 'badge badge--green' : 'badge';
-        return `<div class="card" style="text-align:center"><div style="font-weight:800">${s}</div><div class="${done}" style="margin-top:6px">${c>0?'Штамп есть':'Нет штампа'}</div></div>`;
-      }).join('');
-    }
-    function addStampPrompt(){
-      const style = prompt('Какой стиль? (Lager, IPA, Stout, Weizen, Sour, Cider)'); if (!style) return;
-      const S = style.trim(); if (!STYLES.includes(S)) return alert('Неизвестный стиль');
-      const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
-      const data = store.get(SKEY.passport, {}); data[S] = 1; store.set(SKEY.passport, data); renderPassport(); addCoins(100); confettiBurst(); logReward({source:'passport', prize:'Штамп '+S});
-    }
-    function resetPassport(){ store.set(SKEY.passport, {}); renderPassport(); }
+
 
 
     // ===== Referrals =====
