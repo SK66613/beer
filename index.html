@@ -67,30 +67,7 @@ if (!state || state.ok === false) return;
       }
       // last prizes -> two keys used by UI variants
       var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
-      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() };
-// --- SWR bootstrap: paint from cached keys before network ---
-try{
-  var __cached = {};
-  var c = Number(localStorage.getItem('beer_coins')||0);
-  if (c) __cached.coins = c;
-  try{
-    var pv1 = JSON.parse(localStorage.getItem('beer_passport_v1')||'{}');
-    if (pv1 && Array.isArray(pv1.stamps)) __cached.styles = pv1.stamps;
-  }catch(_){}
-  try{
-    var bl1 = JSON.parse(localStorage.getItem('bonus_log_v1')||'[]');
-    if (Array.isArray(bl1) && bl1.length){
-      __cached.last_prizes = bl1.map(function(x){ return { prize_name: x.name||'Приз', ts: (new Date(x.ts||Date.now())).toISOString() }; });
-    }
-  }catch(_){}
-  if (Object.keys(__cached).length){
-    window.MiniState = Object.assign({}, window.MiniState||{}, __cached);
-    try{ if (typeof paintProfile==='function') paintProfile(window.MiniState); }catch(_){}
-    try{ if (typeof paintBadgesFromState==='function') paintBadgesFromState(window.MiniState); }catch(_){}
-    try{ if (typeof renderLeaderboard==='function') renderLeaderboard(); }catch(_){}
-  }
-}catch(_){}
- });
+      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
       var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
       localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
       localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
@@ -1803,12 +1780,10 @@ canvas, .game, .no-gesture { touch-action: none; }
       if (sheetTitle) sheetTitle.textContent = title || '';
       if (sheetBody && html != null) sheetBody.innerHTML = html;
       sheetRoot.classList.add('is-open'); document.body.classList.add('sheet-open');
-      try{ if (/паспорт/i.test(title) && window.MiniState && typeof paintBadgesFromState==='function') paintBadgesFromState(window.MiniState); }catch(_){}
       requestAnimationFrame(()=> sheetPanel?.focus({preventScroll:true}));
       haptic('light'); syncBack();
     }
-    function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); try{ if (window.MiniState && typeof paintBadgesFromState==='function') paintBadgesFromState(window.MiniState); }catch(_){}
-      haptic('light'); syncBack(); }
+    function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); haptic('light'); syncBack(); }
     window.openSheet = openSheet; window.closeSheet = closeSheet;
     sheetRoot?.addEventListener('click', (e)=>{ if (e.target.closest('[data-close-sheet]')) closeSheet(); });
     document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && sheetRoot?.classList.contains('is-open')) closeSheet(); });
@@ -3373,23 +3348,6 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
-  <script>
-// PATCH: click on stamp card -> collect (case-insensitive code)
-document.addEventListener('click', async function(e){
-  var card = e.target.closest('#passport-grid .pslot');
-  if (!card) return;
-  var code = String(card.getAttribute('data-code')||'').trim();
-  if (!code) return;
-  try {
-    await (window.api ? window.api('style.collect', { style_id: code.toLowerCase(), status:'collected' }) : Promise.resolve());
-  } catch(_) {}
-}, { passive:true });
-</script>
-
-
-
-
-
 
 
 <!-- === CLEAN FRONT CORE (server-driven) === -->
@@ -3968,44 +3926,25 @@ function getCachedStyles(){
   
 
 async function collectStyle(styleId){
-  // PIN once per session (demo)
-  window.__PIN_OK = typeof window.__PIN_OK !== 'undefined' ? window.__PIN_OK : false;
-  window.PIN_CODE = typeof window.PIN_CODE !== 'undefined' ? window.PIN_CODE : '1111';
-  if (!window.__PIN_OK){
-    const pin = prompt('PIN сотрудника (демо: 1111)');
-    if (pin == null) return;                // cancel
-    if (pin !== window.PIN_CODE){ alert('PIN неверный'); return; }
-    window.__PIN_OK = true;
-  }
-
-  const tg_init = (window.Telegram && window.Telegram.WebApp && Telegram.WebApp.initData) || '';
-  let r;
-  try{
-    if (typeof window.api === 'function'){
-      r = await window.api('style.collect', { style_id: String(styleId) });
-    } else {
-      r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
-    }
-  }catch(err){
-    console.error('send error', err);
-    alert('Ошибка сети');
-    return;
-  }
-
+  const pin = prompt('PIN сотрудника (демо: 1111)');
+  if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+  const tg_init = getTgInit();
+  const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
   if (r && r.ok && r.fresh_state){
-    try { window.applyServerState(r.fresh_state); } catch(e){}
-    return;
+    window.applyServerState(r.fresh_state);
+    try{
+      const arr = Array.isArray(r.fresh_state.styles) ? r.fresh_state.styles : (Array.isArray(r.fresh_state.styles_user) ? r.fresh_state.styles_user : []);
+      cacheStyles(arr);
+    }catch(_){}
+  }else if (r && r.ok){
+    // optimistic local
+    cacheAdd(String(styleId));
+    try { paintBadgesFromState({styles: getCachedStyles()}); } catch(_){}
+    showOk('Штамп получен (локально)');
+  }else{
+    alert('Ошибка сети');
   }
-  if (r && r.ok){
-    try { cacheAdd && cacheAdd(String(styleId)); } catch(e){}
-    try { if (typeof getCachedStyles==='function' && typeof paintBadgesFromState==='function') paintBadgesFromState({styles: getCachedStyles()}); } catch(e){}
-    try { showOk && showOk('Штамп получен (локально)'); } catch(e){}
-    return;
-  }
-  alert('Ошибка сети');
 }
-
-
 
   // --- clicks: passport tiles and sheet tiles -> collectStyle
   document.addEventListener('click', function(e){
