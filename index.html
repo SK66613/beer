@@ -3883,7 +3883,7 @@ document.addEventListener('click', async function(e){
 <script>
 (function(){
   const TG = window.Telegram && window.Telegram.WebApp;
-  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = window.API_BASE || "https://твой-воркер.workers.dev";
   let KV_VER = 0;            // защита от старых ответов
   let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
 
@@ -3984,6 +3984,41 @@ document.addEventListener('click', async function(e){
 })();
 </script>
 
+<!-- ===== Instant loader patch (KV-first + fresh) ===== -->
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
+  let KV_VER = 0;
+  function applyIfNew(state){
+    if (!state || state.ok === false) return;
+    const v = Number(state.kv_ver||0);
+    if (v && KV_VER && v <= KV_VER) return;
+    KV_VER = v || Date.now();
+    try{ window.MiniState = state; }catch(_){}
+    try{ window.applyServerState && window.applyServerState(state); }catch(_){}
+  }
+  async function post(path, body){
+    const res = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store', body: JSON.stringify(body||{}) });
+    return await res.json();
+  }
+  // override global api() to auto-apply fresh_state
+  (function(prev){
+    window.api = async function(type, data){
+      const tg_init = TG?.initData || '';
+      const r = await post('/api/mini/event', { tg_init, type, data });
+      if (r && r.fresh_state) applyIfNew(r.fresh_state);
+      return r;
+    };
+  })(window.api);
+  // two-phase boot: KV snapshot -> guaranteed fresh
+  (async function(){
+    const tg_init = TG?.initData || '';
+    try{ const b = await post('/api/mini/bootstrap', { tg_init, data:{ start_param: TG?.initDataUnsafe?.start_param || '' } }); applyIfNew(b); }catch(_){}
+    try{ const s = await post('/api/mini/state', { tg_init, fresh: 1 }); applyIfNew(s); }catch(_){}
+  })();
+})();
 </script>
+
 </body>
 </html>
