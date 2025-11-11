@@ -1894,7 +1894,7 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     // ===== Sheet initializers =====
     function initSheet(title){
-      if (/паспорт/i.test(title)) renderPassport();
+      if (/паспорт/i.test(title)) { try { paintBadgesFromState(window.MiniState || {}); } catch(_) {} }
       if (/колесо/i.test(title)) initSpin();
       if (/реферал|друз/i.test(title)) initRef();
       if (/викторин/i.test(title)) renderTrivia();
@@ -3611,7 +3611,9 @@ document.addEventListener('click', async function(e){
       setText(["#spin-cost",".js-spin-cost","[data-bind='spin-cost']"], state.config.SPIN_COST);
     }
     paintProfile(state);
-    renderLeaderboard(state.leaderboard_today);
+    window.MiniState = state;
+    try { paintBadgesFromState(state); } catch(_) {}
+    try { renderLeaderboard(); } catch(_) {};
     // legacy logs
     try{
       const claims = Array.isArray(state.last_prizes)?state.last_prizes:[];
