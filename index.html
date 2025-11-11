@@ -1560,8 +1560,8 @@ canvas, .game, .no-gesture { touch-action: none; }
     </div>
 
     <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
-      <button type="button" class="js-lb-mode" data-mode="daily" aria-pressed="true">День</button>
-      <button type="button" class="js-lb-mode" data-mode="all">Все</button>
+      <button type="button" data-lb-tab="today" aria-pressed="true">День</button>
+      <button type="button" data-lb-tab="all">Все</button>
     </div>
   </div>
 
@@ -3574,6 +3574,16 @@ document.addEventListener('click', async function(e){
   let KV_VER = 0;            // защита от старых ответов
   let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
 
+  function updateLbSeg(){
+    try{
+      document.querySelectorAll('.lb-seg [data-lb-tab]').forEach(btn=>{
+        const on = (btn.getAttribute('data-lb-tab') === CURRENT_LB);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }catch(_) {}
+  }
+
+
   // 1) Полностью вырубаем локальный "кэш" лидерборда/скорингов
   (function killLocalLB(){
     const DROP = ['leaderboard','lb_','score','best']; // подстроки ключей, которые блокируем
@@ -3605,12 +3615,13 @@ document.addEventListener('click', async function(e){
     KV_VER = v || Date.now();
     window.MiniState = state;
     try { prevApply && prevApply(state); } catch {}
-    renderLeaderboard();
+    updateLbSeg(); renderLeaderboard();
     return true;
   }
 
   // 4) Единый рендер лидерборда — только из state.* c воркера
   function renderLeaderboard(){
+    updateLbSeg();
     const st = window.MiniState || {};
     const list = document.querySelector('#lb-list');        // список
     const you  = document.querySelector('#lb-you');         // блок "YOU best score" (если есть)
@@ -3659,7 +3670,7 @@ document.addEventListener('click', async function(e){
     const tab = e.target.closest('[data-lb-tab]');
     if (tab){
       CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
-      renderLeaderboard();
+      updateLbSeg(); renderLeaderboard();
       return;
     }
     if (e.target.closest('[data-action="lb-refresh"]')){
@@ -3709,12 +3720,13 @@ document.addEventListener('click', async function(e){
     KV_VER = v || Date.now();
     window.MiniState = state;
     try { prevApply && prevApply(state); } catch {}
-    renderLeaderboard();
+    updateLbSeg(); renderLeaderboard();
     return true;
   }
 
   // 4) Единый рендер лидерборда — только из state.* c воркера
   function renderLeaderboard(){
+    updateLbSeg();
     const st = window.MiniState || {};
     const list = document.querySelector('#lb-list');        // список
     const you  = document.querySelector('#lb-you');         // блок "YOU best score" (если есть)
@@ -3763,7 +3775,7 @@ document.addEventListener('click', async function(e){
     const tab = e.target.closest('[data-lb-tab]');
     if (tab){
       CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
-      renderLeaderboard();
+      updateLbSeg(); renderLeaderboard();
       return;
     }
     if (e.target.closest('[data-action="lb-refresh"]')){
