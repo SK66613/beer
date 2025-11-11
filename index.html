@@ -3864,6 +3864,203 @@ document.addEventListener('click', async function(e){
 })();
 </script>
 
+
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || (window.__API_BASE || "");
+  let KV_VER = 0;
+  let CURRENT_LB = (window.CURRENT_LB || 'today');
+  const SHEET = document.getElementById('sheet');
+  const SHEET_BODY = document.getElementById('sheet-body');
+
+  function jpost(path, body){
+    return fetch((API_BASE||'') + path, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+      cache:'no-store',
+      body: JSON.stringify(body||{})
+    }).then(r=>r.json()).catch(()=>({ok:false}));
+  }
+
+  function ensureLbButtons(){
+    document.querySelectorAll('.lb-seg button, .lb-seg [role="button"]').forEach(btn=>{
+      const t = (btn.textContent||'').trim().toLowerCase();
+      if (!btn.hasAttribute('data-lb-tab')){
+        if (t==='день' || t==='day') btn.setAttribute('data-lb-tab','today');
+        if (t==='все'  || t==='all')  btn.setAttribute('data-lb-tab','all');
+      }
+      btn.setAttribute('role','button');
+      btn.setAttribute('tabindex','0');
+      btn.style.pointerEvents='auto';
+    });
+  }
+  function updateLbSeg(){
+    document.querySelectorAll('[data-lb-tab]').forEach(b=>{
+      const on = (b.getAttribute('data-lb-tab')===CURRENT_LB);
+      b.setAttribute('aria-pressed', on?'true':'false');
+    });
+  }
+  function renderLeaderboard(){
+    const st = window.MiniState || {};
+    const listEl = document.getElementById('lb-list');
+    if (!listEl) return;
+    const arr = (CURRENT_LB==='all') ? (st.leaderboard_alltime || []) : (st.leaderboard_today || []);
+    if (!arr || !arr.length){
+      listEl.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>';
+    }else{
+      listEl.innerHTML = arr.map(function(r,i){
+        const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
+        const name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
+        const ava   = (r.username||'U').slice(0,1).toUpperCase();
+        return '<div class="lb-row'+medal+'">'+
+          '<div class="lb-rank">'+(i+1)+'</div>'+
+          '<div class="lb-avatar">'+ava+'</div>'+
+          '<div class="lb-name">'+name+'</div>'+
+          '<div class="lb-score">'+(r.score|0)+'</div>'+
+        '</div>';
+      }).join('');
+    }
+    updateLbSeg();
+  }
+
+  // ==== SHEET: Passport ====
+  function openSheet(){ if (!SHEET) return; SHEET.classList.add('is-open'); document.body.classList.add('sheet-open'); }
+  function closeSheet(){ if (!SHEET) return; SHEET.classList.remove('is-open'); document.body.classList.remove('sheet-open'); }
+  document.addEventListener('click', (e)=>{ if (e.target.matches('[data-close-sheet],.sheet__overlay')) closeSheet(); });
+
+  function renderSheetPassport(){
+    if (!SHEET_BODY) return;
+    const st = window.MiniState || {};
+    const owned = new Set((Array.isArray(st.styles)?st.styles:[]).map(x=>String(x).toLowerCase()));
+    const dict = st.styles_dict || st.stylesDict || {};
+    const items = Array.isArray(dict)
+      ? dict.map(x=>({id:String(x.id||x.code||'').toLowerCase(), name:String(x.name||x.title||'')})).filter(x=>x.id)
+      : Object.entries(dict).map(([id,name])=>({id:String(id).toLowerCase(), name:String(name||id)}));
+
+    // Build tile list (use same look as passport .pslot)
+    SHEET_BODY.innerHTML = [
+      '<div class="card passport">',
+      '  <div class="passport__body" style="grid-column:1/-1">',
+      '    <div class="h1" style="margin:0 0 6px">Выбери стиль для штампа</div>',
+      '    <div id="sheet-passport-grid" class="g g3" style="gap:10px">',
+      items.map(it=>{
+        const done = owned.has(it.id);
+        return (
+          '<div class="pslot'+(done?' is-done':'')+'" data-style-id="'+it.id+'">'+
+            '<div class="pslot__title">'+(it.name||it.id)+'</div>'+
+            '<div class="pslot__badge">'+(done?'Получен':'Получить')+'</div>'+
+          '</div>'
+        );
+      }).join('') || '<div class="muted-sm">Нет доступных стилей.</div>',
+      '    </div>',
+      '  </div>',
+      '</div>'
+    ].join('');
+  }
+
+  async function collectStyle(styleId){
+    const TGW = TG;
+    const tg_init = TGW && TGW.initData ? TGW.initData : '';
+    const pinBtn = document.querySelector('[data-action="add-stamp"]');
+    // если в твоём UX требуется PIN — спросим один раз
+    if (pinBtn && pinBtn.getAttribute('data-require-pin')==='1'){
+      const pin = prompt('PIN сотрудника (демо: 1111)');
+      if (pin !== '1111') { alert('PIN неверный'); return; }
+    }
+    const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
+    if (r && r.ok && r.fresh_state){
+      window.applyServerState(r.fresh_state); // это перекрасит и основную сетку, и шторку
+    }else if (r && r.error){
+      alert('Ошибка: '+r.error);
+    }
+  }
+
+  // Intercept "Добавить штамп": не показываем "первое окно", сразу открываем шторку с плитками
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-action="add-stamp"]');
+    if (!btn) return;
+    e.preventDefault();
+    renderSheetPassport();
+    openSheet();
+  }, {passive:false});
+
+  // Click on sheet tiles: one PIN prompt (если надо) -> send style.collect -> keep sheet open + highlight
+  document.addEventListener('click', function(e){
+    const tile = e.target.closest('#sheet-passport-grid .pslot, .pslot[data-style-id]');
+    if (!tile || !SHEET || !SHEET.classList.contains('is-open')) return;
+    const sid = tile.getAttribute('data-style-id') || tile.getAttribute('data-code') || '';
+    if (!sid) return;
+    e.preventDefault();
+    collectStyle(sid);
+  }, {passive:false});
+
+  // Also allow clicking original passport tiles (outside sheet)
+  document.addEventListener('click', function(e){
+    const card = e.target.closest('#passport-grid .pslot');
+    if (!card) return;
+    const sid = card.getAttribute('data-code') || '';
+    if (!sid) return;
+    e.preventDefault();
+    collectStyle(sid);
+  }, {passive:false});
+
+  // Wrap applyServerState to gate by kv_ver and render LB + sheet highlights
+  const prevApply = window.applyServerState;
+  window.applyServerState = function(state){
+    if (!state || state.ok===false) return;
+    const v = Number(state.kv_ver||0);
+    if (v && KV_VER && v <= KV_VER) return;
+    KV_VER = v || Date.now();
+    window.MiniState = state;
+    try{ prevApply && prevApply(state); }catch(_){}
+    try{
+      // repaint passport grid
+      const grid = document.getElementById('passport-grid');
+      if (grid){
+        const owned = new Set((Array.isArray(state.styles)?state.styles:[]).map(x=>String(x).toLowerCase()));
+        grid.querySelectorAll('.pslot').forEach(function(card){
+          const code = String(card.getAttribute('data-code')||'').toLowerCase();
+          const ok = owned.has(code);
+          card.classList.toggle('is-done', ok);
+          const b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Нет штампа';
+        });
+      }
+      // repaint sheet tiles if open
+      if (SHEET && SHEET.classList.contains('is-open')) renderSheetPassport();
+      // leaderboard
+      ensureLbButtons();
+      renderLeaderboard();
+    }catch(_){}
+  };
+
+  // Leaderboard tab clicks
+  document.addEventListener('click', async function(e){
+    const tab = e.target.closest('[data-lb-tab]');
+    if (!tab) return;
+    CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
+    updateLbSeg();
+    renderLeaderboard();
+    if (CURRENT_LB==='all'){
+      const TGW = TG;
+      const tg_init = TGW && TGW.initData ? TGW.initData : '';
+      const s = await jpost('/api/mini/state', { tg_init, fresh:1 });
+      if (s && s.ok) window.applyServerState(s);
+    }
+  }, {passive:true});
+  document.addEventListener('keydown', (e)=>{
+    if ((e.key==='Enter'||e.key===' ') && e.target && e.target.hasAttribute && e.target.hasAttribute('data-lb-tab')){
+      e.preventDefault(); e.target.click();
+    }
+  });
+
+  // Init
+  ensureLbButtons();
+  updateLbSeg();
+  renderLeaderboard();
+})();
+</script>
+
 </body>
 </html>
 
