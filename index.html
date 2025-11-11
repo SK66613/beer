@@ -13,7 +13,7 @@
   try{
     const mem = new Map();
     const real = window.localStorage;
-    const passthrough = new Set(); // add keys if you need persistence
+    const passthrough = new Set(["beer_state_v2", "beer_coins", "bonus_log_v1", "beer_rewards", "beer_passport", "beer_passport_v1", "leaderboard_cache"]); // add keys if you need persistence
 
     const _set = real.setItem.bind(real);
     const _get = real.getItem.bind(real);
@@ -161,6 +161,46 @@ if (!state || state.ok === false) return;
   waitInit(bootstrapAndLoad);
 })();
 </script>
+<script>
+// --- SWR: persistent cache + bootstrap (stale-while-revalidate) ---
+(function(){
+  const KEY = 'beer_state_v2';
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(_){ return {}; } }
+  function save(st){
+    if (!st || st.ok===false) return;
+    try{
+      const cur = load();
+      const merged = Object.assign({}, cur, st);
+      merged._ver = Number(st.kv_ver || Date.now());
+      localStorage.setItem(KEY, JSON.stringify(merged));
+    }catch(_){}
+  }
+  function ver(){ const s = load(); return Number(s.kv_ver || s._ver || 0); }
+  window.SWR = { get: load, save, ver, KEY };
+
+  // Bootstrap UI instantly from cache (if present)
+  try{
+    const st = load();
+    if (st && Object.keys(st).length){
+      window.MiniState = Object.assign({}, window.MiniState||{}, st);
+      try{ if (typeof paintProfile==='function') paintProfile(st); }catch(_){}
+      try{ if (typeof paintBadgesFromState==='function') paintBadgesFromState(st); }catch(_){}
+      try{ if (typeof renderLeaderboard==='function') renderLeaderboard(); }catch(_){}
+    }
+  }catch(_){}
+
+  // Wrap applyServerState to persist fresh state then render
+  try{
+    const prev = window.applyServerState;
+    window.applyServerState = function(state){
+      if (!state || state.ok===false) return;
+      try{ save(state); }catch(_){}
+      if (typeof prev === 'function') return prev(state);
+    };
+  }catch(_){}
+})();
+</script>
+
 
 <style>
     :root{
@@ -1780,7 +1820,13 @@ canvas, .game, .no-gesture { touch-action: none; }
       if (sheetTitle) sheetTitle.textContent = title || '';
       if (sheetBody && html != null) sheetBody.innerHTML = html;
       sheetRoot.classList.add('is-open'); document.body.classList.add('sheet-open');
-      requestAnimationFrame(()=> sheetPanel?.focus({preventScroll:true}));
+      
+try{
+  var __st = (window.MiniState || (window.SWR && SWR.get()) || {});
+  if (/паспорт/i.test(title) && typeof paintBadgesFromState==='function') paintBadgesFromState(__st);
+  if (/последние призы|призы/i.test(title) && typeof window.renderRewards==='function') window.renderRewards();
+}catch(_){}
+requestAnimationFrame(()=> sheetPanel?.focus({preventScroll:true}));
       haptic('light'); syncBack();
     }
     function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); haptic('light'); syncBack(); }
@@ -3483,6 +3529,8 @@ document.addEventListener('click', async function(e){
 
   // --- Profile & passport from server
   function paintProfile(state){
+  state = state || (window.SWR && SWR.get()) || state;
+
     const coins = Number(state?.coins||0);
     setText(["#pf-coins",".js-coins","[data-bind='coins']"], coins);
     try{ localStorage.setItem("beer_coins", String(coins)); }catch(_){}
@@ -3903,6 +3951,8 @@ try { paintBadgesFromState(state); } catch(_) {}
 
   // --- badges painter for passport + sheet (strictly from server state)
   function paintBadgesFromState(st){
+  st = st || (window.SWR && SWR.get()) || st;
+
     try{
       const styles = Array.isArray(st.styles) ? st.styles
                     : (Array.isArray(st.styles_user) ? st.styles_user : []);
