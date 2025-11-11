@@ -1888,23 +1888,24 @@ canvas, .game, .no-gesture { touch-action: none; }
     })();
 
     // ===== Sheet initializers =====
-    function initSheet(title){
-      if (/паспорт/i.test(title)) {
-        let st = window.MiniState || {};
-        if (!(Array.isArray(st.styles) || Array.isArray(st.styles_user))) {
-          try { const cached = JSON.parse(localStorage.getItem('beer_passport')||'null');
-                if (cached && Array.isArray(cached.styles)) st = {styles: cached.styles}; } catch(_) {}
-        }
-        try { paintBadgesFromState(st); } catch(_) {}
-        try { bindPassportClicks(); } catch(_) {}
-      }
-      if (/колесо/i.test(title)) initSpin();
-      if (/реферал|друз/i.test(title)) initRef();
-      if (/викторин/i.test(title)) renderTrivia();
-      if (/визит/i.test(title)) renderVisits();
-      if (/cap toss/i.test(title)) initCapUI();
-      syncCoins();
-    }
+    
+function initSheet(title){
+  if (/паспорт/i.test(title)) {
+    // при открытии шторки всегда красим из актуального источника:
+    // 1) свежий серверный state, 2) локальный кэш (v1 или legacy)
+    let st = window.MiniState || {};
+    let styles = Array.isArray(st.styles) ? st.styles
+               : (Array.isArray(st.styles_user) ? st.styles_user : null);
+    if (!styles) styles = getCachedStyles();
+    try { paintBadgesFromState({styles}); } catch(_){}
+  }
+  if (/колесо/i.test(title)) initSpin();
+  if (/реферал|друз/i.test(title)) initRef();
+  if (/викторин/i.test(title)) renderTrivia();
+  if (/визит/i.test(title)) renderVisits();
+  if (/cap toss/i.test(title)) initCapUI();
+  syncCoins();
+}
 
 
     // ===== Rewards feed =====
@@ -3819,7 +3820,41 @@ try { paintBadgesFromState(state); } catch(_) {}
   }
   function showOk(msg){
     try { if (TG && TG.showPopup) TG.showPopup({message: msg||'ОК'}); else console.log(msg||'ОК'); } catch(_){}
+  
+  // --- cache helpers for passport (support both v1 and legacy map)
+  function getCachedStyles(){
+    try{
+      const v1 = JSON.parse(localStorage.getItem('beer_passport_v1')||'null');
+      if (v1 && Array.isArray(v1.stamps)) return v1.stamps.map(s=>String(s).toLowerCase());
+    }catch(_){}
+    try{
+      const legacy = JSON.parse(localStorage.getItem('beer_passport')||'null');
+      if (legacy){
+        if (Array.isArray(legacy)) return legacy.map(s=>String(s).toLowerCase());
+        if (typeof legacy==='object'){
+          return Object.keys(legacy).filter(k=>legacy[k]).map(s=>String(s).toLowerCase());
+        }
+      }
+    }catch(_){}
+    return [];
   }
+  function cacheStyles(arr){
+    arr = Array.from(new Set((arr||[]).map(x=>String(x).toLowerCase())));
+    try{ localStorage.setItem('beer_passport_v1', JSON.stringify({stamps: arr})); }catch(_){}
+    try{
+      const map = {}; arr.forEach(s=>map[s]=1);
+      localStorage.setItem('beer_passport', JSON.stringify(map));
+    }catch(_){}
+    return arr;
+  }
+  function cacheAdd(code){
+    code = String(code||'').toLowerCase().trim();
+    if (!code) return;
+    const arr = getCachedStyles();
+    if (!arr.includes(code)) arr.push(code);
+    cacheStyles(arr);
+  }
+}
   function ensureLbButtons(){
     document.querySelectorAll('.lb-seg button, .lb-seg [role="button"], .js-lb-mode').forEach(btn=>{
       const t = (btn.textContent||'').trim().toLowerCase();
@@ -3907,20 +3942,25 @@ try { paintBadgesFromState(state); } catch(_) {}
   })();
 
   // --- unified collectStyle with single PIN step and clear confirm
-  async function collectStyle(styleId){
-    if (!pinOkSession){
-      const pin = prompt('PIN сотрудника (демо: 1111)');
-      if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
-      pinOkSession = true; showOk('PIN ОК');
-    }
-    const tg_init = getTgInit();
-    const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
-    if (r && r.ok && r.fresh_state){
-      window.applyServerState(r.fresh_state); // подсветка прилетит из сервера
-    }else if (r && r.error){
-      alert('Ошибка: '+r.error);
-    }
+  
+async function collectStyle(styleId){
+  if (!pinOkSession){
+    const pin = prompt('PIN сотрудника (демо: 1111)');
+    if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+    pinOkSession = true; showOk('PIN ОК');
   }
+  const tg_init = getTgInit();
+  const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
+  if (r && r.ok && r.fresh_state){
+    window.applyServerState(r.fresh_state); // сервер всё подсветит и сохранит
+  }else{
+    // оффлайн/ошибка сети — не даём UX развалиться: подсветим из локального кэша
+    cacheAdd(String(styleId));
+    try{ paintBadgesFromState({styles: getCachedStyles()}); }catch(_){}
+    if (r && r.error) console.warn('collectStyle offline fallback:', r.error);
+    showOk('Штамп отмечен локально');
+  }
+}
 
   // --- clicks: passport tiles and sheet tiles -> collectStyle
   document.addEventListener('click', function(e){
