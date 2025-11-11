@@ -1889,7 +1889,15 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     // ===== Sheet initializers =====
     function initSheet(title){
-      if (/паспорт/i.test(title)) { try { paintBadgesFromState(window.MiniState || {}); } catch(_) {} }
+      if (/паспорт/i.test(title)) {
+        let st = window.MiniState || {};
+        if (!(Array.isArray(st.styles) || Array.isArray(st.styles_user))) {
+          try { const cached = JSON.parse(localStorage.getItem('beer_passport')||'null');
+                if (cached && Array.isArray(cached.styles)) st = {styles: cached.styles}; } catch(_) {}
+        }
+        try { paintBadgesFromState(st); } catch(_) {}
+        try { bindPassportClicks(); } catch(_) {}
+      }
       if (/колесо/i.test(title)) initSpin();
       if (/реферал|друз/i.test(title)) initRef();
       if (/викторин/i.test(title)) renderTrivia();
@@ -3513,7 +3521,11 @@ document.addEventListener('click', async function(e){
     }
     paintProfile(state);
     window.MiniState = state;
-    try { paintBadgesFromState(state); } catch(_) {}
+    try {
+      const _st = Array.isArray(state.styles) ? state.styles : (Array.isArray(state.styles_user) ? state.styles_user : []);
+      localStorage.setItem('beer_passport', JSON.stringify({styles:_st, ts: Date.now()}));
+    } catch(_) {}
+try { paintBadgesFromState(state); } catch(_) {}
     try { renderLeaderboard(); } catch(_) {};
     // legacy logs
     try{
