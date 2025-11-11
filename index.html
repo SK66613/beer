@@ -99,7 +99,7 @@ if (!state || state.ok === false) return;
             var code = String(card.getAttribute('data-code')||'').toLowerCase();
             var ok = !!owned[code];
             card.classList.toggle('is-done', ok);
-            var b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Нет штампа';
+            var b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Получить';
           });
         }
 
@@ -1386,27 +1386,27 @@ canvas, .game, .no-gesture { touch-action: none; }
       <div id="passport-grid">
         <div class="pslot" data-code="Lager">
           <div class="pslot__title">Lager</div>
-          <div class="pslot__badge">Нет штампа</div>
+          <div class="pslot__badge">Получить</div>
         </div>
         <div class="pslot" data-code="IPA">
           <div class="pslot__title">IPA</div>
-          <div class="pslot__badge">Нет штампа</div>
+          <div class="pslot__badge">Получить</div>
         </div>
         <div class="pslot" data-code="Stout">
           <div class="pslot__title">Stout</div>
-          <div class="pslot__badge">Нет штампа</div>
+          <div class="pslot__badge">Получить</div>
         </div>
         <div class="pslot" data-code="Weizen">
           <div class="pslot__title">Weizen</div>
-          <div class="pslot__badge">Нет штампа</div>
+          <div class="pslot__badge">Получить</div>
         </div>
         <div class="pslot" data-code="Sour">
           <div class="pslot__title">Sour</div>
-          <div class="pslot__badge">Нет штампа</div>
+          <div class="pslot__badge">Получить</div>
         </div>
         <div class="pslot" data-code="Cider">
           <div class="pslot__title">Cider</div>
-          <div class="pslot__badge">Нет штампа</div>
+          <div class="pslot__badge">Получить</div>
         </div>
       </div>
 
@@ -3498,7 +3498,7 @@ document.addEventListener('click', async function(e){
         const got = code && owned.has(code);
         card.classList.toggle("is-done", !!got);
         const badge = card.querySelector(".pslot__badge, .pslot-badge, [data-role='pslot-badge']");
-        if (badge) badge.textContent = got ? "Получен" : "Нет штампа";
+        if (badge) badge.textContent = got ? "Получен" : "Получить";
       });
     }catch(_){}
   }
@@ -3854,7 +3854,7 @@ document.addEventListener('click', async function(e){
         const ok = !!(code && owned.has(code));
         card.classList.toggle('is-done', ok);
         const b = card.querySelector('.pslot__badge, .pslot-badge, [data-role="pslot-badge"]');
-        if (b) b.textContent = ok ? 'Получен' : 'Нет штампа';
+        if (b) b.textContent = ok ? 'Получен' : 'Получить';
       });
       // sheet tiles
       document.querySelectorAll('#sheet .pslot[data-style-id], #sheet .pslot[data-code]').forEach(card=>{
