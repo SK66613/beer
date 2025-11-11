@@ -6,37 +6,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-<script>
-// === KV-first: in-memory localStorage shim (no persistent cache) ===
-(function(){
-  try{
-    const mem = new Map();
-    const real = window.localStorage;
-    const passthrough = new Set(); // add keys if you need persistence
-
-    const _set = real.setItem.bind(real);
-    const _get = real.getItem.bind(real);
-    const _rem = real.removeItem.bind(real);
-    const _clr = real.clear.bind(real);
-
-    Object.defineProperties(window.localStorage, {
-      setItem: { value: function(k,v){ if (passthrough.has(k)) return _set(k,v); mem.set(String(k), String(v)); } },
-      getItem: { value: function(k){ if (passthrough.has(k)) return _get(k); return mem.has(String(k)) ? mem.get(String(k)) : null; } },
-      removeItem: { value: function(k){ mem.delete(String(k)); if (passthrough.has(k)) _rem(k); } },
-      clear: { value: function(){ mem.clear(); if (passthrough.size>0) _clr(); } }
-    });
-  }catch(_){}
-})();
-</script>
-
 <script>
 // === EARLY: Telegram init + API binding to Worker (with fresh_state support) ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
 
   async function apiCall(type, data){
     try{
@@ -55,9 +31,7 @@
   window.api = apiCall;
 
   window.applyServerState = function(state){
-    
-    try{ window.MiniState = state; }catch(_){}
-if (!state || state.ok === false) return;
+    if (!state || state.ok === false) return;
     try{
       // coins
       if (typeof state.coins === 'number') {
@@ -168,7 +142,7 @@ if (!state || state.ok === false) return;
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
   async function apiBootstrap(){
     var start_param = TG && TG.initDataUnsafe ? (TG.initDataUnsafe.start_param||"") : "";
     try{
@@ -3557,7 +3531,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // === API bridge (worker) + apply fresh_state ===
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
 
   async function apiCall(type, data){
     const res = await fetch(API_BASE + "/api/mini/event", {
@@ -3606,7 +3580,7 @@ document.addEventListener('DOMContentLoaded', () => {
 <script>
 (function(){
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+  var API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
 
   async function call(type, data){
     const res = await fetch(API_BASE + "/api/mini/event", {
@@ -3880,41 +3854,58 @@ document.addEventListener('click', async function(e){
   });
 })();
 </script>
-</body>
-</html>
 
-<!-- ===== Instant loader patch (KV-first + fresh) ===== -->
+<!-- === KV Instant Patch: two-phase load + server stamps === -->
 <script>
 (function(){
   const TG = window.Telegram && window.Telegram.WebApp;
-  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = (typeof window.API_BASE === 'string' && window.API_BASE) || "https://craftbeer-demo.cyberian13.workers.dev";
   let KV_VER = 0;
-  function applyIfNew(state){
-    if (!state || state.ok === false) return;
+
+  function post(path, body){
+    return fetch(API_BASE + path, {
+      method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store',
+      body: JSON.stringify(body||{})
+    });
+  }
+  async function jpost(path, body){ const r = await post(path, body); try{ return await r.json(); }catch(_){ return {ok:false, error:'bad_json'}; } }
+
+  // gate by kv_ver to avoid older snapshots
+  const _prevApply = window.applyServerState;
+  window.applyServerState = function(state){
+    if (!state || state.ok===false) return;
     const v = Number(state.kv_ver||0);
     if (v && KV_VER && v <= KV_VER) return;
     KV_VER = v || Date.now();
-    try{ window.MiniState = state; }catch(_){}
-    try{ window.applyServerState && window.applyServerState(state); }catch(_){}
-  }
-  async function post(path, body){
-    const res = await fetch(API_BASE + path, { method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store', body: JSON.stringify(body||{}) });
-    return await res.json();
-  }
-  // override global api() to auto-apply fresh_state
-  (function(prev){
-    window.api = async function(type, data){
-      const tg_init = TG?.initData || '';
-      const r = await post('/api/mini/event', { tg_init, type, data });
-      if (r && r.fresh_state) applyIfNew(r.fresh_state);
-      return r;
-    };
-  })(window.api);
-  // two-phase boot: KV snapshot -> guaranteed fresh
-  (async function(){
+    try{ _prevApply && _prevApply(state); }catch(_){}
+  };
+
+  // two-phase boot
+  async function KV_boot(){
     const tg_init = TG?.initData || '';
-    try{ const b = await post('/api/mini/bootstrap', { tg_init, data:{ start_param: TG?.initDataUnsafe?.start_param || '' } }); applyIfNew(b); }catch(_){}
-    try{ const s = await post('/api/mini/state', { tg_init, fresh: 1 }); applyIfNew(s); }catch(_){}
-  })();
+    try{ const b = await jpost('/api/mini/bootstrap', { tg_init, data:{ start_param: TG?.initDataUnsafe?.start_param || '' } }); if (b && b.ok !== false) window.applyServerState(b); }catch(_){}
+    try{ const s = await jpost('/api/mini/state', { tg_init, fresh: 1 }); if (s && s.ok !== false) window.applyServerState(s); }catch(_){}
+  }
+  // run when Telegram init is available (or after small timeout)
+  (function waitInit(t0){ t0=t0||Date.now(); if (TG && TG.initData && TG.initData.length){ KV_boot(); return; } if (Date.now()-t0>2500){ KV_boot(); return; } setTimeout(()=>waitInit(t0), 60); })();
+
+  // override addStampPrompt to server-side style.collect
+  const NAME2CODE = { 'Lager':'lager','IPA':'ipa','Stout':'stout','Weizen':'weizen','Sour':'sour','Cider':'cider' };
+  const _addStampPrompt = (typeof window.addStampPrompt === 'function') ? window.addStampPrompt : null;
+  window.addStampPrompt = async function(){
+    try{
+      const style = prompt('Какой стиль? (Lager, IPA, Stout, Weizen, Sour, Cider)'); if (!style) return;
+      const S = style.trim(); if (!NAME2CODE[S]) return alert('Неизвестный стиль');
+      // (опционально) PIN-проверка, оставим как есть:
+      const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
+      const tg_init = TG?.initData || '';
+      const r = await jpost('/api/mini/event', { tg_init, type: 'style.collect', data: { style_id: NAME2CODE[S] } });
+      if (r && r.ok && r.fresh_state){ window.applyServerState(r.fresh_state); confettiBurst && confettiBurst(); }
+      else if (r && r.error){ alert('Ошибка: '+r.error); }
+    }catch(e){ console.error('stamp error', e); }
+  };
 })();
 </script>
+
+</body>
+</html>
