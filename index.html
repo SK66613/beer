@@ -1409,8 +1409,8 @@ canvas, .game, .no-gesture { touch-action: none; }
           <div class="pslot__badge">Нет штампа</div>
         </div>
       </div>
-</div>
-  </div>
+
+
 </template>
 
 
@@ -1866,7 +1866,8 @@ canvas, .game, .no-gesture { touch-action: none; }
         case 'start-cap': startCapToss(); break;
         case 'cap-help': alert('Свайпай, чтобы бросать. Комбо и «Foam Frenzy» позже прикрутим.'); break;
         case 'spin': handleSpin(); break;
-case 'reset-passport': resetPassport(); break;
+
+        case 'reset-passport': resetPassport(); break;
         case 'submit-trivia': submitTrivia(); break;
         case 'reset-trivia': resetTrivia(); break;
         case 'copy-ref': copyRef(); break;
@@ -1916,7 +1917,11 @@ case 'reset-passport': resetPassport(); break;
         return `<div class="card" style="text-align:center"><div style="font-weight:800">${s}</div><div class="${done}" style="margin-top:6px">${c>0?'Штамп есть':'Нет штампа'}</div></div>`;
       }).join('');
     }
-); data[S] = 1; store.set(SKEY.passport, data); renderPassport(); addCoins(100); confettiBurst(); logReward({source:'passport', prize:'Штамп '+S});
+    function addStampPrompt(){
+      const style = prompt('Какой стиль? (Lager, IPA, Stout, Weizen, Sour, Cider)'); if (!style) return;
+      const S = style.trim(); if (!STYLES.includes(S)) return alert('Неизвестный стиль');
+      const pin = prompt('PIN сотрудника (демо: 1111)'); if (pin !== '1111') return alert('PIN неверный');
+      const data = store.get(SKEY.passport, {}); data[S] = 1; store.set(SKEY.passport, data); renderPassport(); addCoins(100); confettiBurst(); logReward({source:'passport', prize:'Штамп '+S});
     }
     function resetPassport(){ store.set(SKEY.passport, {}); renderPassport(); }
 
@@ -3333,13 +3338,7 @@ document.addEventListener('DOMContentLoaded', () => {
     await call('bonus.claim', { prize_name: prize, src:'wheel' });
   });
 
-  // Passport stamp
-  document.addEventListener('click', async (e)=>{
-    const t = e.target.closest('[data-action="add-stamp"]');
-    if (!t) return;
-    const styleId = t.dataset && (t.dataset.styleId || t.getAttribute('data-style-id')) || '';
-    await call('style.collect', { style_id: styleId, status:'collected' });
-  });
+
 
   // Quiz finish (custom event)
   document.addEventListener('trivia:finish', async (e)=>{
@@ -3372,79 +3371,7 @@ document.addEventListener('click', async function(e){
 </script>
 
 
-<script>
-// PATCH: [Добавить штамп] — выбираем стиль из state.styles_dict и отправляем style.collect с корректным style_id
-(function(){
-  function buildIndex(dict){
-    const idx = new Map();
-    if (!dict) return idx;
-    // dict может быть объектом {id:name} или массивом объектов [{id,name}, ...]
-    if (Array.isArray(dict)){
-      dict.forEach(it=>{
-        const id = String(it.id || it.code || it.style_id || '').trim().toLowerCase();
-        const name = String(it.name || it.title || id).trim();
-        if (!id) return;
-        idx.set(id, {id, name});
-        idx.set(name.trim().toLowerCase(), {id, name});
-      });
-    } else {
-      Object.entries(dict).forEach(([id, name])=>{
-        id = String(id||'').trim().toLowerCase();
-        name = String(name||id).trim();
-        if (!id) return;
-        idx.set(id, {id, name});
-        idx.set(name.trim().toLowerCase(), {id, name});
-      });
-    }
-    return idx;
-  }
-  document.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('[data-action="add-stamp"]');
-    if (!btn) return;
-    try{
-      const st = (window.MiniState || window.__state || {});
-      const owned = new Set((Array.isArray(st.styles)?st.styles:[]).map(x=>String(x).toLowerCase()));
-      const dict = st.styles_dict || st.stylesDict || null;
-      const idx  = buildIndex(dict);
-      // Сформируем подсказку (отфильтруем уже собранные)
-      let options = [];
-      if (Array.isArray(dict)){
-        options = dict.map(x=>({id:String(x.id||x.code||'').toLowerCase(), name:String(x.name||x.title||'')}))
-                      .filter(x=>x.id && !owned.has(x.id));
-      } else if (dict && typeof dict==='object'){
-        options = Object.entries(dict).map(([id,name])=>({id:String(id).toLowerCase(), name:String(name||id)}))
-                      .filter(x=>x.id && !owned.has(x.id));
-      }
-      // Если всё собрано — дадим выбрать любой
-      if (!options.length){
-        if (Array.isArray(dict)){
-          options = dict.map(x=>({id:String(x.id||x.code||'').toLowerCase(), name:String(x.name||x.title||'')})).filter(x=>x.id);
-        } else if (dict && typeof dict==='object'){
-          options = Object.entries(dict).map(([id,name])=>({id:String(id).toLowerCase(), name:String(name||id)}));
-        }
-      }
-      // Соберём строку-доступные варианты
-      const hint = options.slice(0,12).map(o=>`${o.name} [${o.id}]`).join(', ');
-      const picked = prompt(`Какой стиль отметить?
-Доступно: ${hint || '—'}`, options[0] ? options[0].id : '');
-      if (!picked) return;
-      const key = String(picked).trim().toLowerCase();
-      const rec = idx.get(key) || {id:key, name:key};
-      const res = await (window.api ? window.api('style.collect', { style_id: rec.id, status:'collected' }) : Promise.resolve({ok:false}));
-      // Если воркер вернул свежий state, карточки перекрасит applyServerState. На всякий — локальное подсвечивание:
-      if (!(res && res.fresh_state)){
-        document.querySelectorAll('#passport-grid .pslot').forEach(card=>{
-          const code = String(card.getAttribute('data-code')||'').trim().toLowerCase();
-          if (code===rec.id){ 
-            card.classList.add('is-done');
-            const b = card.querySelector('.pslot__badge'); if (b) b.textContent = 'Получен';
-          }
-        });
-      }
-    }catch(_){}
-  }, {passive:true});
-})();
-</script>
+
 
 
 
