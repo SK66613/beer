@@ -67,7 +67,30 @@ if (!state || state.ok === false) return;
       }
       // last prizes -> two keys used by UI variants
       var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
-      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
+      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() };
+// --- SWR bootstrap: paint from cached keys before network ---
+try{
+  var __cached = {};
+  var c = Number(localStorage.getItem('beer_coins')||0);
+  if (c) __cached.coins = c;
+  try{
+    var pv1 = JSON.parse(localStorage.getItem('beer_passport_v1')||'{}');
+    if (pv1 && Array.isArray(pv1.stamps)) __cached.styles = pv1.stamps;
+  }catch(_){}
+  try{
+    var bl1 = JSON.parse(localStorage.getItem('bonus_log_v1')||'[]');
+    if (Array.isArray(bl1) && bl1.length){
+      __cached.last_prizes = bl1.map(function(x){ return { prize_name: x.name||'Приз', ts: (new Date(x.ts||Date.now())).toISOString() }; });
+    }
+  }catch(_){}
+  if (Object.keys(__cached).length){
+    window.MiniState = Object.assign({}, window.MiniState||{}, __cached);
+    try{ if (typeof paintProfile==='function') paintProfile(window.MiniState); }catch(_){}
+    try{ if (typeof paintBadgesFromState==='function') paintBadgesFromState(window.MiniState); }catch(_){}
+    try{ if (typeof renderLeaderboard==='function') renderLeaderboard(); }catch(_){}
+  }
+}catch(_){}
+ });
       var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
       localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
       localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
