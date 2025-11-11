@@ -1826,10 +1826,14 @@ try{
   if (/паспорт/i.test(title) && typeof paintBadgesFromState==='function') paintBadgesFromState(__st);
   if (/последние призы|призы/i.test(title) && typeof window.renderRewards==='function') window.renderRewards();
 }catch(_){}
+
+try{ if (typeof initSheet==='function') initSheet(title||''); }catch(_){ }
 requestAnimationFrame(()=> sheetPanel?.focus({preventScroll:true}));
       haptic('light'); syncBack();
     }
-    function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); haptic('light'); syncBack(); }
+    function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); 
+try{ var __st = (window.MiniState||(window.SWR&&SWR.get())||{}); if (typeof paintBadgesFromState==='function') paintBadgesFromState(__st); }catch(_){ }
+haptic('light'); syncBack(); }
     window.openSheet = openSheet; window.closeSheet = closeSheet;
     sheetRoot?.addEventListener('click', (e)=>{ if (e.target.closest('[data-close-sheet]')) closeSheet(); });
     document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && sheetRoot?.classList.contains('is-open')) closeSheet(); });
