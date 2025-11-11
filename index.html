@@ -1889,14 +1889,15 @@ canvas, .game, .no-gesture { touch-action: none; }
 
     // ===== Sheet initializers =====
     
-
 function initSheet(title){
   if (/паспорт/i.test(title)) {
+    // при открытии шторки всегда красим из актуального источника:
+    // 1) свежий серверный state, 2) локальный кэш (v1 или legacy)
     let st = window.MiniState || {};
-    let srv = Array.isArray(st.styles) ? st.styles : (Array.isArray(st.styles_user) ? st.styles_user : []);
-    let loc = getCachedStyles();
-    let styles = Array.from(new Set([...(srv||[]).map(s=>String(s).toLowerCase()), ...loc]));
-    try { paintBadgesFromState({styles}); } catch(_) {}
+    let styles = Array.isArray(st.styles) ? st.styles
+               : (Array.isArray(st.styles_user) ? st.styles_user : null);
+    if (!styles) styles = getCachedStyles();
+    try { paintBadgesFromState({styles}); } catch(_){}
   }
   if (/колесо/i.test(title)) initSpin();
   if (/реферал|друз/i.test(title)) initRef();
@@ -1905,6 +1906,7 @@ function initSheet(title){
   if (/cap toss/i.test(title)) initCapUI();
   syncCoins();
 }
+
 
     // ===== Rewards feed =====
     function logReward(rec){ const r = store.get(SKEY.rewards,[]); r.unshift({ts:Date.now(),...rec}); store.set(SKEY.rewards,r); renderRewards(); }
@@ -3348,6 +3350,23 @@ document.addEventListener('DOMContentLoaded', () => {
 })();
 </script>
 
+  <script>
+// PATCH: click on stamp card -> collect (case-insensitive code)
+document.addEventListener('click', async function(e){
+  var card = e.target.closest('#passport-grid .pslot');
+  if (!card) return;
+  var code = String(card.getAttribute('data-code')||'').trim();
+  if (!code) return;
+  try {
+    await (window.api ? window.api('style.collect', { style_id: code.toLowerCase(), status:'collected' }) : Promise.resolve());
+  } catch(_) {}
+}, { passive:true });
+</script>
+
+
+
+
+
 
 
 <!-- === CLEAN FRONT CORE (server-driven) === -->
@@ -3504,7 +3523,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     paintProfile(state);
     window.MiniState = state;
-    try { const _st = Array.isArray(state.styles) ? state.styles : (Array.isArray(state.styles_user) ? state.styles_user : []); cacheStyles(_st); } catch(_) {}
+    try {
+      const _st = Array.isArray(state.styles) ? state.styles : (Array.isArray(state.styles_user) ? state.styles_user : []);
+      localStorage.setItem('beer_passport', JSON.stringify({styles:_st, ts: Date.now()}));
+    } catch(_) {}
 try { paintBadgesFromState(state); } catch(_) {}
     try { renderLeaderboard(); } catch(_) {};
     // legacy logs
@@ -3782,7 +3804,7 @@ try { paintBadgesFromState(state); } catch(_) {}
   // --- state gates
   let KV_VER = 0;
   let CURRENT_LB = (window.CURRENT_LB || 'today');
-  // PIN спрашиваем один раз за сессию
+  let pinOkSession = false; // PIN спрашиваем один раз за сессию
 
   // --- small helpers
   function jpost(path, body){
@@ -3800,25 +3822,22 @@ try { paintBadgesFromState(state); } catch(_) {}
     try { if (TG && TG.showPopup) TG.showPopup({message: msg||'ОК'}); else console.log(msg||'ОК'); } catch(_){}
   
   // --- cache helpers for passport (support both v1 and legacy map)
-  
-function getCachedStyles(){
-  try{
-    const v1 = JSON.parse(localStorage.getItem('beer_passport_v1')||'null');
-    if (v1 && Array.isArray(v1.stamps)) return v1.stamps.map(s=>String(s).toLowerCase());
-  }catch(_){}
-  try{
-    const legacy = JSON.parse(localStorage.getItem('beer_passport')||'null');
-    if (legacy){
-      if (Array.isArray(legacy)) return legacy.map(s=>String(s).toLowerCase());
-      if (typeof legacy==='object'){
-        if (Array.isArray(legacy.styles)) return legacy.styles.map(s=>String(s).toLowerCase());
-        return Object.keys(legacy).filter(k=>legacy[k]).map(s=>String(s).toLowerCase());
+  function getCachedStyles(){
+    try{
+      const v1 = JSON.parse(localStorage.getItem('beer_passport_v1')||'null');
+      if (v1 && Array.isArray(v1.stamps)) return v1.stamps.map(s=>String(s).toLowerCase());
+    }catch(_){}
+    try{
+      const legacy = JSON.parse(localStorage.getItem('beer_passport')||'null');
+      if (legacy){
+        if (Array.isArray(legacy)) return legacy.map(s=>String(s).toLowerCase());
+        if (typeof legacy==='object'){
+          return Object.keys(legacy).filter(k=>legacy[k]).map(s=>String(s).toLowerCase());
+        }
       }
-    }
-  }catch(_){}
-  return [];
-}
-
+    }catch(_){}
+    return [];
+  }
   function cacheStyles(arr){
     arr = Array.from(new Set((arr||[]).map(x=>String(x).toLowerCase())));
     try{ localStorage.setItem('beer_passport_v1', JSON.stringify({stamps: arr})); }catch(_){}
@@ -3924,25 +3943,22 @@ function getCachedStyles(){
 
   // --- unified collectStyle with single PIN step and clear confirm
   
-
 async function collectStyle(styleId){
-  const pin = prompt('PIN сотрудника (демо: 1111)');
-  if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+  if (!pinOkSession){
+    const pin = prompt('PIN сотрудника (демо: 1111)');
+    if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+    pinOkSession = true; showOk('PIN ОК');
+  }
   const tg_init = getTgInit();
   const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
   if (r && r.ok && r.fresh_state){
-    window.applyServerState(r.fresh_state);
-    try{
-      const arr = Array.isArray(r.fresh_state.styles) ? r.fresh_state.styles : (Array.isArray(r.fresh_state.styles_user) ? r.fresh_state.styles_user : []);
-      cacheStyles(arr);
-    }catch(_){}
-  }else if (r && r.ok){
-    // optimistic local
-    cacheAdd(String(styleId));
-    try { paintBadgesFromState({styles: getCachedStyles()}); } catch(_){}
-    showOk('Штамп получен (локально)');
+    window.applyServerState(r.fresh_state); // сервер всё подсветит и сохранит
   }else{
-    alert('Ошибка сети');
+    // оффлайн/ошибка сети — не даём UX развалиться: подсветим из локального кэша
+    cacheAdd(String(styleId));
+    try{ paintBadgesFromState({styles: getCachedStyles()}); }catch(_){}
+    if (r && r.error) console.warn('collectStyle offline fallback:', r.error);
+    showOk('Штамп отмечен локально');
   }
 }
 
