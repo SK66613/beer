@@ -2,302 +2,4198 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>BeerCraft • Mini‑App (clean build)</title>
-  <style>
-    :root { --gap:12px; --card: #101114; --ink:#e8eaf0; --muted:#9aa3ad; --ok:#17c964; --warn:#f5a524; --bad:#f31260; }
-    html,body{margin:0;padding:0;background:#0b0c0f;color:var(--ink);font:14px/1.4 Inter,system-ui,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:920px;margin:0 auto;padding:16px}
-    h2{margin:18px 0 12px}
-    .card{background:var(--card);border-radius:16px;padding:16px;box-shadow:0 1px 0 rgba(255,255,255,.05) inset}
-    .row{display:grid;gap:var(--gap)}
-    .row.cols-2{grid-template-columns:1fr 1fr}
-    .muted{color:var(--muted)}
-    .kv{display:grid;grid-template-columns:auto 1fr;gap:8px 16px;align-items:center}
-    .kv .v{font-weight:600}
-    .badge{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border-radius:999px;background:#0e1116;border:1px solid #1b2028}
+  <title>Beer Mini‑App | Router + BackButton + No‑Swipe</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="format-detection" content="telephone=no" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-    /* Passport sheet */
-    .sheet{position:fixed;inset:auto 0 0 0;background:#0b0c0f;border-radius:16px 16px 0 0;transform:translateY(100%);transition:transform .3s ease;box-shadow:0 -20px 80px rgba(0,0,0,.4)}
-    .sheet.is-open{transform:translateY(0)}
-    .sheet__head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid #171a20}
-    .grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:12px 16px 24px}
-    .pslot{background:#0e1116;border:1px solid #1b2028;border-radius:12px;padding:10px;display:grid;gap:8px}
-    .pslot h4{margin:0;font-size:13px}
-    .pslot .pslot__badge{font-size:12px}
-    .pslot.is-done{border-color:rgba(23,201,100,.5);box-shadow:0 0 0 1px rgba(23,201,100,.2) inset}
-    .pslot.is-done .pslot__badge{color:var(--ok)}
-    .sheet__foot{padding:8px 16px 14px;border-top:1px solid #171a20}
-    .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:38px;padding:0 14px;border-radius:10px;border:1px solid #2a313b;background:#151922;color:var(--ink);cursor:pointer}
-    .btn--primary{background:#1b60f2;border-color:#1b60f2}
+<script>
+// === KV-first: in-memory localStorage shim (no persistent cache) ===
+(function(){
+  try{
+    const mem = new Map();
+    const real = window.localStorage;
+    const passthrough = new Set(["beer_state_v2", "beer_coins", "bonus_log_v1", "beer_rewards", "beer_passport", "beer_passport_v1", "leaderboard_cache"]); // add keys if you need persistence
 
-    /* Leaderboard */
-    .tabs{display:inline-grid;grid-auto-flow:column;gap:8px;padding:6px;background:#0e1116;border:1px solid #1b2028;border-radius:999px}
-    .tab{padding:6px 10px;border-radius:999px;border:0;cursor:pointer;background:transparent;color:var(--muted)}
-    .tab.is-active{background:#1b60f2;color:#fff}
-    table{width:100%;border-collapse:collapse}
-    th,td{padding:8px 10px;border-bottom:1px solid #171a20;text-align:left}
-    th{color:#9aa3ad;font-weight:500}
+    const _set = real.setItem.bind(real);
+    const _get = real.getItem.bind(real);
+    const _rem = real.removeItem.bind(real);
+    const _clr = real.clear.bind(real);
 
-    @media (max-width:720px){
-      .row.cols-2{grid-template-columns:1fr}
-      .grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+    Object.defineProperties(window.localStorage, {
+      setItem: { value: function(k,v){ if (passthrough.has(k)) return _set(k,v); mem.set(String(k), String(v)); } },
+      getItem: { value: function(k){ if (passthrough.has(k)) return _get(k); return mem.has(String(k)) ? mem.get(String(k)) : null; } },
+      removeItem: { value: function(k){ mem.delete(String(k)); if (passthrough.has(k)) _rem(k); } },
+      clear: { value: function(){ mem.clear(); if (passthrough.size>0) _clr(); } }
+    });
+  }catch(_){}
+})();
+</script>
+
+<script>
+// === EARLY: Telegram init + API binding to Worker (with fresh_state support) ===
+(function(){
+  var TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
+
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+
+  async function apiCall(type, data){
+    try{
+      const res = await fetch(API_BASE + "/api/mini/event", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
+      });
+      const j = await res.json();
+      if (j && j.fresh_state && window.applyServerState) {
+        window.applyServerState(j.fresh_state);
+      }
+      return j;
+    }catch(e){ return { ok:false, error: String(e) }; }
+  }
+  window.api = apiCall;
+
+  window.applyServerState = function(state){
+    
+    try{ window.MiniState = state; }catch(_){}
+if (!state || state.ok === false) return;
+    try{
+      // coins
+      if (typeof state.coins === 'number') {
+        localStorage.setItem('beer_coins', String(state.coins));
+        try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+        var pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(state.coins|0);
+      }
+      // last prizes -> two keys used by UI variants
+      var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
+      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
+      var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
+      localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
+      localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
+      try{ window.renderRewards && window.renderRewards(); }catch(_){}
+
+      // passport styles -> two formats
+      var styles = Array.isArray(state.styles) ? state.styles : [];
+      var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
+      localStorage.setItem('beer_passport', JSON.stringify(map));
+      localStorage.setItem('beer_passport_v1', JSON.stringify({ stamps: styles }));
+      try{ window.renderPassport && window.renderPassport(); }catch(_){}
+    }catch(_){}
+  
+      // === PATCH: server-driven profile/leaderboard/passport ===
+      try{
+        // Passport counters + last stamp
+        var total = Number(state.styles_total || 6);
+        var cnt   = (Array.isArray(state.styles) ? state.styles.length : 0);
+        var lastLabel = state.last_stamp_name || state.last_stamp_id || '—';
+        var elCnt = document.getElementById('pf-pass-count'); if (elCnt) elCnt.textContent = String(cnt + '/' + total);
+        var elVal = document.getElementById('pf-pass-list');  if (elVal) elVal.textContent = String(lastLabel);
+        if (elVal && elVal.parentElement){ var lbl = elVal.parentElement.querySelector('.metric__lbl'); if (lbl) lbl.textContent = 'Последний штамп'; }
+
+        // Mark stamps in grid (case-insensitive)
+        var grid = document.getElementById('passport-grid');
+        if (grid){
+          var owned = {}; (Array.isArray(state.styles)?state.styles:[]).forEach(function(s){ owned[String(s).toLowerCase()] = 1; });
+          grid.querySelectorAll('.pslot').forEach(function(card){
+            var code = String(card.getAttribute('data-code')||'').toLowerCase();
+            var ok = !!owned[code];
+            card.classList.toggle('is-done', ok);
+            var b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Получить';
+          });
+        }
+
+        // Leaderboard (server only)
+        if (state.leaderboard_today){
+          var box = document.getElementById('lb-list');
+          if (box){
+            var lb = state.leaderboard_today || [];
+            if (!lb.length){
+              box.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>';
+            } else {
+              box.innerHTML = lb.map(function(r,i){
+                var medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
+                var name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
+                var ava   = (r.username||'U').slice(0,1).toUpperCase();
+                return '<div class="lb-row'+medal+'">'+
+                  '<div class="lb-rank">'+(i+1)+'</div>'+
+                  '<div class="lb-avatar">'+ava+'</div>'+
+                  '<div class="lb-name">'+name+'</div>'+
+                  '<div class="lb-score">'+(r.score|0)+'</div>'+
+                '</div>';
+              }).join('');
+            }
+          }
+          var meScore = document.getElementById('lb-you-score'); if (meScore) meScore.textContent = String(state.game_today_best||0);
+        }
+      }catch(_){}
+};
+
+  async function bootstrapAndLoad(){
+    try{
+      const sp = TG?.initDataUnsafe?.start_param || "";
+      await fetch(API_BASE + "/api/mini/bootstrap", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: sp } })
+      });
+    }catch(_){}
+    try{
+      const r = await fetch(API_BASE + "/api/mini/state", {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ tg_init: TG?.initData || "" })
+      });
+      const st = await r.json();
+      if (st && st.ok && window.applyServerState) window.applyServerState(st);
+    }catch(_){}
+  }
+
+  function waitInit(cb){
+    const t0 = Date.now();
+    (function tick(){
+      if (TG && TG.initData && TG.initData.length>0) return cb();
+      if (Date.now()-t0 > 3000) return cb();  // timeout — всё равно попробуем
+      setTimeout(tick, 60);
+    })();
+  }
+
+  waitInit(bootstrapAndLoad);
+})();
+</script>
+<script>
+// --- SWR: persistent cache + bootstrap (stale-while-revalidate) ---
+(function(){
+  const KEY = 'beer_state_v2';
+  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(_){ return {}; } }
+  function save(st){
+    if (!st || st.ok===false) return;
+    try{
+      const cur = load();
+      const merged = Object.assign({}, cur, st);
+      merged._ver = Number(st.kv_ver || Date.now());
+      localStorage.setItem(KEY, JSON.stringify(merged));
+    }catch(_){}
+  }
+  function ver(){ const s = load(); return Number(s.kv_ver || s._ver || 0); }
+  window.SWR = { get: load, save, ver, KEY };
+
+  // Bootstrap UI instantly from cache (if present)
+  try{
+    const st = load();
+    if (st && Object.keys(st).length){
+      window.MiniState = Object.assign({}, window.MiniState||{}, st);
+      try{ if (typeof paintProfile==='function') paintProfile(st); }catch(_){}
+      try{ if (typeof paintBadgesFromState==='function') paintBadgesFromState(st); }catch(_){}
+      try{ if (typeof renderLeaderboard==='function') renderLeaderboard(); }catch(_){}
     }
+  }catch(_){}
+
+  // Wrap applyServerState to persist fresh state then render
+  try{
+    const prev = window.applyServerState;
+    window.applyServerState = function(state){
+      if (!state || state.ok===false) return;
+      try{ save(state); }catch(_){}
+      if (typeof prev === 'function') return prev(state);
+    };
+  }catch(_){}
+})();
+</script>
+
+
+<style>
+    :root{
+      --tabH: 64px;
+      --navGap: 12px;
+      --bg:#0b0c15; --text:#f4f6fa; --border:rgba(255,255,255,.10);
+      --amber:#f9b24d; --green:#37d67a; --red:#ff6b6b; --blue:#3d7eff;
+      --appW: 428px;
+      --wrapPadX: 14px;
+      --wrapPadTop: 16px;
+    }
+    *{ box-sizing:border-box }
+    img{ max-width:100%; display:block }
+    html,body{ height:100% }
+    body{
+      margin:0; background:var(--bg); color:var(--text);
+      font:16px/1.45 Inter,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      overscroll-behavior: none;
+    }
+    @media (min-width:900px){ body{ display:grid; place-items:center; } }
+    .wrap{
+      width:100%; max-width:1080px; margin:0 auto;
+      min-height:100svh;
+      padding:16px 14px calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom,0px) + 22px);
+    }
+    @media (min-width:900px){
+      .wrap{ max-width:var(--appW); padding:20px 14px calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom,0px) + 22px); }
+    }
+    main>section, section.page{ display:none }
+    main>section.active, section.page.active{ display:block }
+
+    /* bottom nav */
+    .btm-nav{
+      position:fixed; left:0; right:0;
+      bottom: calc(var(--navGap) + env(safe-area-inset-bottom, 0px));
+      height: var(--tabH);
+      z-index: 9999;
+      display:grid; grid-template-columns:repeat(5,1fr); align-items:center;
+      padding: 6px 6px 6px;
+      background: rgba(10,12,14,.72);
+      -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+      border: 1px solid rgba(255,255,255,.08);
+      border-left:0; border-right:0; border-bottom:0;
+      border-radius: 16px 16px 0 0;
+    }
+    .btm-nav .tab{
+      height:100%; border:0; background:none; color:#dfe3e6; cursor:pointer;
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+      font-size:11px; font-weight:700;
+      filter: grayscale(.35) saturate(.8); opacity:.85;
+      border-radius:14px; -webkit-tap-highlight-color:transparent;
+    }
+    .btm-nav .tab img{ width:24px; height:24px }
+    .btm-nav .tab:active{ transform: translateY(1px) }
+    .btm-nav .tab.active{ opacity:1; filter:none; color:#fff; position:relative }
+    .btm-nav .tab.active::before{
+      content:""; position:absolute; inset:6px 10px 18px 10px; z-index:-1;
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.02));
+      border:1px solid rgba(255,255,255,.08); border-radius:12px;
+    }
+    @media (min-width:900px){
+      .btm-nav{ left:50%; right:auto; width: var(--appW); transform: translateX(-50%); }
+    }
+
+    /* cards */
+    .card{ background:rgba(255,255,255,.05); border:1px solid var(--border); border-radius:16px; padding:16px; }
+    .page-title{ margin:0 0 12px }
+    .h1{ font-weight:800; font-size:20px; margin:0 0 8px }
+    .muted-sm{ opacity:.8 }
+
+    /* sheet */
+    .sheet{ position:fixed; inset:0; z-index:9990; pointer-events:none; }
+    .sheet.is-open{ pointer-events:auto; }
+    .sheet__overlay{
+      position:absolute; left:0; right:0; top:0;
+      bottom: calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom, 0px));
+      background: rgba(0,0,0,.48); opacity:0; transition:opacity .2s ease;
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    }
+    .sheet.is-open .sheet__overlay{ opacity:1; }
+    .sheet__panel{
+      position:absolute; left:0; right:0; margin:0 auto;
+      width:min(820px,100%); max-height:88vh; overflow:auto;
+      background:linear-gradient(180deg, rgba(18,20,24,.98), rgba(18,20,24,.96));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 20px 40px rgba(0,0,0,.45);
+      transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+      padding:12px 14px calc(16px + var(--tabH) + var(--navGap) + env(safe-area-inset-bottom, 0px));
+      will-change: transform;
+      touch-action: pan-y;
+    }
+    .sheet.sheet-bottom .sheet__panel{ bottom:0; top:auto; border-radius: 16px 16px 0 0; transform: translateY(100%); }
+    .sheet.is-open.sheet-bottom .sheet__panel{ transform: translateY(0); }
+    .sheet__handle{ width:42px; height:4px; border-radius:999px; margin:6px auto 10px; background:rgba(255,255,255,.18) }
+    .sheet__header{ display:flex; align-items:center; gap:10px; margin:0 0 8px }
+    .sheet__title{ font-weight:800; font-size:18px; margin:0 }
+    .sheet__close{ margin-left:auto; border:0; background:transparent; color:#fff; opacity:.85; width:36px; height:36px; border-radius:10px; display:grid; place-items:center }
+    .sheet__close:active{ transform:translateY(1px); opacity:1 }
+    .sheet__body{ display:grid; gap:10px }
+    body.sheet-open{ overflow:hidden }
+    @media (min-width:900px){ .sheet__panel{ width:min(var(--appW),92vw); } }
+
+    /* HERO */
+    .hero{ position: relative; margin: calc(-1 * var(--wrapPadTop)) calc(-1 * var(--wrapPadX)) 14px; padding-top: env(safe-area-inset-top, 0px); background:#000; overflow:hidden; }
+    .hero__media{ width:100%; height: clamp(260px, 42vh, 460px); object-fit: cover; display:block; }
+    .hero::after{ content:""; position:absolute; left:0; right:0; bottom:-1px; height:84px; pointer-events:none; background:linear-gradient(180deg, rgba(0,0,0,0) 0%, var(--bg) 100%); }
+    @media (min-width:900px){ .hero{ margin-left: calc((var(--appW) - 100vw)/2 - var(--wrapPadX)); margin-right: calc((var(--appW) - 100vw)/2 - var(--wrapPadX)); } }
+
+    /* Promo */
+    .promo{ display:grid; grid-template-columns:48px 1fr auto; align-items:center; gap:12px; padding:10px 12px; margin:0 0 12px; background: rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.08); border-radius:16px; }
+    .promo__icon{ width:48px; height:48px; border-radius:12px; display:grid; place-items:center; background:rgba(255,255,255,.06); overflow:hidden }
+    .promo__icon img{ width:28px; height:28px; display:block }
+    .promo__title{ font-weight:800 }
+    .promo__sub{ opacity:.8; font-size:13px; margin-top:2px }
+    .promo__btn{ height:36px; padding:0 14px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background:linear-gradient(180deg,#f9b24d,#f29117); color:#16181e; font-weight:900; cursor:pointer; }
+    .promo__btn:active{ transform: translateY(1px) }
+
+    /* List */
+    .list-card .list-head{ font:800 16px/1.2 Inter,system-ui; margin-bottom:8px }
+    .list{ display:grid; gap:8px }
+    .list-card .list__item{ background:transparent; border:0; box-shadow:none }
+    .list-card.tight .list{ margin-left:-16px; margin-right:-16px }
+    .list-card.tight .list__item{ padding:12px 16px; gap:10px; display:grid; grid-template-columns:36px 1fr auto; align-items:center; }
+    .list-card.tight .list__icon{ width:36px; height:36px; border-radius:10px; display:grid; place-items:center; background:rgba(255,255,255,.06); overflow:hidden }
+    .list-card.tight .list__icon img{ width:22px; height:22px; display:block }
+    .list__text{ display:grid; gap:4px }
+    .list__title{ font-weight:800 }
+    .list__sub{ opacity:.8; font-size:13px }
+    .list__chev-btn{ width:36px; height:36px; display:grid; place-items:center; border-radius:999px; border:1px solid rgba(255,255,255,.10); background:transparent; color:inherit; font-size:18px; cursor:pointer; }
+    .list__chev-btn:active{ transform:translateY(1px) }
+    .list-card .list__item:hover{ background: rgba(255,255,255,.04) }
+
+    /* badges, meters */
+    .badge{ display:inline-grid; place-items:center; padding:3px 8px; border-radius:999px; font:700 12px/1 Inter; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); }
+    .badge--amber{ background:rgba(249,178,77,.15); border-color:rgba(249,178,77,.35); color:#ffd59c }
+    .badge--green{ background:rgba(55,214,122,.15); border-color:rgba(55,214,122,.35); color:#bff5d6 }
+    .meter{ height:8px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden }
+    .meter>i{ display:block; height:100%; width:0%; background:linear-gradient(90deg,#f9b24d,#f29117); }
+
+    /* buttons */
+    .btn{ height:40px; padding:0 14px; border-radius:12px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.04); color:#fff; font-weight:800; cursor:pointer }
+    .btn:active{ transform: translateY(1px) }
+    .btn-primary{ background:linear-gradient(180deg,#f9b24d,#f29117); color:#16181e; border:0 }
+
+    /* grid small */
+    .g{ display:grid; gap:10px }
+    .g2{ grid-template-columns:1fr 1fr }
+    .g3{ grid-template-columns:1fr 1fr 1fr }
+    @media (max-width:420px){ .g2,.g3{ grid-template-columns:1fr } }
+
+    /* Cap Toss area – reliable pointer input */
+    #cap-area{ touch-action:none; user-select:none; -webkit-user-select:none; position:relative; margin-top:10px; height:260px; border:1px dashed rgba(255,255,255,.18); border-radius:12px; overflow:hidden; background:radial-gradient(120% 120% at 50% 100%, rgba(249,178,77,.12), rgba(255,255,255,.02)); }
+    #cap-area canvas{ position:absolute; inset:0; width:100%; height:100%; display:block }
+    #cap-area .cap-msg{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); opacity:.8; font-size:14px; text-align:center }
+
+    /* confetti canvas */
+    #confetti{ position:fixed; inset:0; pointer-events:none; z-index:99999; }
   </style>
+
+  <style>
+
+/* ===== Слайдер Slider ===== */
+:root{ --introBottomPad: 28px; } /* насколько выше кнопки от нижней перекладины */
+
+.intro{
+  position:fixed; inset:0; z-index:10050;
+  background:#000; color:#fff;
+  display:none; pointer-events:auto;
+}
+.intro.is-open{ display:block; }
+body.intro-open{ overflow:hidden; }
+
+.intro__wrap{
+  position:absolute; inset:0;
+  display:flex; flex-direction:column;
+  padding:
+    calc(env(safe-area-inset-top,0px) + 6px)
+    14px
+    calc(env(safe-area-inset-bottom,0px) + var(--introBottomPad));
+}
+
+.intro__progress{
+  display:flex; gap:8px; justify-content:center;
+  padding:8px 0 12px;
+}
+.intro__seg{ width:44px; height:4px; border-radius:999px; background:rgba(255,255,255,.28) }
+.intro__seg.active{ background:#fff }
+
+.intro__stage{
+  flex:1; display:grid; place-items:center; padding:12px; text-align:center;
+}
+.intro__slides{ width:100% }
+.intro__slide{ display:none }
+.intro__slide.active{ display:block }
+
+.intro__h1{ font-weight:900; font-size:28px; margin:0 0 10px }
+.intro__p{ opacity:.85; font-size:15px; margin:0 auto; max-width:26ch }
+
+/* низ экрана — динамически рендерим набор кнопок */
+.intro__actions{
+  margin-top:auto; display:grid; gap:10px;
+  padding-top:8px;
+}
+.intro__actions--one{ grid-template-columns:1fr }
+.intro__actions--two{ grid-template-columns:1fr 1fr }
+
+.intro__btn{
+  height:52px; padding:0 16px; border-radius:16px;
+  border:1px solid rgba(255,255,255,.18);
+  background:rgba(255,255,255,.06);
+  color:#fff; font-weight:800; cursor:pointer;
+}
+.intro__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.intro__btn--ghost{ background:transparent }
+.intro__btn:active{ transform:translateY(1px) }
+
+@media (min-width:900px){
+  .intro__wrap{ max-width: var(--appW,428px); margin:0 auto }
+}
+</style>
+
+<style>
+  /* ===== GAMES CARD Карточки на главной игры ===== */
+.list-card.games .list__item{ background:transparent; border:0; box-shadow:none }
+.list__btn{
+  height:36px; padding:0 14px; border-radius:999px;
+  border:1px solid rgba(255,255,255,.10);
+  background:rgba(255,255,255,.06);
+  color:#fff; font-weight:800; cursor:pointer;
+}
+.list__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.list__btn:active{ transform:translateY(1px) }
+
+/* чуть плотнее сетка под кнопку справа */
+.list-card.games.tight .list__item{
+  grid-template-columns:36px 1fr auto;
+}
+:root{ --gap-block: 16px; }           /* подправь число при желании */
+.card.list-card.games{ margin-top: var(--gap-block); }
+
+ </style>
+
+ <style>
+  /* ===== LEADERBOARD Турнир (Clicker) ===== */
+.lb-card { padding:12px; }
+.lb-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:10px; }
+.lb-title{ font-weight:900; font-size:18px; }
+.lb-sub{ opacity:.75; font-weight:600; font-size:12px; }
+
+.lb-seg{
+  display:inline-grid; grid-auto-flow:column; gap:6px; padding:4px; border-radius:999px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+}
+.lb-seg button{
+  height:30px; min-width:86px; padding:0 12px; border-radius:999px; border:0; cursor:pointer;
+  font-weight:800; color:#fff; background:transparent;
+}
+.lb-seg button[aria-pressed="true"]{ background:#fff; color:#000; }
+
+.lb-you{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:14px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+  margin-bottom:10px;
+}
+.lb-you__avatar{
+  width:36px; height:36px; border-radius:10px; background:#222; display:grid; place-items:center; font-weight:900;
+}
+.lb-you__name{ font-weight:800; }
+.lb-you__score{ margin-left:auto; font-weight:900; }
+
+.lb-list{ display:flex; flex-direction:column; gap:8px; }
+.lb-row{
+  display:grid; grid-template-columns:28px 36px 1fr auto; align-items:center; gap:10px;
+  padding:10px 12px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.03); border-radius:14px;
+}
+.lb-rank{ font-weight:900; opacity:.9; text-align:center; }
+.lb-avatar{ width:36px; height:36px; border-radius:10px; background:#1b1c22; display:grid; place-items:center; font-weight:900; }
+.lb-name{ font-weight:800; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.lb-score{ font-weight:900; }
+
+.lb-medal-1 .lb-rank{ color:#ffd34d; }
+.lb-medal-2 .lb-rank{ color:#cbd3ff; }
+.lb-medal-3 .lb-rank{ color:#ffb27a; }
+
+.lb-actions{ display:flex; gap:10px; margin-top:12px; }
+.lb-btn{
+  flex:1; height:42px; border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06); color:#fff; font-weight:800; cursor:pointer;
+}
+.lb-btn--primary{ background:#fff; color:#000; border-color:#fff; }
+
+@media (min-width:900px){
+  #leaderboard .inner{ max-width: var(--appW, 428px); margin:0 auto; }
+}
+
+ </style>
+
+<style>
+/* ===== FLAPPY LITE+ Шмель  (overlay) ===== */
+.flappy{ position:fixed; inset:0; z-index:10060; background:#000; color:#fff; display:none; }
+.flappy.is-open{ display:block; }
+body.flappy-open{ overflow:hidden; }
+
+.flappy__wrap{
+  position:absolute; inset:0; display:flex; flex-direction:column;
+  padding: calc(env(safe-area-inset-top,0px)+8px) 14px calc(env(safe-area-inset-bottom,0px)+14px);
+}
+
+/* HUD */
+.fl-hud{ width:100%; max-width:520px; margin:0 auto 8px; position:relative; z-index:30; } /* ↑ поверх сцены */
+.fl-hud__row{ display:grid; justify-items:center; gap:6px; }
+.fl-score{ font:900 clamp(28px,8vw,48px)/1 Inter,system-ui; text-shadow:0 2px 10px rgba(0,0,0,.25) }
+.fl-bar{ width:100%; height:4px; border-radius:999px; background:rgba(255,255,255,.18); overflow:hidden }
+.fl-bar>i{ display:block; height:100%; width:100%; background:#fff; transform-origin:left center; }
+
+/* HUD: coins + shield */
+.fl-stats{ display:flex; justify-content:center; gap:14px; margin-top:6px; }
+.fl-stat{ display:flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+  background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); font:800 13px/1 Inter;
+}
+.fl-ico{ width:18px; height:18px; background:center/contain no-repeat; opacity:.95 }
+#fl-coin-count{ font:800 14px/1 Inter }
+.fl-shield-wrap{ display:flex; align-items:center; gap:8px; }
+.fl-shield-bar{ width:88px; height:4px; border-radius:999px; background:rgba(255,255,255,.18); overflow:hidden }
+.fl-shield-bar>i{ display:block; height:100%; width:100%; background:#6be3ff; transform-origin:left center; }
+
+/* Stage */
+.fl-stage{
+  flex:1; position:relative; overflow:hidden; border-radius:16px;
+  background: linear-gradient(180deg,#0a0c14 0%, #0f1626 100%);
+  z-index:1; /* базовый слой сцены */
+}
+.fl-hint{
+  position:absolute; left:0; right:0; top:18%;
+  text-align:center; font:800 16px/1.2 Inter; opacity:.75; pointer-events:none; z-index:15;
+}
+
+/* Sprites sizes (override via JS) */
+:root{ --bird-w: 48px; --bird-h: 36px; --pipe-w: 76px; --coin-w: 32px; --coin-h: 32px; --pow-w: 34px; --pow-h: 34px; }
+
+/* Bird */
+.fl-bird{
+  position:absolute; width:var(--bird-w); height:var(--bird-h); transform:translate(-50%,-50%) rotate(0deg);
+  background: radial-gradient(circle at 35% 35%, #ffdd66, #ff9a00);
+  border-radius:14px; box-shadow:0 8px 18px rgba(255,154,0,.35), inset 0 0 10px rgba(255,255,255,.25);
+  will-change: transform, top, left;
+  z-index:20; /* птица над трубами/монетами */
+}
+.fl-bird--sprite{ background:center/contain no-repeat; border-radius:0; box-shadow:none; }
+.fl-bird--shield{ box-shadow:0 0 0 3px rgba(107,227,255,.8), 0 0 30px rgba(107,227,255,.55); }
+
+/* Pipes */
+.fl-pipe-part{
+  position:absolute; width:var(--pipe-w);
+  background: linear-gradient(180deg,#6BFF7A,#1ED760);
+  border:1px solid rgba(255,255,255,.08); box-shadow:0 10px 22px rgba(30,215,96,.25), inset 0 0 10px rgba(255,255,255,.15);
+  z-index:10; /* ниже птицы и результата */
+}
+.fl-pipe--sprite{ background: center / 100% 100% no-repeat; border:none; box-shadow:none; }
+
+/* Items: coin & shield power-up */
+.fl-coin,.fl-power{
+  position:absolute; transform:translate(-50%,-50%); will-change: left, top;
+  width:var(--coin-w); height:var(--coin-h); background:center/contain no-repeat;
+  z-index:12; /* над трубами, но ниже птицы и результата */
+}
+.fl-power{ width:var(--pow-w); height:var(--pow-h); }
+
+/* Result (поверх всего) */
+.fl-result{
+  position:absolute; inset:0; display:none; place-items:center; padding:16px;
+  z-index:9999;            /* <-- ключ: над монетами/трубами/птицей */
+  pointer-events:auto;
+}
+.fl-result.show{ display:grid; }
+.fl-card{
+  width:min(100%,520px); background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.10);
+  border-radius:18px; padding:12px 16px; display:grid; grid-template-columns:1fr 1fr auto; gap:14px; align-items:center;
+}
+.fl-cell{ display:grid; gap:4px; justify-items:center }
+.fl-val{ font:800 20px/1 Inter } .fl-sub{ font:600 12px/1.1 Inter; opacity:.8 } .fl-chev{ font:20px/1 Inter; opacity:.6 }
+
+/* CTA bottom (safe-area) */
+:root{ --ctaGap: 44px; }
+.fl-cta{
+  position:absolute; left:14px; right:14px;
+  bottom: calc(env(safe-area-inset-bottom,0px) + var(--ctaGap));
+  display:none; z-index:50; /* над сценой, но под результатом */
+}
+.fl-cta.show{ display:block; }
+.fl-cta .btn{ width:100%; height:52px; border-radius:16px; font:800 16px/1 Inter; background:#fff; color:#000; border:1px solid #fff; }
+
+@media (min-width:900px){ .flappy__wrap{ max-width:var(--appW,428px); margin:0 auto } }
+
+/* === ТЮНИНГ ЩИТА И РАДИУСОВ === */
+:root{
+  --bird-radius: 50px;
+  --shield-ring: 0px;
+  --shield-ring-color: rgba(107,227,255,.95);
+  --shield-glow-color: rgba(107,227,255,.55);
+  --shield-glow-blur: 28px;
+  --shield-pulse: 1.6s;
+}
+
+/* птичка всегда со скруглением через переменную */
+.fl-bird{ border-radius: var(--bird-radius); }
+/* если используешь спрайт — оставляем скругление */
+.fl-bird--sprite{ border-radius: var(--bird-radius); }
+
+/* активный щит: кольцо + подсветка + пульс */
+.fl-bird--shield{
+  box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color);
+  position: relative;
+}
+.fl-bird--shield::after{
+  content:"";
+  position:absolute; inset: calc(-1*var(--shield-ring));
+  border-radius: inherit;
+  border: var(--shield-ring) solid var(--shield-ring-color);
+  box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color);
+  animation: shieldPulse var(--shield-pulse) ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shieldPulse{
+  0%  { box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color), 0 0 0 0 rgba(107,227,255,.35); }
+  60% { box-shadow: 0 0 calc(var(--shield-glow-blur)*1.2) var(--shield-glow-color), 0 0 0 10px rgba(107,227,255,0); }
+  100%{ box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color), 0 0 0 0 rgba(107,227,255,0); }
+}
+
+/* Пусть Flappy целиком берёт тот же шрифт, что и весь мини-апп */
+.flappy, .flappy * { font-family: inherit !important; }
+
+</style>
+
+
+  <style>
+    /* ===== BONUSES (чистая версия) ===== */
+
+    /* Отступы между карточками в разделе */
+    #bonuses>.card {
+      margin-top: 14px;
+    }
+
+    #bonuses>.card:first-child {
+      margin-top: 0;
+    }
+
+    /* Заголовок карточки */
+    #bonuses .bonus-card {
+      padding: 14px;
+      overflow: hidden;
+    }
+
+    #bonuses .bonus-card .h2 {
+      margin: 0 0 8px;
+      font-weight: 800;
+    }
+
+    /* Хедер: слева плашка с выбранным бонусом */
+    .bonus-head {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin: 0 0 10px;
+    }
+
+    .picked-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 40px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border, rgba(255, 255, 255, .12));
+      background: rgba(255, 255, 255, .04);
+      font-weight: 700;
+    }
+
+    .picked-pill img {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      object-fit: cover;
+      display: block;
+    }
+
+    .picked-pill.muted {
+      opacity: .7;
+      font-weight: 600;
+      background: linear-gradient(135deg, rgba(61, 224, 197, .12), rgba(123, 91, 255, .16));
+    }
+
+    /* Колесо — устойчивое, фиксированной высоты */
+    .bonus-wheel {
+      position: relative;
+      height: 180px;
+      /* фикс высота — не появится прокрутка */
+      overflow: hidden;
+      border-radius: 14px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, .02), rgba(255, 255, 255, 0) 60%);
+      margin-top: 6px;
+    }
+
+    .bonus-wheel .wheel-track {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      touch-action: pan-x;
+      user-select: none;
+      cursor: grab;
+    }
+
+    .bonus-card.dragging .wheel-track {
+      cursor: grabbing;
+    }
+
+    /* Карточка бонуса */
+    .bonus-wheel .bonus {
+      all: unset;
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 96px;
+      height: 96px;
+      border-radius: 16px;
+      overflow: hidden;
+      transform: translate(-50%, -50%);
+      will-change: transform;
+      transition: transform .25s ease, filter .25s ease, opacity .25s ease, box-shadow .25s ease;
+    }
+
+    .bonus-wheel .bonus img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .bonus-wheel .bonus span {
+      position: absolute;
+      left: 50%;
+      bottom: -22px;
+      transform: translateX(-50%);
+      font-size: 12px;
+      opacity: .85;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
+    .bonus-wheel .bonus:not(.active) {
+      filter: grayscale(.18) brightness(.95);
+      opacity: .9;
+    }
+
+    .bonus-wheel .bonus.active {
+      box-shadow:
+        0 0 0 2px rgba(123, 91, 255, .55) inset,
+        0 10px 28px rgba(123, 91, 255, .35),
+        0 0 22px rgba(61, 224, 197, .25);
+    }
+
+    /* Мягкая подсветка центра (опционально) */
+    .bonus-wheel .wheel-center {
+      pointer-events: none;
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at center, rgba(123, 91, 255, .10), transparent 55%);
+      mask: linear-gradient(#000 30%, transparent 80%);
+    }
+
+    /* Нижняя панель действий: Крутануть + Забрать + статус */
+    .bonus-card .actions {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+      align-items: center;
+    }
+
+    #spinBtn,
+    #claimBtn {
+      min-height: 40px;
+    }
+
+    #claimBtn[disabled] {
+      opacity: .6;
+      pointer-events: none;
+    }
+
+    #picked {
+      opacity: .8;
+    }
+
+    /* Хедер сверху — только плашка */
+    .bonus-head {
+      display: flex;
+      gap: 12px;
+      margin: 0 0 10px;
+    }
+
+    .picked-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--border, rgba(255, 255, 255, .12));
+      background: rgba(255, 255, 255, .04);
+      font-weight: 700;
+    }
+
+    .picked-pill.muted {
+      opacity: .7;
+      font-weight: 600;
+    }
+
+    /* Низ: две кнопки рядом + статус */
+    .bonus-card .actions {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      /* [Крутануть] [Забрать] [—] */
+      gap: 8px;
+      align-items: center;
+    }
+
+    #spinBtn,
+    #claimBtn {
+      min-height: 40px;
+    }
+
+    #claimBtn[disabled] {
+      opacity: .6;
+      pointer-events: none;
+    }
+
+    #picked {
+      opacity: .8;
+    }
+
+
+    /*Последние призы для шторки горизонтальные строчки призов только внутри шторки */
+#sheet #pf-prizes-sheet{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  overflow:visible;
+}
+/* клон-дорожку марквии в шторке прячем */
+#sheet #pf-prizes-sheet + .ticker__clone{ display:none; }
+
+  </style>
+
+<style>
+  /* Toasts ТОСТ ОКОШКО*/
+.toasts{
+  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
+}
+.toast{
+  pointer-events:auto; display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-radius:14px; color:#fff;
+  background:rgba(18,20,24,.96); border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  transform:translateX(120%); opacity:0; animation:toast-in .25s ease forwards;
+}
+.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
+.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
+.toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
+@keyframes toast-in { to { transform:translateX(0); opacity:1; } }
+@keyframes toast-out{ to { transform:translateX(120%); opacity:0; } }
+
+/* визуально «заблокируем», но клики ловим для тоста */
+#spinBtn.is-locked{ opacity:.6; }
+#spinBtn.is-locked:active{ transform:none; }
+
+</style>
+
+
+
+
+<style>
+  /* Trivia Викторина */
+
+.trivia-q{ display:grid; gap:12px; }
+.trivia-title{ font-weight:800; }
+.trivia-opts{ display:grid; gap:8px; }
+.trivia-opt{
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); cursor:pointer; user-select:none;
+  transition:.15s ease;
+}
+.trivia-opt input{ display:none; }
+.trivia-opt.correct{ border-color:rgba(55,214,122,.45); background:rgba(55,214,122,.14); }
+.trivia-opt.wrong{   border-color:rgba(255,107,107,.45); background:rgba(255,107,107,.10); }
+.trivia-cta{ display:flex; gap:10px; }
+.trivia-next{ display:none; }
+.trivia-next.show{ display:inline-flex; }
+.trivia-muted{ opacity:.8; }
+.trivia-cooldown{
+  display:flex; align-items:center; justify-content:space-between;
+  border:1px dashed rgba(255,255,255,.18); border-radius:12px; padding:12px 14px;
+}
+.trivia-count{ font-weight:800; }
+
+/* ровная центровка текста на кнопках */
+.btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  line-height:1;           /* не наследуем от body */
+  vertical-align:middle;
+  gap:8px;
+}
+
+/* конкретно для кнопки "Далее" — можно сделать чуть выше */
+.trivia-cta{ display:flex; align-items:center; gap:10px; } /* выровнять ряд */
+.trivia-next.btn{
+  height:42px;             /* одна высота */
+  padding:0 16px;
+  font-weight:800;
+}
+
+/* если было ощущение "прыгает при тапе" — отключи смещение */
+.trivia-next.btn:active{ transform:none; }
+
+.trivia-next.is-hidden{ display:none !important; }
+
+/* Trivia UI */
+.trivia-q{ display:grid; gap:12px; }
+.trivia-title{ font-weight:800; }
+.trivia-opts{ display:grid; gap:8px; }
+.trivia-opt{
+  display:flex; align-items:center; gap:10px; padding:12px 14px;
+  border-radius:12px; border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04); cursor:pointer; user-select:none; transition:.15s ease;
+}
+.trivia-opt input{ display:none; }
+.trivia-opt.correct{ border-color:rgba(55,214,122,.45); background:rgba(55,214,122,.14); }
+.trivia-opt.wrong{   border-color:rgba(255,107,107,.45); background:rgba(255,107,107,.10); }
+
+.trivia-cta{ display:flex; gap:10px; }
+.trivia-next.is-hidden{ display:none !important; }
+
+/* стартовая строка */
+.trivia-start{ display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.trivia-start.is-hidden{ display:none !important; }
+
+/* Прячем заголовок, пока квиз идёт */
+.trivia-card.is-running .h1 { display: none !important; }
+
+</style>
+
+
+<!-- ПРОФИЛЬ Стили профиля (лаконичные, дружат с твоими .card/.btn) -->
+<style>
+/* ===== ровные отступы и лёгкая иерархия ===== */
+.card{ padding:14px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); }
+.section-title{ font-weight:800; }
+
+/* HERO */
+.pf-hero{ display:grid; grid-template-columns:1fr auto auto; gap:12px; align-items:center; }
+.pf-title{ font-weight:800; font-size:18px; }
+.pf-hint{ opacity:.7; font-size:12px; }
+.pf-ava{ width:56px; height:56px; border-radius:50%; object-fit:cover; background:#222; border:1px solid rgba(255,255,255,.08); }
+.pf-balance{ height:36px; padding:0 12px; border-radius:999px; font-weight:800; }
+
+/* жёлтая пилюля */
+.pill-amber{ background:transparent; color:#ffb02e; border:1.5px solid #ffb02e; }
+
+/* строки и метрики */
+.profile-block{ display:grid; gap:12px; }
+.row{ display:grid; gap:8px; }
+.row-title{ font-weight:700; }
+
+.metrics{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.metric{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; }
+.metric__val{ font-weight:900; font-size:18px; }
+.metric__lbl{ opacity:.75; font-size:12px; }
+
+/* чипы для призов */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+       background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); font-weight:700; font-size:13px; }
+.chip .dot{ width:6px; height:6px; border-radius:50%; background:#ffd166; }
+
+/* действия внизу */
+.actions{ display:flex; gap:10px; }
+.btn-white{ background:#fff; color:#000; border:1px solid #fff; border-radius:12px; padding:10px 14px; font-weight:800; flex:1; }
+
+/* мобилка */
+@media (max-width:520px){
+  .pf-hero{ grid-template-columns:1fr auto; grid-template-areas:"about balance" "about ava"; }
+  .pf-about{ grid-area:about; }
+  .pf-balance{ grid-area:balance; }
+  .pf-ava{ grid-area:ava; }
+  .metrics{ grid-template-columns:1fr 1fr; }
+}
+
+/* === HERO: ava | about | balance в один ряд === */
+.pf-hero{
+  display:grid;
+  grid-template-columns: auto 1fr auto;           /* ⬅️ фото | имя | баланс */
+  grid-template-areas: "ava about balance";
+  gap:12px;
+  align-items:center;
+}
+.pf-ava     { grid-area: ava; }
+.pf-about   { grid-area: about; }
+.pf-balance { grid-area: balance; justify-self:end; white-space:nowrap; }
+
+/* Мобилка: оставляем тот же ряд; можно слегка ужать кнопку */
+@media (max-width:520px){
+  .pf-hero{
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "ava about balance";
+  }
+  .pf-balance{ padding:0 10px; height:34px; font-size:13px; }
+}
+/* Базовая карточка */
+.card{
+  padding:14px;
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);
+  display:grid;
+  gap:12px;
+}
+/* Общий вертикальный ритм между карточками */
+.card + .card{ margin-top:12px; }
+
+/* Страховка: если вдруг где-то останется .card внутри .card — делаем её «плоской» */
+.card .card{
+  margin:0; padding:0; border:0; background:transparent; box-shadow:none;
+}
+
+/* HERO: аватар | имя | баланс */
+.pf-hero{
+  display:grid;
+  grid-template-columns:auto 1fr auto;
+  grid-template-areas:"ava about balance";
+  gap:12px; align-items:center;
+}
+.pf-ava{ grid-area:ava; width:56px; height:56px; border-radius:30%; object-fit:cover;
+         background:#222; border:1px solid rgba(255,255,255,.08); }
+.pf-about{ grid-area:about; }
+.pf-title{ font-weight:800; font-size:18px; }
+.pf-hint{ opacity:.7; font-size:12px; }
+.pf-balance{ grid-area:balance; justify-self:end; height:36px; padding:0 12px; border-radius:999px; font-weight:800; }
+.pill-amber{ background:transparent; color:#ffb02e; border:1.5px solid #ffb02e; }
+
+/* Блоки */
+.profile-block{ gap:12px; }
+.section-title{ font-weight:800; }
+.row{ display:grid; gap:8px; }
+.row-title{ font-weight:700; }
+
+/* Метрики */
+.metrics{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.metric{ background:rgba(255,255,255,.03); border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px; }
+.metric__val{ font-weight:900; font-size:18px; }
+.metric__lbl{ opacity:.75; font-size:12px; }
+
+/* Призы-чипы */
+.chips{ display:flex; flex-wrap:wrap; gap:8px; }
+.chip{ display:inline-flex; align-items:center; gap:8px; padding:6px 10px; border-radius:999px;
+       background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.1); font-weight:700; font-size:13px; }
+.chip--muted{ opacity:.6; }
+
+/* Действия */
+.actions{ display:flex; gap:10px; }
+.btn-white{ background:#fff; color:#000; border:1px solid #fff; border-radius:12px; padding:10px 14px; font-weight:800; flex:1; }
+
+/* Мобилка */
+@media (max-width:520px){
+  .metrics{ grid-template-columns:1fr 1fr; }
+  .pf-balance{ padding:0 10px; height:34px; font-size:13px; }
+}
+/* Баланс-метрика в шапке (справа) */
+.pf-hero{
+  display:grid;
+  grid-template-columns:auto 1fr auto; /* ava | about | balance */
+  gap:12px; align-items:center;
+}
+.metric--balance{
+  justify-self:end;
+  padding:8px 12px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  min-width:96px;           /* можно убрать/изменить */
+}
+.metric--balance .metric__val{ font-weight:900; font-size:18px; line-height:1; }
+.metric--balance .metric__lbl{ opacity:.75; font-size:12px; margin-top:2px; }
+
+@media (max-width:520px){
+  .metric--balance{ padding:6px 10px; }
+  .metric--balance .metric__val{ font-size:16px; }
+}
+
+.coin-ico{
+  width:14px; height:14px;
+  background: var(--coin-url, url('coin.png')) center/contain no-repeat;
+  display:inline-block;
+  margin-left:14px;
+}
+/* Рамочная панель (как маленькая карточка) */
+.panel{
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:10px;
+  display:grid;
+  gap:8px;
+}
+.panel__head{ display:flex; align-items:center; gap:8px; }
+.panel__icon{ font-size:16px; line-height:1; }
+.panel__title{ font-weight:800; }
+
+/* Тикер (опционально) */
+.ticker{ overflow:hidden; }
+.ticker__track{
+  display:inline-flex; gap:8px; white-space:nowrap;
+  will-change: transform;
+  animation: ticker var(--ticker-dur, 20s) linear infinite;
+}
+.ticker:hover .ticker__track{ animation-play-state: paused; }
+@keyframes ticker{ from{transform:translateX(0)} to{transform:translateX(-50%)} }
+
+/* Чипы у тебя уже есть; на всякий «пригладим» внутри панели */
+.panel .chips{ padding-top:2px; }
+
+/* Мобилка — ничего особенного не нужно, наследуется от твоих общих стилей */
+@media (prefers-reduced-motion: reduce){ .ticker__track{ animation:none } }
+
+.ticker{ overflow:hidden; position:relative; }
+.ticker__track{
+  display:inline-flex; gap:8px; white-space:nowrap;
+  will-change: transform;
+  animation: tickerLoop var(--dur, 0s) linear infinite;
+}
+.ticker--reverse .ticker__track{ animation-direction: reverse; } /* опционально: реверс */
+
+@keyframes tickerLoop{
+  from{ transform: translateX(0); }
+  to  { transform: translateX(calc(-1 * var(--shift, 50%))); }
+}
+
+
+</style>
+
+
+
+
+<style>
+:root{ --card-pad:14px; }
+
+/* ===== Карточка «Паспорт» (рамка) ===== */
+.card.passport{
+  padding: var(--card-pad);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+
+/* Левая картинка */
+.passport__media{
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255,255,255,.04);
+  display: grid; place-items: center;
+}
+.passport__media img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+
+/* Правая колонка */
+.passport__body{ display:grid; gap:10px; }
+
+/* ===== Сетка мини-карточек ===== */
+#passport-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:10px;
+}
+
+/* ЕДИНАЯ карточка стиля (название + бейдж внутри обводки) */
+.pslot{
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:10px;
+  display:grid; gap:8px;
+  transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+}
+.pslot__title{ font-weight:800; line-height:1.2; }
+
+/* бейдж статуса */
+.pslot__badge{
+  display:grid; place-items:center;
+  padding:8px 10px; border-radius:999px;
+  font-weight:800; font-size:13px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06); color:#fff; opacity:.95;
+}
+
+/* Подсветка при получении штампа — ВЕСЬ блок */
+.pslot.is-done{
+  border-color: rgba(55,214,122,.55);
+  background: rgba(55,214,122,.12);
+  box-shadow: 0 0 0 1px rgba(55,214,122,.25) inset;
+}
+.pslot.is-done .pslot__title{ color:#37d67a; }
+.pslot.is-done .pslot__badge{
+  border-color: rgba(55,214,122,.55);
+  background: linear-gradient(180deg, rgba(55,214,122,.9), rgba(55,214,122,.75));
+  color:#0b1a12;
+}
+
+/* ===== Мобилка: картинка full-bleed, 2 колонки сетки ===== */
+@media (max-width:520px){
+  .card.passport{ grid-template-columns: 1fr; }
+  .passport__media{
+    margin: calc(-1*var(--card-pad)) calc(-1*var(--card-pad)) 10px;
+    border-radius: 16px 16px 0 0;
+    aspect-ratio: 16/9;
+  }
+  #passport-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+}
+
+</style>
+
+<style>
+ <style>
+/* Глобально запрещаем выделение + контекст по долгому тапу */
+*, *::before, *::after{
+  -webkit-user-select: none !important;
+          user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Но в полях ввода и отмеченных блоках — можно */
+input, textarea, select, [contenteditable], .selectable, .allow-select{
+  -webkit-user-select: text !important;
+          user-select: text !important;
+  -webkit-touch-callout: default !important;
+}
+
+/* На всякий случай не даём браузеру интерпретировать жесты как зум/скролл на игровых слоях */
+canvas, .game, .no-gesture { touch-action: none; }
+
+/* Если есть нижний таббар, чтобы шторка его перекрывала */
+.sheet{ z-index: 12000 !important; }
+</style>
+ 
+</style>
+
+
+
 </head>
-<body data-api-base="">
+<body>
+
+  <canvas id="confetti"></canvas>
   <div class="wrap">
-    <h2>Профиль</h2>
-    <div class="card row cols-2">
-      <div class="kv">
-        <div class="k muted">Монеты</div><div class="v" id="pf-coins">—</div>
-        <div class="k muted">Штампы</div><div class="v"><span id="pf-pass-count">0/6</span> <span class="badge"><span class="muted">последний:</span> <span id="pf-last-stamp">—</span></span></div>
-        <div class="k muted">Рефералы</div><div class="v" id="pf-refs-count">0</div>
-        <div class="k muted">Шмель — лучший счёт</div><div class="v" id="pf-flappy-best">0</div>
-        <div class="k muted">Турнир — место сегодня</div><div class="v" id="pf-today-rank">—</div>
-        <div class="k muted">Турнир — место за всё время</div><div class="v" id="pf-all-rank">—</div>
-      </div>
-      <div>
-        <div class="muted" style="margin-bottom:6px">Последние призы</div>
-        <div id="pf-last-prizes" class="row"></div>
+    <nav id="btm-nav" class="btm-nav" aria-label="Навигация">
+      <button class="tab" data-page="home"><img src="ic_home.png" alt=""><span>Главная</span></button>
+      <button class="tab" data-page="leaderboard"><img src="ic_services.png" alt=""><span>Турнир</span></button>
+      <button class="tab" data-open-flappy><img src="ic_consult.png" alt=""><span>Играть</span></button>
+      <!-- <button class="tab" data-page="games"><img src="ic_consult.png" alt=""><span>Играть</span></button> -->
+      <button class="tab" data-page="bonuses"><img src="ic_bonus.png" alt=""><span>Бонусы</span></button>
+      <button class="tab" data-page="profile"><img src="ic_about.png" alt=""><span>Профиль</span></button>
+    </nav>
+
+    <main>
+
+
+<!-- ТОСТ Окошко поп апп всплывающее -->
+<div id="toasts" class="toasts" aria-live="polite"></div>
+
+
+
+<!-- Слайды Slider -->
+
+<div id="intro" class="intro" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="intro__wrap">
+    <div class="intro__progress" id="intro-progress"></div>
+
+    <div class="intro__stage">
+      <div class="intro__slides" id="intro-slides">
+        <!-- 1 -->
+        <section class="intro__slide active">
+          <h2 class="intro__h1">Привет друг!</h2>
+          <p class="intro__p">Здесь культура крафта! Это приложение про игры, бонусы и знание пивных стилей.
+Продолжая, подтверждаешь возраст 18+ и согласие с правилами.</p>
+        </section>
+        <!-- 2 -->
+        <section class="intro__slide">
+          <h2 class="intro__h1">Как это работает?</h2>
+          <p class="intro__p">Играй в «Шмеля», проходи викторины, собирай Паспорт стилей.
+За активность — монеты. Монеты — колесо бонусов, мерч, снеки, купоны.</p>
+        </section>
+
+        <!-- 3 -->
+        <section class="intro__slide">
+          <h2 class="intro__h1">Про сообщество</h2>
+          <p class="intro__p">Мы локальная команда: свежесть, малые пивоварни, сезонные партии.
+Есть безалкогольные позиции, дружим с локальными закусками и мерчем.</p>
+        </section>
+
+                <!-- 4 -->
+        <section class="intro__slide">
+          <h2 class="intro__h1">Отлично! Погнали</h2>
+          <p class="intro__p">Первый спин — в подарок. В профиле видны баланс, призы и рефералы.
+Играй честно, бонусы забирай в магазине.</p>
+        </section>
       </div>
     </div>
 
-    <h2 style="margin-top:22px">Турнир</h2>
-    <div class="card">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div class="tabs" role="tablist">
-          <button class="tab is-active" id="lb-tab-today" aria-selected="true">День</button>
-          <button class="tab" id="lb-tab-all" aria-selected="false">Все</button>
+    <!-- сюда JS будет рендерить нужный набор кнопок -->
+    <div id="intro-actions" class="intro__actions"></div>
+  </div>
+</div>
+
+
+<!-- FLAPPY LITE+ ШМЕЛЬ (overlay) -->
+
+<div id="flappy" class="flappy" aria-hidden="true" role="dialog" aria-modal="true">
+  <div class="flappy__wrap">
+    <!-- HUD -->
+    <div class="fl-hud">
+      <div class="fl-hud__row">
+        <div id="fl-score" class="fl-score">0</div>
+        <div class="fl-bar"><i id="fl-bar"></i></div>
+      </div>
+      <div class="fl-stats">
+        <div class="fl-stat">
+          <i id="fl-coin-ico" class="fl-ico"></i>
+          <span id="fl-coin-count">0</span>
         </div>
-        <button class="btn" id="btn-refresh">Обновить</button>
+        <div class="fl-stat fl-shield-wrap">
+          <i id="fl-shield-ico" class="fl-ico"></i>
+          <div class="fl-shield-bar"><i id="fl-shield-bar"></i></div>
+        </div>
       </div>
-      <table>
-        <thead><tr><th>#</th><th>Игрок</th><th>Счёт</th></tr></thead>
-        <tbody id="leaderboard-body"><tr><td colspan="3" class="muted">Нет данных</td></tr></tbody>
-      </table>
     </div>
 
-    <h2 style="margin-top:22px">Паспорт стилей</h2>
-    <div class="card">
-      <button class="btn btn--primary" id="open-passport">Открыть паспорт</button>
+    <!-- STAGE -->
+    <div id="fl-stage" class="fl-stage">
+      <div id="fl-hint" class="fl-hint">Тапни чтобы начать</div>
+      <div id="fl-bird" class="fl-bird" aria-label="bird"></div>
+
+      <!-- RESULT -->
+      <div id="fl-result" class="fl-result" aria-hidden="true">
+        <div class="fl-card">
+          <div class="fl-cell"><div class="fl-val" id="fl-best">0</div><div class="fl-sub">🎯 Твой рекорд</div></div>
+          <div class="fl-cell"><div class="fl-val" id="fl-world">200</div><div class="fl-sub">🏆 Мировой рекорд</div></div>
+          <div class="fl-chev">›</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div id="fl-cta" class="fl-cta">
+      <button class="btn" data-open-flappy>Попробывать еще раз</button>
+    </div>
+  </div>
+</div>
+
+
+
+<!-- Bottom Sheet -->
+ 
+      <div id="sheet" class="sheet sheet-bottom" aria-hidden="true" role="dialog" aria-modal="true">
+        <div class="sheet__overlay" data-close-sheet></div>
+        <section class="sheet__panel" tabindex="-1">
+          <div class="sheet__handle"></div>
+          <header class="sheet__header">
+<!-- ===== <h3 class="sheet__title">Заголовок</h3> ===== -->
+            <button class="sheet__close" aria-label="Закрыть" data-close-sheet>❌</button>
+          </header>
+          <div class="sheet__body" id="sheet-body"></div>
+        </section>
+      </div>
+
+      <!-- ===== Templates for sheets ===== -->
+
+
+      <template id="tpl-lastpriz">
+  <div class="card">
+    <div class="h1">Последние призы</div>
+    <div id="pf-prizes-sheet">
+      <div class="pf-muted">Пока пусто.</div>
+    </div>
+  </div>
+</template>
+
+
+<template id="tpl-passport">
+  <div class="card passport">
+    <!-- Левая колонка: картинка -->
+    <figure class="passport__media">
+      <img src="beer_hero.jpg" alt="Пивной паспорт">
+    </figure>
+
+    <!-- Правая колонка: контент -->
+    <div class="passport__body">
+      <div>
+        <div class="h1" style="margin:0 0 6px">Паспорт стилей</div>
+        <p class="muted-sm" style="margin:0">
+          Собери 6 штампов: <b>Lager</b>, <b>IPA</b>, <b>Stout</b>, <b>Weizen</b>, <b>Sour</b>, <b>Cider</b> — приз.
+        </p>
+      </div>
+
+      <!-- Сетка мини-карточек -->
+      <div id="passport-grid">
+        <div class="pslot" data-code="Lager">
+          <div class="pslot__title">Lager</div>
+          <div class="pslot__badge">Получить</div>
+        </div>
+        <div class="pslot" data-code="IPA">
+          <div class="pslot__title">IPA</div>
+          <div class="pslot__badge">Получить</div>
+        </div>
+        <div class="pslot" data-code="Stout">
+          <div class="pslot__title">Stout</div>
+          <div class="pslot__badge">Получить</div>
+        </div>
+        <div class="pslot" data-code="Weizen">
+          <div class="pslot__title">Weizen</div>
+          <div class="pslot__badge">Получить</div>
+        </div>
+        <div class="pslot" data-code="Sour">
+          <div class="pslot__title">Sour</div>
+          <div class="pslot__badge">Получить</div>
+        </div>
+        <div class="pslot" data-code="Cider">
+          <div class="pslot__title">Cider</div>
+          <div class="pslot__badge">Получить</div>
+        </div>
+      </div>
+
+
+</template>
+
+
+
+
+
+
+<template id="tpl-trivia">
+  <div class="card trivia-card">
+    <div class="h1">Ответь на 4 простых вопроса и получи 100 монет</div>
+
+    <!-- Стартовая плашка -->
+    <div class="trivia-start" id="trivia-start">
+      <button class="btn btn-primary" data-action="trivia-start">Начать</button>
+      <span id="trivia-start-hint" class="muted-sm" style="margin-left:8px; display:none"></span>
+    </div>
+
+    <!-- Здесь рендерятся вопросы/результаты -->
+    <div id="trivia-body"></div>
+  </div>
+</template>
+
+
+
+
+      <template id="tpl-ref">
+        <div class="card">
+          <div class="h1">Пригласи друзей</div>
+          <p class="muted-sm">За друга — +100 монет. За 3 друзей — мини‑дегустация.</p>
+          <div class="g">
+            <input id="ref-link" class="btn" readonly value="" />
+            <div class="g g2">
+              <button class="btn btn-primary" data-action="copy-ref">Скопировать</button>
+              <button class="btn" data-action="share-ref">Поделиться</button>
+            </div>
+          </div>
+        </div>
+      </template>
+
+
+<!-- ===== PAGES Страницы ===== -->
+
+      <section class="page" id="home">
+        <div class="hero">
+          <img class="hero__media" src="beer_hero.jpg" alt="Beer Hero">
+        </div>
+
+        <div class="promo">
+          <div class="promo__icon"><img src="beer_cup.png" alt=""></div>
+          <div>
+            <div class="promo__title">Craft Beer</div>
+            <div class="promo__sub">Кто мы, где мы</div>
+          </div>
+          <button class="promo__btn" data-open-intro
+          aria-controls="intro"
+          aria-label="Открыть онбординг">О нас</button>
+        </div>
+
+        <div class="card list-card tight">
+          <div class="list-head">С чего начать</div>
+          <div class="list">
+            <div class="list__item">
+              <div class="list__icon"><img src="pasport.png" alt=""></div>
+              <div class="list__text">
+                <div class="list__title">Паспорт стилей</div>
+                <div class="list__sub">Собери 6 штампов — подарок</div>
+              </div>
+              <button class="list__chev-btn" data-open-sheet data-title="Пивной Паспорт" data-tpl="#tpl-passport">›</button>
+            </div>
+            <div class="list__item">
+              <div class="list__icon"><img src="casino-chips.png" alt=""></div>
+              <div class="list__text">
+                <div class="list__title">Викторина</div>
+                <div class="list__sub">Проверь свои пивные знания</div>
+              </div>
+              <button class="list__chev-btn" data-open-sheet data-title="Викторина" data-tpl="#tpl-trivia">›</button>
+            </div>
+            <div class="list__item">
+              <div class="list__icon"><img src="fren.png" alt=""></div>
+              <div class="list__text">
+                <div class="list__title">Пригласи друзей</div>
+                <div class="list__sub">Дарим +100 монет за друга</div>
+              </div>
+              <button class="list__chev-btn" data-open-sheet data-title="Рефералы" data-tpl="#tpl-ref">›</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Games карточки ИГРЫ -->
+<div class="card list-card games tight">
+  <div class="list-head">Игры</div>
+  <div class="list">
+    <!-- Шмель -->
+    <div class="list__item">
+      <div class="list__icon"><img src="bumblebee.png" alt=""></div>
+      <div class="list__text">
+        <div class="list__title">Bumblebee</div>
+        <div class="list__sub">Долети до нас и получи приз</div>
+      </div>
+<!-- Кнопка запуска на главной -->
+<button class="list__btn list__btn--primary" data-open-flappy>Играть</button>
+    </div>
+
+    <!-- Гонки -->
+    <div class="list__item">
+      <div class="list__icon"><img src="racing.png" alt=""></div>
+      <div class="list__text">
+        <div class="list__title">Night Racing</div>
+        <div class="list__sub">Катайся и прокачивай тачку</div>
+      </div>
+<!-- Кнопка запуска на главной -->
+<button class="list__btn list__btn--primary" data-open-runner>Cкоро</button>
+    </div>
+
+    <!-- Бонусы -->
+    <div class="list__item">
+      <div class="list__icon"><img src="beercard.png" alt=""></div>
+      <div class="list__text">
+        <div class="list__title">Memory cards</div>
+        <div class="list__sub">Найди все спрятанные карточки быстрее</div>
+      </div>
+<!-- Кнопка запуска на главной -->
+<button class="list__btn list__btn--primary" data-open-runner>Скоро</button>
+
+      </div>
+</div>
+      </section>
+
+
+      
+
+<!-- Турниры страница -->
+<section id="leaderboard" class="page" style="display:none">
+
+
+<!-- Leaderboard -->
+<div class="card lb-card inner" id="leaderboard">
+  <div class="lb-head">
+    <div>
+      <div class="lb-title">Bumblebee</div>
+      <div class="lb-sub">Турнирная таблица</div>
+    </div>
+
+    <div class="lb-seg" role="tablist" aria-label="Leaderboard period">
+      <button type="button" data-lb-tab="today" aria-pressed="true">День</button>
+      <button type="button" data-lb-tab="all">Все</button>
     </div>
   </div>
 
-  <!-- Sheet: Passport -->
-  <div class="sheet" id="sheet" aria-hidden="true" role="dialog" aria-modal="true">
-    <div class="sheet__head">
-      <strong>Паспорт стилей</strong>
-      <button class="btn" id="sheet-close">Закрыть</button>
+  <!-- Ты -->
+  <div class="lb-you" id="lb-you">
+    <div class="lb-you__avatar" id="lb-you-ava">YOU</div>
+    <div class="lb-you__meta">
+      <div class="lb-you__name" id="lb-you-name">You</div>
+      <div class="lb-sub" id="lb-you-note">best score</div>
     </div>
-    <div class="grid" id="passport-grid">
-      <!-- примеры карточек (замени на свои, важны data-style-id) -->
-      <div class="pslot" data-style-id="Кружка"><h4>Кружка</h4><div class="pslot__badge">Получить</div></div>
-      <div class="pslot" data-style-id="Футболка"><h4>Футболка</h4><div class="pslot__badge">Получить</div></div>
-      <div class="pslot" data-style-id="Фисташки"><h4>Фисташки</h4><div class="pslot__badge">Получить</div></div>
-      <div class="pslot" data-style-id="Скидка"><h4>Скидка</h4><div class="pslot__badge">Получить</div></div>
-      <div class="pslot" data-style-id="Дегустация"><h4>Дегустация</h4><div class="pslot__badge">Получить</div></div>
-      <div class="pslot" data-style-id="Монеты"><h4>Монеты</h4><div class="pslot__badge">Получить</div></div>
+    <div class="lb-you__score" id="lb-you-score">0</div>
+  </div>
+
+  <!-- Топ -->
+  <div class="lb-list" id="lb-list">
+    <!-- сюда JS рендерит строки -->
+  </div>
+
+  <div class="lb-actions">
+    <button class="lb-btn" id="lb-refresh" type="button">Обновить</button>
+    <button class="lb-btn lb-btn--primary" type="button" data-open-flappy>Играть</button>
+  </div>
+</div>
+
+</section>
+
+
+
+<!-- BONUSES -->
+  <section class="page" id="bonuses">
+    <div class="card page-title">
+      <h2 class="h1">Бонусы</h2>
+      <p class="muted-sm">Крути колесо и забирай выпавший подарок. Вращение 100 монет</p>
     </div>
-    <div class="sheet__foot">
-      <div class="muted">Нажмите на карточку, чтобы отметить штамп</div>
+
+    <div class="card bonus-card">
+      <div class="h2"></div>
+
+      <!-- ВЕРХ: только плашка-подсказка -->
+      <div class="bonus-head">
+        <div id="pickedPill" class="picked-pill muted">Нажми «Крутануть»</div>
+      </div>
+
+      <!-- КОЛЕСО -->
+      <div id="bonusWheel" class="bonus-wheel" aria-live="polite">
+        <div class="wheel-track" id="wheelTrack">
+          <button class="bonus" data-name="Кружка"><img src="beer_cup.png" alt="Кружка"><span>Кружка</span></button>
+          <button class="bonus" data-name="Футболка"><img src="tshirt.png" alt="Футболка"><span>Футболка</span></button>
+          <button class="bonus" data-name="Фисташки"><img src="pistachio.png" alt="Фисташки"><span>Фисташки</span></button>
+          <button class="bonus" data-name="Скидка"><img src="bonus4.png" alt="Скидка"><span>Скидка</span></button>
+          <button class="bonus" data-name="Дегустация"><img src="tongue-out.png" alt="Дегустация"><span>Дегустация</span></button>
+          <button class="bonus" data-name="Монеты"><img src="coin.png"
+              alt="Монеты"><span>Монеты</span></button>
+        </div>
+        <div class="wheel-center"></div>
+      </div>
+
+      <!-- НИЗ: две кнопки в ряд -->
+      <div class="actions">
+        <button class="btn btn-primary" id="spinBtn">Крутануть</button>
+        <button class="btn btn-primary" id="claimBtn" disabled>Забрать</button>
+      </div>
     </div>
+      </section>
+
+      <!-- ========== PROFILE PAGE (без шаблонов) ========== -->
+<section id="profile" class="card profile">
+  <!-- ===== PROFILE · HERO ===== -->
+<!-- ===== PROFILE · HERO ===== -->
+<section class="card profile-hero">
+  <div class="pf-hero">
+    <div class="pf-about">
+      <div class="pf-title" id="pf-title">Гость</div>
+      <div class="pf-hint" id="pf-username"></div>
+    </div>
+
+<div class="metric metric--balance">
+  <div class="metric__val">
+    <span id="pf-coins">0</span>
+    <i class="coin-ico" aria-hidden="true"></i>
+  </div>
+  <div class="metric__lbl"></div>
+</div>
+
+    <!-- аватар справа -->
+    <img class="pf-ava" id="pf-ava" alt="">
+  </div>
+</section>
+<div aria-hidden="true" style="height:30px;"></div>
+
+<!-- ===== BLOCK 2: Призы · Игры ===== -->
+<section class="card profile-block">
+  <div class="section-title">🎯 Мои достижения</div>
+
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric__val" id="pf-flappy-best">0</div>
+      <div class="metric__lbl">Шмель — лучший счёт</div>
+    </div>
+    <div class="metric">
+      <div class="metric__val" id="pf-pass-count">0/6</div>
+      <div class="metric__lbl">Паспорт — штампы</div>
+    </div>
+    <div class="metric">
+      <div class="metric__val" id="pf-pass-list">—</div>
+      <div class="metric__lbl">Получены</div>
+    </div>
+        <div class="metric">
+      <div class="metric__val" id="pf-refs-count">0</div>
+      <div class="metric__lbl">Мои рефералы</div>
+    </div>
+  </div>
+</section>
+
+<div aria-hidden="true" style="height:25px;"></div>
+
+
+<!-- ===== BLOCK 3: Турнир · Рефералы ===== -->
+<section class="card profile-block">
+  <div class="section-title">🏆 Турнир</div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric__val" id="pf-today-rank">—</div>
+      <div class="metric__lbl">Место сегодня</div>
+    </div>
+    <div class="metric">
+      <div class="metric__val" id="pf-all-rank">—</div>
+      <div class="metric__lbl">All-time</div>
+    </div>
+
+  </div>
+
+  <!-- =====<div class="actions">
+    <button class="btn btn-white" id="pf-join">Участвовать</button>
+    <button class="btn btn-white" id="pf-invite">Пригласить</button>
+  </div>===== -->
+  <div aria-hidden="true" style="height:19px;"></div>
+
+<div class="panel panel--prizes">
+  <div class="panel__head">
+ 
+    <div class="panel__title">Последние призы</div>
+  </div>
+  <div class="ticker js-ticker">
+    <div class="chips ticker__track" id="pf-prizes">
+      <span class="chip chip--muted">Пока пусто</span>
+    </div>
+    <div class="chips ticker__track ticker__clone" aria-hidden="true"></div>
+  </div>
+</div>
+
+
+
+
+</section>
+
+
+
+    </main>
   </div>
 
   <script>
-  (function(){
-    // ====== CONFIG ======
-    const TG = (window.Telegram && Telegram.WebApp) || null;
-    const API_BASE = document.body.dataset.apiBase || window.API_BASE || window.__API_BASE || ""; // e.g. "https://example.workers.dev"
-    const DEMO_PIN = window.DEMO_PIN || '1111';
-
-    // ====== STATE & CACHE ======
-    const KEY_STATE   = 'beer_state_v3';
-    const KEY_STAMPS  = 'beer_passport_v2'; // { stamps:[] }
-    const KEY_COINS   = 'beer_coins_v2';
-    const KEY_PRIZES  = 'beer_last_prizes_v2'; // { list:[] }
-
-    let MiniState = null;  // последнее валидное состояние с воркера
-    let KV_VER = 0;        // monotonic версия из воркера
-    let CURRENT_LB = 'today';
-    let pinOkSession = false; // подтверждённый PIN в рамках сессии
-
-    // ====== HELPERS ======
-    function getTgInit(){ try{ return TG?.initData || ''; }catch(_){ return ''; } }
-    function jpost(path, body){
-      return fetch((API_BASE||'')+path, {
-        method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store',
-        body: JSON.stringify(body||{})
-      }).then(r=>r.json()).catch(()=>({ok:false,error:'net'}));
+  (function app(){
+    const TG = window.Telegram && window.Telegram.WebApp;
+    if (TG){
+      try{ TG.ready(); TG.expand(); TG.disableVerticalSwipes?.(); TG.enableClosingConfirmation?.(); TG.onEvent?.('viewportChanged', () => TG.disableVerticalSwipes?.()); }catch(e){ console.warn('TG init error', e); }
     }
 
-    function readJSON(key, fallback){ try{ return JSON.parse(localStorage.getItem(key)||''); }catch(_){ return fallback; } }
-    function writeJSON(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_){} }
+    const ROOT = 'home';
+    const sheetRoot = document.getElementById('sheet');
+    const sheetPanel= sheetRoot?.querySelector('.sheet__panel');
+    const sheetBody = document.getElementById('sheet-body');
+    const sheetTitle= sheetRoot?.querySelector('.sheet__title');
 
-    function effectiveStamps(state){
-      const fromState = (state?.styles) || (state?.styles_user) || [];
-      const fromLS = readJSON(KEY_STAMPS,{stamps:[]}).stamps || [];
-      const set = new Set([...(fromState||[])].map(s=>String(s)));
-      for (const s of fromLS){ set.add(String(s)); }
-      return Array.from(set);
+    const qsa = sel => Array.from(document.querySelectorAll(sel));
+    const isInDOM = id => !!document.getElementById(id);
+
+    function currentId(){
+      const url = new URL(location.href);
+      const qp = (url.searchParams.get('page') || '').trim();
+      if (qp && isInDOM(qp)) return qp;
+      const h = (location.hash || '#'+ROOT).replace(/^#/, '');
+      return isInDOM(h) ? h : ROOT;
     }
-
-    function computeMyRanks(st){
-      const uid = String(TG?.initDataUnsafe?.user?.id || '');
-      const uname = String(TG?.initDataUnsafe?.user?.username || '');
-      const today = Array.isArray(st?.leaderboard_today)?st.leaderboard_today:[];
-      const all   = Array.isArray(st?.leaderboard_alltime)?st.leaderboard_alltime:[];
-      const isMe = r => String(r.tg_id||r.uid||'')===uid || (uname && r.username===uname);
-      const ixToday = today.findIndex(isMe);
-      const ixAll   = all.findIndex(isMe);
-      const bestAll = (st?.my_best_score|0) || Math.max(0, ...all.filter(isMe).map(r=>r.score|0));
-      return { rankToday: ixToday>=0 ? ixToday+1 : '—', rankAll: ixAll>=0 ? ixAll+1 : '—', best: bestAll||0 };
-    }
-
-    // ====== RENDER ======
-    function paintBadgesFromState(state){
-      const owned = new Set(effectiveStamps(state).map(s=>String(s).toLowerCase()));
-      document.querySelectorAll('#passport-grid .pslot').forEach(card=>{
-        const code = (card.getAttribute('data-style-id')||'').trim().toLowerCase();
-        const ok = code && owned.has(code);
-        card.classList.toggle('is-done', !!ok);
-        const b = card.querySelector('.pslot__badge');
-        if (b) b.textContent = ok ? 'Получен' : 'Получить';
+    function setActivePage(id){
+      qsa('main > section, section.page').forEach(s => {
+        const on = (s.id === id);
+        s.classList.toggle('active', on);
+        s.style.display = on ? 'block' : 'none';
       });
-      // counters in profile
-      const total = Number(MiniState?.styles_total || 6);
-      const cntEl = document.getElementById('pf-pass-count'); if (cntEl) cntEl.textContent = `${owned.size}/${total}`;
-      const lastEl = document.getElementById('pf-last-stamp'); if (lastEl) lastEl.textContent = MiniState?.last_stamp_name || MiniState?.last_stamp_id || '—';
+      qsa('[data-page]').forEach(t => t.classList.toggle('active', t.dataset.page === id));
+      requestAnimationFrame(()=> window.scrollTo({ top: 0, behavior:'auto' }));
+      syncBack();
+    }
+    function navigateTo(id){
+      if (!id || !isInDOM(id)) return;
+      const h = '#'+id;
+      if (h !== (location.hash || '#'+ROOT)){ history.pushState({id}, '', h); }
+      setActivePage(id);
     }
 
-    function paintProfileFromState(state){
-      // coins
-      if (typeof state?.coins === 'number'){
-        document.getElementById('pf-coins')?.replaceChildren(document.createTextNode(String(state.coins|0)));
-        writeJSON(KEY_COINS, {v: state.coins|0});
-      } else {
-        const c = readJSON(KEY_COINS, {v:'—'}); document.getElementById('pf-coins')?.replaceChildren(document.createTextNode(String(c.v)));
+    function showBack(){ try{ TG?.BackButton?.show && TG.BackButton.show(); }catch(_){ } }
+    function hideBack(){ try{ TG?.BackButton?.hide && TG.BackButton.hide(); }catch(_){ } }
+    function syncBack(){
+      if (!TG) return;
+      const atRoot = (currentId() === ROOT);
+      const sheetOpen = sheetRoot?.classList.contains('is-open');
+      if (sheetOpen || !atRoot) showBack(); else hideBack();
+    }
+
+    TG?.BackButton?.onClick?.(()=>{ if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; } const atRoot = (currentId() === ROOT); if (!atRoot) history.back(); });
+    TG?.onEvent?.('backButtonClicked', ()=>{ if (sheetRoot && sheetRoot.classList.contains('is-open')){ closeSheet(); return; } const atRoot = (currentId() === ROOT); if (!atRoot) history.back(); });
+    window.addEventListener('popstate', ()=> setActivePage(currentId()));
+
+    function haptic(level='light'){ try{ TG?.HapticFeedback?.impactOccurred && TG.HapticFeedback.impactOccurred(level); } catch(_){ try{ navigator.vibrate && navigator.vibrate(level==='light'?10:16); }catch(_){} } }
+    function openSheet({title='', html='', from='bottom'} = {}){
+      if (!sheetRoot) return;
+      sheetRoot.classList.toggle('sheet-bottom', from==='bottom');
+      if (sheetTitle) sheetTitle.textContent = title || '';
+      if (sheetBody && html != null) sheetBody.innerHTML = html;
+      sheetRoot.classList.add('is-open'); document.body.classList.add('sheet-open');
+      
+try{
+  var __st = (window.MiniState || (window.SWR && SWR.get()) || {});
+  if (/паспорт/i.test(title) && typeof paintBadgesFromState==='function') paintBadgesFromState(__st);
+  if (/последние призы|призы/i.test(title) && typeof window.renderRewards==='function') window.renderRewards();
+}catch(_){}
+
+try{ if (typeof initSheet==='function') initSheet(title||''); }catch(_){ }
+requestAnimationFrame(()=> sheetPanel?.focus({preventScroll:true}));
+      haptic('light'); syncBack();
+    }
+    function closeSheet(){ if (!sheetRoot) return; sheetRoot.classList.remove('is-open'); document.body.classList.remove('sheet-open'); 
+try{ var __st = (window.MiniState||(window.SWR&&SWR.get())||{}); if (typeof paintBadgesFromState==='function') paintBadgesFromState(__st); }catch(_){ }
+haptic('light'); syncBack(); }
+    window.openSheet = openSheet; window.closeSheet = closeSheet;
+    sheetRoot?.addEventListener('click', (e)=>{ if (e.target.closest('[data-close-sheet]')) closeSheet(); });
+    document.addEventListener('keydown', (e)=>{ if (e.key==='Escape' && sheetRoot?.classList.contains('is-open')) closeSheet(); });
+
+    // Prevent iOS pull-to-refresh when no TG.disableVerticalSwipes
+    const isiOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    if (isiOS && !(TG && typeof TG.disableVerticalSwipes === 'function')){
+      let startY = 0; document.addEventListener('touchstart', e => { startY = e.touches[0].clientY; }, {passive:true});
+      document.addEventListener('touchmove', e => { const dy = e.touches[0].clientY - startY; const atTop = (window.scrollY <= 0); if (dy > 0 && atTop){ e.preventDefault(); } }, {passive:false});
+    }
+
+    // ===== Confetti (simple) =====
+    const confettiCanvas = document.getElementById('confetti');
+    const ctx = confettiCanvas.getContext('2d');
+    function resizeCanvas(){ confettiCanvas.width = innerWidth; confettiCanvas.height = innerHeight; }
+    window.addEventListener('resize', resizeCanvas); resizeCanvas();
+    function confettiBurst(n=140, duration=900){
+      const parts = Array.from({length:n},()=>({
+        x: Math.random()*confettiCanvas.width,
+        y: -10,
+        vx: (Math.random()-0.5)*4,
+        vy: Math.random()*3+2,
+        r: Math.random()*3+1,
+        a: 1
+      }));
+      const t0 = performance.now();
+      function frame(t){
+        const dt = (t - (confettiBurst._lt||t))/16; confettiBurst._lt = t;
+        ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height);
+        parts.forEach(p=>{ p.x+=p.vx*dt; p.y+=p.vy*dt; p.a -= 0.01*dt; ctx.globalAlpha = Math.max(0,p.a); ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle = ['#f9b24d','#f29117','#ffd59c','#fff'][p.r|0 % 4]; ctx.fill(); });
+        if (t - t0 < duration){ requestAnimationFrame(frame); } else { ctx.clearRect(0,0,confettiCanvas.width,confettiCanvas.height); }
       }
-      // last prizes (array of strings)
-      const lp = (Array.isArray(state?.last_prizes) ? state.last_prizes : (readJSON(KEY_PRIZES,{list:[]}).list || []));
-      if (Array.isArray(state?.last_prizes)) writeJSON(KEY_PRIZES, {list: state.last_prizes});
-      const box = document.getElementById('pf-last-prizes');
-      if (box){ box.innerHTML = ''; (lp.slice(0,6)).forEach(p=>{ const t=document.createElement('span'); t.className='badge'; t.textContent=String(p); box.appendChild(t); }); }
-
-      // refs
-      const refs = Number(state?.ref_total || state?.ref_count || state?.refs || 0);
-      document.getElementById('pf-refs-count')?.replaceChildren(document.createTextNode(String(refs)));
-
-      // ranks + best
-      const r = computeMyRanks(state);
-      document.getElementById('pf-today-rank')?.replaceChildren(document.createTextNode(String(r.rankToday)));
-      document.getElementById('pf-all-rank')?.replaceChildren(document.createTextNode(String(r.rankAll)));
-      document.getElementById('pf-flappy-best')?.replaceChildren(document.createTextNode(String(r.best)));
-
-      paintBadgesFromState(state);
-      renderLeaderboard();
+      requestAnimationFrame(frame);
     }
 
-    function renderLeaderboard(){
-      const tb = document.getElementById('leaderboard-body'); if (!tb) return;
-      const st = MiniState || readJSON(KEY_STATE, {});
-      const rows = (CURRENT_LB==='today' ? (st.leaderboard_today||[]) : (st.leaderboard_alltime||[]));
-      tb.innerHTML = '';
-      if (!rows.length){ tb.innerHTML = '<tr><td class="muted" colspan="3">Нет данных</td></tr>'; return; }
-      rows.slice(0,50).forEach((r,i)=>{
-        const tr = document.createElement('tr');
-        const td1=document.createElement('td'); td1.textContent=String(i+1);
-        const td2=document.createElement('td'); td2.textContent=String(r.username||r.name||('id'+(r.tg_id||r.uid||'')));
-        const td3=document.createElement('td'); td3.textContent=String(r.score|0);
-        tr.append(td1,td2,td3); tb.appendChild(tr);
-      });
+    // ===== App State & Storage =====
+    const APP = {
+      BOT_USERNAME: '@CineCraft_robot', // TODO: замените на @имя_бота
+      WORKER_BASE: 'https://your-worker.example.dev/', // TODO: замените на ваш Worker
+      API_KEY: 'dev-123',
+      COOLDOWN_SPIN_HOURS: 24,
+      MAX_TRIVIA: 5,
+    };
+    const store = {
+      get(k,def){ try{ return JSON.parse(localStorage.getItem(k)) ?? def; }catch(_){ return def }},
+      set(k,v){ localStorage.setItem(k, JSON.stringify(v)); },
+      now(){ return Date.now(); }
+    };
+    const SKEY = {
+      coins: 'beer_coins',
+      spinAt: 'beer_spin_next',
+      rewards: 'beer_rewards',
+      passport: 'beer_passport',
+      visits: 'beer_visits',
+      trivia: 'beer_trivia',
+    };
+    function addCoins(n){ const c = Math.max(0, (store.get(SKEY.coins,0) + n)|0); store.set(SKEY.coins,c); syncCoins(); }
+    function coins(){ return store.get(SKEY.coins,0)|0; }
+
+    function syncCoins(){
+      qsa('#coins,#coins-inline,#coins-profile').forEach(el=> el && (el.textContent = coins()));
+      const lvl = levelFromCoins(coins());
+      const pct = Math.min(100, (coins() % 1000)/10);
+      const lvlEl = document.getElementById('level'); if (lvlEl) lvlEl.textContent = lvl;
+      const lm = document.getElementById('lvl-meter'); if (lm) lm.style.width = pct+'%';
+      const cm = document.getElementById('coin-meter'); if (cm) cm.style.width = Math.min(100, coins()/10)+'%';
     }
+    function levelFromCoins(c){ if (c >= 3000) return 'Gold'; if (c >= 1500) return 'Silver'; return 'Bronze'; }
 
-    // ====== APPLY STATE (single source of truth) ======
-    function applyServerState(state){
-      if (!state || state.ok===false) return;
-      const v = Number(state.kv_ver||0);
-      if (v && KV_VER && v <= KV_VER) return; // do not overwrite with older
-      KV_VER = v || Date.now();
-      MiniState = state;
-      writeJSON(KEY_STATE, state);
-      paintProfileFromState(state);
-    }
+    // ===== Pages: Home interactions =====
+    document.addEventListener('click', (e)=>{
+      const openBtn = e.target.closest('[data-open-sheet]');
+      if (openBtn){ e.preventDefault(); const tplSel = openBtn.dataset.tpl || ''; const tpl = tplSel ? document.querySelector(tplSel) : null; const html = tpl ? tpl.innerHTML : ''; const ttl = openBtn.getAttribute('title') || openBtn.dataset.title || openBtn.textContent.trim() || ''; const from = openBtn.dataset.from || 'bottom'; openSheet({ title: ttl, html, from }); initSheet(ttl); return; }
+      const tab = e.target.closest('[data-page]'); if (tab){ e.preventDefault(); navigateTo(tab.dataset.page); }
 
-    // ====== NETWORK ======
-    async function fetchAndApplyState(opts){
-      const s = await jpost('/api/mini/state', { tg_init:getTgInit(), fresh: opts?.fresh?1:0 });
-      if (s && s.ok) applyServerState(s);
-      return s;
-    }
+      // sheet actions
+      const act = e.target.closest('[data-action]')?.dataset.action;
+      if (!act) return;
+      switch(act){
+        case 'start-cap': startCapToss(); break;
+        case 'cap-help': alert('Свайпай, чтобы бросать. Комбо и «Foam Frenzy» позже прикрутим.'); break;
+        case 'spin': handleSpin(); break;
 
-    // ====== SHEET (open/close) ======
-    const sheet = document.getElementById('sheet');
-    function openSheet(){ sheet?.classList.add('is-open'); sheet?.setAttribute('aria-hidden','false'); paintBadgesFromState(MiniState || readJSON(KEY_STATE,{})); }
-    function closeSheet(){ sheet?.classList.remove('is-open'); sheet?.setAttribute('aria-hidden','true'); }
+        case 'reset-passport': resetPassport(); break;
+        case 'submit-trivia': submitTrivia(); break;
+        case 'reset-trivia': resetTrivia(); break;
+        case 'copy-ref': copyRef(); break;
+        case 'share-ref': shareRef(); break;
+        case 'add-visit': addVisit(); break;
+      }
+    });
 
-    document.getElementById('open-passport')?.addEventListener('click', openSheet);
-    document.getElementById('sheet-close')?.addEventListener('click', closeSheet);
+    // ===== Router bootstrap =====
+    const start = currentId(); history.replaceState({id:start}, '', '#'+start); setActivePage(start);
+    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 0);
+    setTimeout(()=>{ TG?.disableVerticalSwipes?.(); syncBack(); }, 300);
 
-    // ====== COLLECT STYLE (PIN-gated, single prompt per session) ======
-    let pinPromptInFlight = false;
-    document.addEventListener('click', function(e){
-      const tile = e.target.closest('#passport-grid .pslot');
-      if (!tile) return;
-      const sid = tile.getAttribute('data-style-id');
-      if (!sid) return;
-      e.preventDefault();
-      (async ()=>{
-        if (!pinOkSession){
-          if (pinPromptInFlight) return; // guard from double-click
-          pinPromptInFlight = true;
-          const pin = prompt('PIN сотрудника (демо: 1111)');
-          pinPromptInFlight = false;
-          if (pin !== DEMO_PIN){ alert('PIN неверный'); return; }
-          pinOkSession = true; try{ TG?.showPopup?.({message:'PIN ОК'}); }catch(_){}
-        }
-        // Only with confirmed PIN we send to worker
-        const r = await jpost('/api/mini/event', { tg_init:getTgInit(), type:'style.collect', data:{ style_id:String(sid) } });
-        if (r && r.ok && r.fresh_state){
-          applyServerState(r.fresh_state);
-        } else if (r && r.ok){
-          // no fresh state – update local stamps optimistically
-          const cur = readJSON(KEY_STAMPS,{stamps:[]});
-          const stamps = Array.from(new Set([...(cur.stamps||[]), String(sid)]));
-          writeJSON(KEY_STAMPS,{stamps});
-          paintBadgesFromState(MiniState);
-        } else {
-          // network fail: keep local optimistic cache but DO NOT send if no PIN
-          const cur = readJSON(KEY_STAMPS,{stamps:[]});
-          const stamps = Array.from(new Set([...(cur.stamps||[]), String(sid)]));
-          writeJSON(KEY_STAMPS,{stamps});
-          paintBadgesFromState(MiniState);
-        }
-      })();
-    }, {passive:false});
-
-    // ====== TOURNAMENT TABS ======
-    const tday = document.getElementById('lb-tab-today');
-    const tall = document.getElementById('lb-tab-all');
-    tday?.addEventListener('click', ()=>{ CURRENT_LB='today'; tday.classList.add('is-active'); tall.classList.remove('is-active'); renderLeaderboard(); });
-    tall?.addEventListener('click', ()=>{ CURRENT_LB='all';   tall.classList.add('is-active'); tday.classList.remove('is-active'); renderLeaderboard(); });
-
-    document.getElementById('btn-refresh')?.addEventListener('click', ()=>{ fetchAndApplyState({fresh:1}); });
-
-    // ====== HEARTBEAT (мягкие «пинки») ======
-    setInterval(()=>{ fetchAndApplyState({fresh:1}); }, 30000);
-    document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) fetchAndApplyState({fresh:1}); });
-
-    // ====== BOOT: load from cache first, then network ======
-    (function boot(){
-      const cached = readJSON(KEY_STATE, null);
-      if (cached){ MiniState=cached; KV_VER=Number(cached.kv_ver||0); paintProfileFromState(cached); }
-      fetchAndApplyState({fresh:1});
+    // ===== User name in profile =====
+    (function fillUser(){
+      const u = TG?.initDataUnsafe?.user; const name = u ? (u.first_name + (u.last_name? (' ' + u.last_name) : '')) : 'Гость';
+      const nameEl = document.getElementById('user-name'); if (nameEl) nameEl.textContent = name;
     })();
 
-    // Optional: Telegram UI polish
-    try{ TG?.ready?.(); TG?.expand?.(); }catch(_){}
+    // ===== Sheet initializers =====
+    
+function initSheet(title){
+  if (/паспорт/i.test(title)) {
+    // при открытии шторки всегда красим из актуального источника:
+    // 1) свежий серверный state, 2) локальный кэш (v1 или legacy)
+    let st = window.MiniState || {};
+    let styles = Array.isArray(st.styles) ? st.styles
+               : (Array.isArray(st.styles_user) ? st.styles_user : null);
+    if (!styles) styles = getCachedStyles();
+    try { paintBadgesFromState({styles}); } catch(_){}
+  }
+  if (/колесо/i.test(title)) initSpin();
+  if (/реферал|друз/i.test(title)) initRef();
+  if (/викторин/i.test(title)) renderTrivia();
+  if (/визит/i.test(title)) renderVisits();
+  if (/cap toss/i.test(title)) initCapUI();
+  syncCoins();
+}
+
+
+    // ===== Rewards feed =====
+    function logReward(rec){ const r = store.get(SKEY.rewards,[]); r.unshift({ts:Date.now(),...rec}); store.set(SKEY.rewards,r); renderRewards(); }
+    function renderRewards(){
+      const r = store.get(SKEY.rewards,[]); const box = document.getElementById('rewards-feed'); if (!box) return;
+      if (!r.length){ box.textContent='Пока пусто'; return; }
+      box.innerHTML = r.slice(0,8).map(x=>`<div>• ${new Date(x.ts).toLocaleString()} — ${x.source}: <b>${x.prize}</b></div>`).join('');
+    }
+
+
+
+
+    // ===== Referrals =====
+    function initRef(){
+      const u = TG?.initDataUnsafe?.user; const uid = u?.id || Math.floor(Math.random()*1e9);
+      const code = 'beer_ref_'+uid;
+      const link = `https://t.me/${APP.BOT_USERNAME}?start=${code}`;
+      const input = document.getElementById('ref-link'); if (input) input.value = link;
+    }
+    async function copyRef(){ const el = document.getElementById('ref-link'); if(!el) return; el.select(); document.execCommand?.('copy'); try{ await navigator.clipboard.writeText(el.value); }catch{} haptic('light'); }
+    async function shareRef(){ const el = document.getElementById('ref-link'); if(!el) return; const txt = 'Залетай в пивной мини‑апп и забери приз! '+el.value; try{ await navigator.share?.({text:txt}); }catch{ try{ await navigator.clipboard.writeText(el.value);}catch{} } haptic('light'); }
+
+
+
+    // ===== Init state =====
+    syncCoins(); renderRewards();
   })();
   </script>
+
+  <script>
+(function introSlider(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+
+  // ====== КОНФИГ КНОПОК ПО СЛАЙДАМ ======
+  // Индексы соответствуют порядку секций .intro__slide в #intro-slides
+  const INTRO_CFG = {
+    actions: {
+      0: [ // Слайд 1 — две рядом
+        { label:'Нет', type:'ghost', do:'navigate', value:'no' },
+        { label:'Есть 18',  type:'primary', do:'answer', to:'next' } // перейти в раздел "Запись"
+      ],
+      1: [ // Слайд 0 — одна кнопка
+        { label:'Продолжить', type:'primary', do:'next' }
+      ],
+      2: [ // Слайд 2 — одна кнопка
+        { label:'Продолжить', type:'primary', do:'next' }
+      ],
+      3: [ // Слайд 3 — одна кнопка
+        { label:'Играть', type:'ghost', do:'navigate' }
+      ]
+      // Примеры для будущих слайдов:
+      // 3: [
+      //   { label:'Открыть сайт', type:'primary', do:'link', href:'https://example.com' }
+      // ],
+      // 4: [
+      //   { label:'Показать окно', type:'primary', do:'sheet', title:'Демо', tpl:'#tpl-example', from:'bottom' }
+      // ]
+    },
+    onAnswer: (index, value) => {
+      // Твой хук на ответы "Да/Нет" и т.п.
+      // Например: localStorage.setItem('intro_answer_'+index, value);
+      // console.log('Answer on slide', index, '=>', value);
+    }
+  };
+
+  // ====== DOM ======
+  const root = document.getElementById('intro');
+  if(!root) return;
+
+  const slidesWrap = root.querySelector('#intro-slides');
+  const slides = Array.from(root.querySelectorAll('.intro__slide'));
+  const progress = root.querySelector('#intro-progress');
+  const actions = root.querySelector('#intro-actions');
+
+  // Прогресс
+  progress.innerHTML = slides.map(()=>'<i class="intro__seg"></i>').join('');
+  const segs = Array.from(progress.children);
+
+  let idx = 0, touchX0=0, touchX=0, dragging=false, backHandler=null;
+
+  const haptic = (lvl='light') => { try{ TG?.HapticFeedback?.impactOccurred(lvl); }catch(_){ } };
+
+  // Сервис: создать кнопку
+  function btnHTML(cfg){
+    const cls = ['intro__btn'];
+    if (cfg.type === 'primary') cls.push('intro__btn--primary');
+    if (cfg.type === 'ghost')   cls.push('intro__btn--ghost');
+    const attrs = [];
+    if (cfg.do) attrs.push(`data-act="${cfg.do}"`);
+    if (cfg.value != null) attrs.push(`data-val="${String(cfg.value)}"`);
+    if (cfg.to)    attrs.push(`data-to="${String(cfg.to)}"`);
+    if (cfg.href)  attrs.push(`data-href="${String(cfg.href)}"`);
+    if (cfg.title) attrs.push(`data-title="${String(cfg.title)}"`);
+    if (cfg.tpl)   attrs.push(`data-tpl="${String(cfg.tpl)}"`);
+    if (cfg.from)  attrs.push(`data-from="${String(cfg.from)}"`);
+    return `<button class="${cls.join(' ')}" ${attrs.join(' ')}>${cfg.label}</button>`;
+  }
+
+  // Рендер низа (кнопок)
+  function renderActions(){
+    const set = INTRO_CFG.actions[idx] || defaultActions();
+    // сетка: 1 / 2 / 3+
+    actions.className = 'intro__actions';
+    if (set.length === 1) actions.classList.add('intro__actions--one');
+    else if (set.length === 2) actions.classList.add('intro__actions--two');
+    else actions.classList.add('intro__actions--multi'); // см. CSS ниже
+    actions.innerHTML = set.map(btnHTML).join('');
+  }
+
+  // Дефолт, если не задал для слайда: "Продолжить" или "Готово" на последнем
+  function defaultActions(){
+    const last = (idx === slides.length - 1);
+    return [ { label: last ? 'Готово' : 'Продолжить', type:'primary', do: last ? 'done' : 'next' } ];
+    // можно заменить на то, что тебе нужно по умолчанию
+  }
+
+  function apply(){
+    slides.forEach((s,i)=> s.classList.toggle('active', i===idx));
+    segs.forEach((d,i)=> d.classList.toggle('active', i<=idx));
+    renderActions();
+  }
+
+  // Открыть / закрыть
+  function openIntro(startIndex){
+    if (Number.isInteger(startIndex)) idx = Math.max(0, Math.min(startIndex, slides.length-1));
+    root.classList.add('is-open');
+    document.body.classList.add('intro-open');
+
+    try{
+      TG?.BackButton?.show?.();
+      backHandler = ()=> closeIntro();
+      TG?.BackButton?.onClick?.(backHandler);
+      TG?.disableVerticalSwipes?.();
+    }catch(_){}
+
+    apply();
+    window.syncBack?.();
+  }
+  function closeIntro(){
+    root.classList.remove('is-open');
+    document.body.classList.remove('intro-open');
+
+    try{ TG?.BackButton?.offClick?.(backHandler); backHandler=null; }catch(_){}
+    if (typeof window.syncBack === 'function') window.syncBack(); else try{ TG?.BackButton?.hide?.(); }catch(_){}
+  }
+
+  function next(){ if(idx<slides.length-1){ idx++; apply(); haptic(); } }
+  function prev(){ if(idx>0){ idx--; apply(); haptic(); } }
+
+  // Жесты перелистывания
+  slidesWrap.addEventListener('touchstart', e=>{ dragging=true; touchX0=touchX=e.touches[0].clientX; }, {passive:true});
+  slidesWrap.addEventListener('touchmove',  e=>{ if(!dragging) return; touchX=e.touches[0].clientX; }, {passive:true});
+  slidesWrap.addEventListener('touchend',   ()=>{ if(!dragging) return; dragging=false;
+    const dx = touchX - touchX0; if (Math.abs(dx)>50){ dx<0 ? next() : prev(); }
+  });
+
+  // Клики по кнопкам низа
+  actions.addEventListener('click', (e)=>{
+    const b = e.target.closest('[data-act]'); if(!b) return;
+    const act  = b.getAttribute('data-act');
+    const val  = b.getAttribute('data-val');
+    const to   = b.getAttribute('data-to');
+    const href = b.getAttribute('data-href');
+    const title= b.getAttribute('data-title');
+    const tpl  = b.getAttribute('data-tpl');
+    const from = b.getAttribute('data-from') || 'bottom';
+
+    switch(act){
+      case 'next': next(); break;
+      case 'prev': prev(); break;
+      case 'done': haptic('medium'); closeIntro(); break;
+      case 'answer':
+        try{ INTRO_CFG.onAnswer && INTRO_CFG.onAnswer(idx, val); }catch(_){}
+        next(); break;
+      case 'navigate':
+        closeIntro();
+        if (typeof window.navigateTo === 'function') window.navigateTo(to);
+        else if (to) location.hash = '#'+to;
+        break;
+      case 'link':
+        try{ TG?.openLink ? TG.openLink(href) : window.open(href, '_blank'); }catch(_){}
+        break;
+      case 'sheet':
+        closeIntro();
+        if (typeof window.openSheet === 'function'){
+          const tplNode = tpl ? document.querySelector(tpl) : null;
+          const html = tplNode ? tplNode.innerHTML : '<div class="card"><b>Нет шаблона</b></div>';
+          window.openSheet({ title, html, from });
+        }
+        break;
+    }
+  });
+
+  // Открывать по кнопке: data-open-intro или data-open-intro="2" (старт слайд 2)
+  document.addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-open-intro]');
+    if (!t) return;
+    e.preventDefault();
+    const start = parseInt(t.getAttribute('data-open-intro'), 10);
+    openIntro(Number.isFinite(start) ? start : undefined);
+  });
+
+  // Экспорт (если захочешь открыть из кода)
+  window.openIntro  = openIntro;
+  window.closeIntro = closeIntro;
+})();
+</script>
+
+
+<script>
+/* ===== Flappy-lite+ — coins, shield, custom sprites, BackButton ШМЕЛЬ ===== */
+(function flappyLitePlus(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+
+  // DOM
+  const root   = document.getElementById('flappy'); if (!root) return;
+  const stage  = document.getElementById('fl-stage');
+  const birdEl = document.getElementById('fl-bird');
+  const hintEl = document.getElementById('fl-hint');
+  const scoreEl= document.getElementById('fl-score');
+  const barEl  = document.getElementById('fl-bar');
+
+  const coinIco= document.getElementById('fl-coin-ico');
+  const coinCnt= document.getElementById('fl-coin-count');
+  const shIco  = document.getElementById('fl-shield-ico');
+  const shBar  = document.getElementById('fl-shield-bar');
+
+  const resBox = document.getElementById('fl-result');
+  const bestEl = document.getElementById('fl-best');
+  const worldEl= document.getElementById('fl-world');
+  const cta    = document.getElementById('fl-cta');
+
+  /* ===== ASSETS: поменяй пути/размеры под свои картинки ===== */
+  const ASSETS = {
+    bird:   { img: 'bumblebee.png',  w: 56, h: 42 },
+    pipes:  { top:'pipe_top.png', bottom:'pipe_bottom.png', width:54 },
+    coin:   { img:'coin.png',   w:32, h:32, value:5 },
+    shield: { img:'shield.png', w:34, h:34, dur_ms:6000 }
+  };
+
+  /* ===== TUNING ===== */
+  const WORLD_RECORD     = 200;
+  const GRAVITY          = 1800;
+  const FLAP_VELOCITY    = -520;
+  const SPEED_X          = 220;
+  const ACCEL_EACH_MS    = 8000;
+  const SPEED_STEP       = 28;
+  const PIPE_SPAWN_MS    = 1300;
+  const GAP_MIN          = 150;
+  const GAP_MAX          = 190;
+  const GAP_TOP_PAD      = 80;
+  const BIRD_X_FACTOR    = 0.25;
+  const ROT_UP           = -35, ROT_DOWN = 90;
+  const SAFE_FLOOR_PAD   = 6;
+
+  // items
+  const COIN_IN_GAP_PROB = 0.9;
+  const SHIELD_PROB      = 0.9;
+  const SHIELD_COOLDOWN  = 9000;
+
+  // магнит монет при щите
+  const MAGNET_ENABLED   = true;
+  const MAGNET_RADIUS    = 140;
+  const MAGNET_PULL_PX_S = 300;
+
+  // STATE
+  let best     = Number(localStorage.getItem('flappy_best')||0);
+  let running  = false, started=false;
+  let raf      = 0, spawnT = Infinity, t0 = 0, backOff=null; // PATCH: spawnT=Infinity, t0=0
+  let w=0,h=0, birdX=0, birdY=0, birdVY=0;
+
+  let pipes=[];   // {x, gapY, gap, topEl, botEl, passed:false}
+  let items=[];   // [{type:'coin'|'shield', x,y, el}]
+  let lastShieldSpawn = 0;
+
+  let score=0, coins=0;
+  let shieldActive=false, shieldUntil=0;
+
+  // ---- Global wallet (общий баланс мини-аппа) ----
+const WALLET_KEY = 'beer_coins';
+function getWallet(){ return +(localStorage.getItem(WALLET_KEY)||0); }
+function setWallet(v){ localStorage.setItem(WALLET_KEY, String(Math.max(0, v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
+// Унифицировано: если у тебя уже есть window.addCoins — используем его.
+function addWallet(n){ if (typeof window.addCoins==='function') return window.addCoins(n|0); setWallet(getWallet()+(n|0)); }
+const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в общий баланс (поменяй при желании)
+
+
+  // helpers
+  const haptic = lvl=>{ try{ TG?.HapticFeedback?.impactOccurred(lvl||'light'); }catch(_){} };
+  const clamp  = (v,a,b)=> Math.max(a, Math.min(b, v));
+  const rand   = (a,b)=> a + Math.random()*(b-a);
+
+  // apply assets → css vars & backgrounds
+  function applyAssets(){
+    document.documentElement.style.setProperty('--bird-w', (ASSETS.bird.w||48)+'px');
+    document.documentElement.style.setProperty('--bird-h', (ASSETS.bird.h||36)+'px');
+    if (ASSETS.bird.img){
+      birdEl.classList.add('fl-bird--sprite');
+      birdEl.style.backgroundImage = `url(${ASSETS.bird.img})`;
+    } else {
+      birdEl.classList.remove('fl-bird--sprite'); birdEl.style.backgroundImage = '';
+    }
+    document.documentElement.style.setProperty('--pipe-w', (ASSETS.pipes.width||76)+'px');
+    if (ASSETS.coin.img)   coinIco.style.backgroundImage = `url(${ASSETS.coin.img})`;
+    if (ASSETS.shield.img) shIco.style.backgroundImage = `url(${ASSETS.shield.img})`;
+    document.documentElement.style.setProperty('--coin-w', (ASSETS.coin.w||32)+'px');
+    document.documentElement.style.setProperty('--coin-h', (ASSETS.coin.h||32)+'px');
+    document.documentElement.style.setProperty('--pow-w',  (ASSETS.shield.w||34)+'px');
+    document.documentElement.style.setProperty('--pow-h',  (ASSETS.shield.h||34)+'px');
+  }
+
+  // layout
+  function layout(){
+    w = stage.clientWidth; h = stage.clientHeight;
+    birdX = w * BIRD_X_FACTOR;
+    if (!started){ birdY = h * 0.45; applyBird(); }
+  }
+  function applyBird(){ birdEl.style.left = birdX + 'px'; birdEl.style.top = birdY + 'px'; }
+  function setScore(v){ scoreEl.textContent = v; }
+  function setCoins(v){ coinCnt.textContent = v; }
+
+  // pipes
+  function spawnPipe(){
+    const gap = rand(GAP_MIN, GAP_MAX);
+    const minY = GAP_TOP_PAD + gap/2;
+    const maxY = h - GAP_TOP_PAD - gap/2;
+    const gapY = rand(minY, maxY);
+
+    const top = document.createElement('div');
+    const bot = document.createElement('div');
+    top.className = 'fl-pipe-part';
+    bot.className = 'fl-pipe-part';
+    if (ASSETS.pipes.top && ASSETS.pipes.bottom){
+      top.classList.add('fl-pipe--sprite'); bot.classList.add('fl-pipe--sprite');
+      top.style.backgroundImage = `url(${ASSETS.pipes.top})`;
+      bot.style.backgroundImage = `url(${ASSETS.pipes.bottom})`;
+    }
+    stage.appendChild(top); stage.appendChild(bot);
+
+    const p = { x: w + (ASSETS.pipes.width||76), gapY, gap, topEl: top, botEl: bot, passed:false };
+    pipes.push(p);
+    positionPipe(p);
+
+    // coin in gap?
+    if (Math.random() < COIN_IN_GAP_PROB){
+      const c = document.createElement('div');
+      c.className = 'fl-coin';
+      if (ASSETS.coin.img) c.style.backgroundImage = `url(${ASSETS.coin.img})`;
+      stage.appendChild(c);
+      items.push({ type:'coin', x: p.x + 200, y: gapY, el: c });
+      positionItem(items[items.length-1]);
+    }
+
+    // occasional shield (with cooldown)
+    if (Date.now() - lastShieldSpawn > SHIELD_COOLDOWN && Math.random() < SHIELD_PROB){
+      const s = document.createElement('div');
+      s.className = 'fl-power';
+      if (ASSETS.shield.img) s.style.backgroundImage = `url(${ASSETS.shield.img})`;
+      stage.appendChild(s);
+      items.push({ type:'shield', x: p.x + 300, y: gapY - gap*0.35, el: s });
+      positionItem(items[items.length-1]);
+      lastShieldSpawn = Date.now();
+    }
+  }
+
+  function positionPipe(p){
+    const pipeW = (ASSETS.pipes.width||76);
+    const th = p.gapY - p.gap/2;
+    const bt = p.gapY + p.gap/2;
+    p.topEl.style.left = p.x + 'px';
+    p.topEl.style.top  = '0px';
+    p.topEl.style.height = th + 'px';
+    p.topEl.style.width  = pipeW + 'px';
+    p.botEl.style.left = p.x + 'px';
+    p.botEl.style.top  = bt + 'px';
+    p.botEl.style.height = (h - bt) + 'px';
+    p.botEl.style.width  = pipeW + 'px';
+  }
+
+  function positionItem(it){ it.el.style.left = it.x + 'px'; it.el.style.top  = it.y + 'px'; }
+  function removePipe(p){ p.topEl.remove(); p.botEl.remove(); }
+  function removeItem(it){ it.el.remove(); }
+
+  // collisions
+  function rectsOverlap(a,b){ return !(a.right<b.left||a.left>b.right||a.bottom<b.top||a.top>b.bottom); }
+  function collidePipe(){
+    const br = birdEl.getBoundingClientRect();
+    for (const p of pipes){
+      if (rectsOverlap(br, p.topEl.getBoundingClientRect()) || rectsOverlap(br, p.botEl.getBoundingClientRect())) return true;
+    }
+    return false;
+  }
+  function collideItems(){
+    const br = birdEl.getBoundingClientRect();
+    const dead=[];
+    for (let i=0;i<items.length;i++){
+      const it = items[i];
+      const ir = it.el.getBoundingClientRect();
+      if (rectsOverlap(br, ir)){
+        if (it.type==='coin'){
+          coins += 1; setCoins(coins);
+          score += (ASSETS.coin.value||5); setScore(score);
+          haptic('medium');
+        } else if (it.type==='shield'){
+          activateShield();
+          haptic('medium');
+        }
+        removeItem(it); dead.push(i);
+      }
+    }
+    for (let i=dead.length-1;i>=0;i--) items.splice(dead[i],1);
+  }
+
+  // shield
+  function activateShield(){
+    shieldActive = true;
+    shieldUntil  = Date.now() + (ASSETS.shield.dur_ms||6000);
+    birdEl.classList.add('fl-bird--shield');
+  }
+  function updateShieldHud(){
+    if (!shieldActive){ shBar.style.transform = 'scaleX(0)'; return; }
+    const left = shieldUntil - Date.now();
+    if (left <= 0){
+      shieldActive = false; birdEl.classList.remove('fl-bird--shield');
+      shBar.style.transform = 'scaleX(0)';
+    } else {
+      const pct = clamp(left / (ASSETS.shield.dur_ms||6000), 0, 1);
+      shBar.style.transform = `scaleX(${pct})`;
+    }
+  }
+
+  // control
+  function flap(){
+    if (!running) return;
+    if (!started){
+      // PATCH: первый тап — реальный старт
+      started = true;
+      hintEl.style.display = 'none';
+      birdVY = FLAP_VELOCITY;
+      t0 = performance.now();        // старт таймеров
+      spawnT = t0;                   // разрешаем спавн
+      tick._prev = t0;               // сброс дельты
+    } else {
+      birdVY = FLAP_VELOCITY;
+    }
+    haptic('light');
+  }
+
+  // loop
+  function tick(){
+    const now = performance.now();
+    const dt  = Math.min(32, now - (tick._prev||now)); tick._prev = now;
+
+    // PATCH: до старта — ничего не двигаем/не спавним/бар не бежит
+    if (!started){
+      birdY += Math.sin(now/300) * 0.12;  // лёгкое покачивание
+      applyBird();
+      updateShieldHud();
+      raf = requestAnimationFrame(tick);
+      return;
+    }
+
+    // progress bar — только после старта
+    const elapsed = now - t0;
+    const prog = Math.min(1, elapsed / 45000);
+    barEl.style.transform = `scaleX(${1-prog})`;
+
+    // speed
+    const speed = SPEED_X + Math.floor(elapsed / ACCEL_EACH_MS) * SPEED_STEP;
+
+    // bird physics
+    birdVY += GRAVITY * (dt/1000);
+    birdY  += birdVY * (dt/1000);
+    const ang = clamp((birdVY/600)*45, ROT_UP, ROT_DOWN);
+    birdEl.style.transform = `translate(-50%,-50%) rotate(${ang}deg)`;
+
+    const topLimit = 6;
+    const botLimit = h - SAFE_FLOOR_PAD;
+    if (birdY <= topLimit){ birdY = topLimit; birdVY = 0; }
+    if (birdY >= botLimit){ birdY = botLimit; if (!shieldActive){ crash(); return; } else { birdVY = -200; } }
+
+    // move pipes/items (+ magnet)
+    const dx = speed * dt/1000;
+    for (const p of pipes){ p.x -= dx; positionPipe(p); }
+    for (const it of items){
+      it.x -= dx;
+      if (MAGNET_ENABLED && shieldActive && it.type === 'coin'){
+        const vx=birdX-it.x, vy=birdY-it.y, dist=Math.hypot(vx,vy);
+        if (dist < MAGNET_RADIUS){
+          const pull = MAGNET_PULL_PX_S * (dt/1000);
+          const step = Math.min(pull, dist||0);
+          const nx = vx/(dist||1), ny = vy/(dist||1);
+          it.x += nx*step; it.y += ny*step;
+          it.el.style.transform = 'translate(-50%,-50%) scale(1.08)';
+        } else it.el.style.transform = 'translate(-50%,-50%)';
+      } else it.el.style.transform = 'translate(-50%,-50%)';
+      positionItem(it);
+    }
+
+    // passed score
+    for (const p of pipes){
+      if (!p.passed && p.x + (ASSETS.pipes.width||76) < birdX){
+        p.passed = true; score += 1; setScore(score); haptic('light');
+      }
+    }
+
+    // remove off-screen
+    while (pipes.length && pipes[0].x < -(ASSETS.pipes.width||76)-2){ removePipe(pipes[0]); pipes.shift(); }
+    while (items.length && items[0].x < -80){ removeItem(items[0]); items.shift(); }
+
+    // collisions
+    collideItems();
+    if (collidePipe()){
+      if (shieldActive){
+        shieldActive = false; birdEl.classList.remove('fl-bird--shield'); shBar.style.transform = 'scaleX(0)';
+        birdVY = -260;
+      } else { crash(); return; }
+    }
+
+    // spawn pipes — только после старта (тут мы уже после return’а)
+    if (now - spawnT > PIPE_SPAWN_MS){ spawnT = now; spawnPipe(); }
+
+    // HUD
+    applyBird();
+    updateShieldHud();
+
+    raf = requestAnimationFrame(tick);
+  }
+
+  function crash(){ haptic('heavy'); finish(); }
+  function finish(){
+    running=false; cancelAnimationFrame(raf);
+    if (score > best){ best=score; try{ localStorage.setItem('flappy_best', String(best)); }catch(_){ } }
+
+    // submit в турнир (как у тебя)
+    try { window.Tournament?.submit(score); } catch(_) {}
+
+    addWallet(Math.floor(coins * COIN_TO_WALLET)); // зачисляем все собранные за раунд
+
+
+    document.getElementById('fl-best').textContent = best;
+    document.getElementById('fl-world').textContent = WORLD_RECORD;
+    resBox.classList.add('show'); cta.classList.add('show');
+  }
+
+  function resetScene(){
+    // clear
+    pipes.forEach(removePipe); pipes = [];
+    items.forEach(removeItem); items = [];
+    coins=0; setCoins(0);
+    shieldActive=false; birdEl.classList.remove('fl-bird--shield'); shBar.style.transform = 'scaleX(0)';
+
+    // bird / hud
+    started=false; score=0; setScore(0);
+    hintEl.style.display = '';
+    birdVY = 0; birdEl.style.transform = 'translate(-50%,-50%) rotate(0deg)';
+    barEl.style.transform = 'scaleX(1)';      // PATCH: бар полный на старте
+    layout();
+
+    // PATCH: до первого тапа ничего не спавним
+    spawnT = Infinity;
+    tick._prev = performance.now();
+  }
+
+  function openFlappy(){
+    root.classList.add('is-open'); document.body.classList.add('flappy-open');
+    try{
+      TG?.BackButton?.show?.(); backOff = ()=> closeFlappy();
+      TG?.BackButton?.onClick?.(backOff);
+      TG?.disableVerticalSwipes?.(); TG?.expand?.();
+    }catch(_){}
+
+    resBox.classList.remove('show'); cta.classList.remove('show');
+
+    applyAssets();
+    layout(); resetScene();
+
+    running = true;
+    // PATCH: НЕ стартуем таймер тут; ждём первый тап
+    raf = requestAnimationFrame(tick);
+  }
+
+  function closeFlappy(){
+    running=false; cancelAnimationFrame(raf);
+    root.classList.remove('is-open'); document.body.classList.remove('flappy-open');
+    try{ TG?.BackButton?.offClick?.(backOff); TG?.BackButton?.hide?.(); }catch(_){}
+  }
+
+  // controls
+  stage.addEventListener('pointerdown', (e)=>{ e.preventDefault(); flap(); }, {passive:false});
+  document.addEventListener('keydown', (e)=>{
+    if (!root.classList.contains('is-open')) return;
+    if (e.code==='Space' || e.key==='ArrowUp'){ e.preventDefault(); flap(); }
+    if (e.key==='Escape'){ closeFlappy(); }
+  });
+
+  // CTA
+  cta.addEventListener('click', (e)=>{
+    if (!e.target.closest('.btn')) return;
+    closeFlappy(); openFlappy();
+  });
+
+  // openers
+  document.addEventListener('click', (e)=>{
+    const t = e.target.closest('[data-open-flappy]'); if (!t) return;
+    e.preventDefault(); openFlappy();
+  });
+  document.addEventListener('click', (e)=>{
+    if (e.target.closest('[data-close-flappy]')) closeFlappy();
+  });
+
+  // resize
+  new ResizeObserver(()=> layout()).observe(stage);
+})();
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<script>
+(function () {
+  const wheel = document.getElementById('bonusWheel');
+  const track = document.getElementById('wheelTrack');
+  if (!wheel || !track) return;
+
+  const items = Array.from(track.children);
+  const N = items.length;
+
+  const pill  = document.getElementById('pickedPill');
+  const claim = document.getElementById('claimBtn');
+  const spin  = document.getElementById('spinBtn');
+
+  /* Название -> ссылка (поменяй под себя) */
+  const bonusLinks = {
+    "Кружка": "#tpl-lastpriz",
+    "Футболка": "#tpl-lastpriz",
+    "Фисташки": "#tpl-lastpriz",
+    "Скидка": "#tpl-lastpriz",
+    "Дегустация": "#tpl-lastpriz",
+    "Монеты": "#tpl-lastpriz"
+  };
+
+  /* ================== общие утилиты ================== */
+  let STEP = 114; // уточняем по факту после рендера
+  requestAnimationFrame(() => {
+    const a = items[0]?.getBoundingClientRect();
+    const b = items[1]?.getBoundingClientRect();
+    if (a && b) {
+      const dx = Math.round(b.left - a.left);
+      if (dx > 40 && dx < 300) STEP = dx;
+    }
+  });
+
+  let curr = 0; // «плавающее» положение
+  let startX = 0, startCurr = 0, dragging = false, lastX = 0, lastT = 0, vel = 0;
+  let interacted = false; // станет true после первого выбора
+  let spinning = false;   // блок повторного старта
+
+  const mod = (a, n) => ((a % n) + n) % n;
+  const easeOut = t => 1 - Math.pow(1 - t, 3);
+  function nearest(curr, idx, n) {
+    let t = idx;
+    while (t - curr > n / 2) t -= n;
+    while (curr - t > n / 2) t += n;
+    return t;
+  }
+
+  /* ===== Хаптики (Telegram + фоллбек) ===== */
+  const TG = window.Telegram && window.Telegram.WebApp;
+  function hapticPulse(level = 'light') {
+    try {
+      if (TG?.HapticFeedback) {
+        if (level === 'selection') return TG.HapticFeedback.selectionChanged();
+        TG.HapticFeedback.impactOccurred(level); // 'soft' | 'light' | 'medium' | 'heavy' | 'rigid'
+        return;
+      }
+    } catch (_) {}
+    try { if (navigator.vibrate) { navigator.vibrate(level === 'heavy' ? 30 : level === 'medium' ? 20 : 12); } } catch (_) {}
+  }
+
+  /* ====== Кулдаун «Забрать бонус» + таймер ====== */
+  const COOLDOWN_MS = 0.1 * 60 * 60 * 1000; // 24 часа
+  const UID = (TG?.initDataUnsafe?.user?.id) || 'anon';
+  const CLAIM_KEY = 'bonusClaim_ts_' + UID;
+
+  function getLastClaim() { return +(localStorage.getItem(CLAIM_KEY) || 0); }
+  function setLastClaim(ts = Date.now()) { localStorage.setItem(CLAIM_KEY, String(ts)); }
+  function remainingMs() { return Math.max(0, getLastClaim() + COOLDOWN_MS - Date.now()); }
+  function fmtClock(ms) {
+    const s = Math.floor(ms / 1000);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0') + ':' + String(ss).padStart(2, '0');
+  }
+
+  let claimTimerId = null;
+  function refreshClaimState() {
+    if (!claim) return;
+
+    const rem = remainingMs();
+    const canClaim = interacted && rem <= 0;
+
+    if (canClaim) {
+      claim.disabled = false;
+      claim.textContent = 'Забрать бонус';
+      if (claimTimerId) { clearInterval(claimTimerId); claimTimerId = null; }
+    } else {
+      claim.disabled = true;
+      if (interacted && rem > 0) {
+        claim.textContent = 'Доступно через ' + fmtClock(rem);
+        if (!claimTimerId) {
+          claimTimerId = setInterval(() => {
+            const r = remainingMs();
+            if (r > 0) claim.textContent = 'Доступно через ' + fmtClock(r);
+            else {
+              clearInterval(claimTimerId); claimTimerId = null;
+              claim.textContent = 'Забрать бонус';
+              claim.disabled = !interacted;
+            }
+          }, 1000);
+        }
+      } else {
+        claim.textContent = 'Забрать бонус';
+        if (claimTimerId) { clearInterval(claimTimerId); claimTimerId = null; }
+      }
+    }
+  }
+
+  /* ================== UI ================== */
+  function updatePillByIndex(idx) {
+    const it = items[idx];
+    const name = it?.dataset?.name || '—';
+    const img = it?.querySelector('img')?.src || '';
+    if (!pill) return;
+    pill.classList.remove('muted');
+    pill.innerHTML = img ? `<img src="${img}" alt=""><span>${name}</span>` : name;
+    if (claim) {
+      claim.disabled = false;
+      claim.dataset.bonus = name;
+    }
+  }
+
+  function updateUI() {
+    // позиционирование как «кольцо»
+    items.forEach((el, i) => {
+      let dx = i - curr;
+      dx = mod(dx + N / 2, N) - N / 2; // (-N/2; N/2]
+      const x = dx * STEP;
+      const s = 1 - Math.min(Math.abs(dx) * 0.16, 0.48);
+      el.style.transform = `translate(-50%,-50%) translateX(${x}px) scale(${s})`;
+      el.style.zIndex = String(1000 - Math.abs(dx) * 10);
+      el.classList.toggle('active', Math.round(Math.abs(dx)) === 0);
+    });
+
+    if (interacted) {
+      updatePillByIndex(mod(Math.round(curr), N));
+    } else {
+      if (pill) { pill.classList.add('muted'); pill.textContent = 'Нажми «Крутануть»'; }
+      if (claim) { claim.disabled = true; delete claim.dataset.bonus; }
+    }
+
+    // важное: синхронизация состояния кнопки с кулдауном и монетами
+    refreshClaimState();
+    syncCoinsUI();
+  }
+
+  /* ====== Вращение со слабой вибрацией ====== */
+  function spinTo(targetIdx, laps = 1, dur = 1600) {
+    const base = nearest(curr, targetIdx, N);
+    const dir = (base >= curr ? 1 : -1) || 1;
+    const to = base + dir * (laps * N);
+
+    const from = curr, t0 = performance.now();
+    let lastPulse = 0;
+
+    function tick(t) {
+      const k = Math.min((t - t0) / dur, 1);
+      curr = from + (to - from) * (1 - Math.pow(1 - k, 3)); // easeOut
+      updateUI();
+
+      // лёгкие пульсы во время вращения (в начале чаще)
+      const period = 80 + 180 * k; // 80ms → 260ms
+      if (t - lastPulse >= period) { hapticPulse('light'); lastPulse = t; }
+
+      if (k < 1) {
+        requestAnimationFrame(tick);
+      } else {
+        curr = to;
+        interacted = true;
+        updateUI();
+      }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function snapTo(targetIdx, dur = 420) {
+    const to = nearest(curr, targetIdx, N);
+    const from = curr;
+    const t0 = performance.now();
+    function tick(t) {
+      const k = Math.min((t - t0) / dur, 1);
+      curr = from + (to - from) * easeOut(k);
+      updateUI();
+      if (k < 1) requestAnimationFrame(tick);
+      else { curr = to; interacted = true; updateUI(); }
+    }
+    requestAnimationFrame(tick);
+  }
+
+  /* ================== Кошелёк монет БОНУСЫ РЕГУЛИРОВКА МОНЕТ  ================== */
+  const COIN_KEY = 'beer_coins';
+  const SPIN_COST = 1;
+
+  function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
+  function setCoins(v){
+    v = Math.max(0, v|0);
+    localStorage.setItem(COIN_KEY, String(v));
+    syncCoinsUI();
+  }
+  function addCoins(n){ setCoins(getCoins() + (n|0)); }
+
+  function syncCoinsUI(){
+    ['coins-inline','coins-inline-2','coins-profile'].forEach(id=>{
+      const el = document.getElementById(id);
+      if (el) el.textContent = getCoins();
+    });
+    if (spin){
+      const lock = (getCoins() < SPIN_COST) || spinning;
+      spin.classList.toggle('is-locked', lock);
+      // Не делаем spin.disabled — чтобы клик показывал тост
+    }
+  }
+
+  // (опционально) стартовый баланс для теста:
+  if (getCoins() === 0) addCoins(300);
+
+  /* ================== Toasts (всплывашки) ================== */
+  function ensureToastStyles(){
+    if (document.getElementById('toast-styles')) return;
+    const css = `
+.toasts{
+  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
+}
+.toast{
+  pointer-events:auto; display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-radius:14px; color:#fff;
+  background:rgba(18,20,24,.96); border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  transform:translateX(120%); opacity:0; animation:toast-in .25s ease forwards;
+}
+.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
+.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
+.toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
+@keyframes toast-in { to { transform:translateX(0); opacity:1; } }
+@keyframes toast-out{ to { transform:translateX(120%); opacity:0; } }
+
+/* визуально «блок»: */
+#spinBtn.is-locked{ opacity:.6; }
+#spinBtn.is-locked:active{ transform:none; }
+
+/* простые конфетти */
+#confetti { position: fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:10000; }
+.confetti-piece{ position: fixed; left: var(--x); top: var(--y); width:8px; height:8px; border-radius:2px; transform: translate(-50%,-50%); animation: confetti-fall .95s ease-out forwards; }
+@keyframes confetti-fall { to { transform: translate(calc(var(--dx)), calc(var(--dy))) rotate(260deg); opacity:0; } }
+`;
+    const style = document.createElement('style');
+    style.id = 'toast-styles';
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  function showToast(msg, type='error', ms=3000){
+    ensureToastStyles();
+    const host = document.getElementById('toasts') || (()=>{
+      const d=document.createElement('div'); d.id='toasts'; d.className='toasts';
+      document.body.appendChild(d); return d;
+    })();
+    const el = document.createElement('div');
+    el.className = 'toast' + (type==='ok' ? ' toast--ok' : ' toast--error');
+    el.innerHTML = `<span>${msg}</span><button class="toast__close" aria-label="Закрыть">✕</button>`;
+    host.appendChild(el);
+    const close = ()=>{ el.style.animation='toast-out .22s ease forwards'; setTimeout(()=> el.remove(), 240); };
+    el.querySelector('.toast__close').addEventListener('click', close);
+    setTimeout(close, ms);
+  }
+
+  /* ================== события ================== */
+  // клик по карточке — центрируем её
+  /*
+  track.addEventListener('click', (e) => {
+    const b = e.target.closest('.bonus'); if (!b) return;
+    const idx = items.indexOf(b);
+    if (idx >= 0) snapTo(idx, 320);
+  });
+
+  // свайп / drag
+  track.addEventListener('pointerdown', (e) => {
+    dragging = true; wheel.classList.add('dragging');
+    startX = lastX = e.clientX; lastT = e.timeStamp; startCurr = curr;
+    track.setPointerCapture(e.pointerId);
+  });
+  track.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startX;
+    curr = startCurr - dx / STEP;               // бесконечная карусель
+    const dt = e.timeStamp - lastT;
+    if (dt > 0) { vel = (e.clientX - lastX) / dt; lastX = e.clientX; lastT = e.timeStamp; }
+    updateUI();
+  }, { passive: true });
+  function endDrag() {
+    if (!dragging) return;
+    dragging = false; wheel.classList.remove('dragging');
+    interacted = true;
+    snapTo(mod(Math.round(curr - vel * 6), N), 480);
+  }
+  track.addEventListener('pointerup', endDrag);
+  track.addEventListener('pointercancel', endDrag);
+  */
+
+  /* ===== Крутануть с оплатой монет + тост при нехватке ===== */
+  spin?.addEventListener('click', () => {
+    if (spinning) return;
+
+    if (getCoins() < SPIN_COST) {
+      hapticPulse('medium');
+      showToast(`Недостаточно монет. Нужно ${SPIN_COST} 🪙`, 'error', 3000);
+      return;
+    }
+
+    // списываем монеты перед стартом
+    setCoins(getCoins() - SPIN_COST);
+    hapticPulse('light');
+
+    // запускаем вращение
+    spinning = true;
+    const idx = Math.floor(Math.random() * N);
+    spinTo(idx, 1, 1600);
+
+    // конфетти из кнопки
+    const r = spin.getBoundingClientRect();
+    confettiBurst(r.left + r.width / 2, r.top + r.height / 2);
+
+    // разблокируем по окончании анимации
+    setTimeout(() => {
+      spinning = false;
+      syncCoinsUI();
+    }, 1650);
+  });
+
+  /* ===== «Забрать бонус» — учёт кулдауна + запись в профиль + переход ===== */
+claim?.addEventListener('click', () => {
+  if (claim.disabled) return;
+
+  const idx  = mod(Math.round(curr), N);
+  const name = items[idx]?.dataset?.name || '';
+
+  // фиксируем клик и обновляем кулдаун
+  setLastClaim();
+  refreshClaimState();
+
+  // пишем в профиль: +очки и лог приза
+  try {
+    window.Profile?.incPoints?.(100);
+    window.Profile?.setPrize?.(name);
+  } catch (_) {}
+
+  // Открываем шторку с последними призами
+  window.openLastPrizesSheet();
+});
+
+
+  /* ================== конфетти (DOM) ================== */
+  function confettiBurst(x, y) {
+    ensureToastStyles(); // тут также лежит CSS для конфетти
+    let layer = document.getElementById('confetti');
+    if (!layer) { layer = document.createElement('div'); layer.id = 'confetti'; document.body.appendChild(layer); }
+    const colors = ['#7b5bff', '#3de0c5', '#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
+    const rect = document.body.getBoundingClientRect();
+    const ox = (x ?? rect.width / 2), oy = (y ?? rect.height / 3);
+    for (let i = 0; i < 36; i++) {
+      const el = document.createElement('div');
+      el.className = 'confetti-piece';
+      el.style.background = colors[i % colors.length];
+      const angle = (i / 36) * Math.PI * 2;
+      const speed = 140 + Math.random() * 120;
+      const dx = Math.cos(angle) * speed, dy = Math.sin(angle) * speed + 220;
+      el.style.setProperty('--x', ox + 'px');
+      el.style.setProperty('--y', oy + 'px');
+      el.style.setProperty('--dx', dx + 'px');
+      el.style.setProperty('--dy', dy + 'px');
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 950);
+    }
+  }
+
+  /* старт */
+  updateUI();          // отрисовать колесо + плашку
+  refreshClaimState(); // сразу проверить кулдаун на кнопке
+  syncCoinsUI();       // и с монетами
+})();
+</script>
+
+
+  
+<script>
+(function(){
+  'use strict';
+
+  // ===== Параметры =====
+  const QUESTIONS = [
+    { q:'Какой стиль обычно самый хмельной и ароматный цитрусом?', opts:['IPA','Lager','Weizen','Stout'], ok:0 },
+    { q:'У какого стиля выраженные кофейно-шоколадные ноты?',     opts:['Sour','Stout','Pilsner','Cider'], ok:1 },
+    { q:'Пшеничный немецкий стиль с бананом/гвоздикой — это…',    opts:['Weizen','Porter','APA','Saison'], ok:0 },
+    { q:'Кислотность — фишка стиля…',                             opts:['Sour','Bock','Amber','Doppelbock'], ok:0 },
+  ];
+  const REWARD = 100;                    // монет за прохождение
+  const COOLDOWN_MS = 0.1*60*60*1000;     // 24 часа
+
+  // ===== Telegram / хаптики =====
+  const TG = window.Telegram && window.Telegram.WebApp;
+  function haptic(level){ try{ TG?.HapticFeedback?.impactOccurred(level||'light'); }catch(_){ navigator.vibrate?.(10); } }
+
+  // ===== Баланс / лента призов (используем твои, иначе фоллбек) =====
+  const COIN_KEY = 'beer_coins';
+  function getCoins(){ return +(localStorage.getItem(COIN_KEY)||0); }
+  function setCoins(v){ localStorage.setItem(COIN_KEY, String(Math.max(0,v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
+  function addCoins(n){ if (typeof window.addCoins==='function') return window.addCoins(n); setCoins(getCoins()+(n|0)); }
+  function logPrize(txt){ try{ window.logReward?.({source:'trivia', prize:txt}); }catch(_){ } }
+
+  // ===== Кулдаун =====
+  const UID = TG?.initDataUnsafe?.user?.id || 'anon';
+  const QUIZ_ID = 'beer_trivia_v1';
+  const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
+  const now = ()=>Date.now();
+  const getLast=()=>+(localStorage.getItem(LAST_KEY)||0);
+  const setLast=(ts=now())=> localStorage.setItem(LAST_KEY, String(ts));
+  const remain=()=> Math.max(0, getLast()+COOLDOWN_MS - now());
+  const fmt=(ms)=>{ const s=Math.floor(ms/1000),h=String(Math.floor(s/3600)).padStart(2,'0'),m=String(Math.floor((s%3600)/60)).padStart(2,'0'),ss=String(s%60).padStart(2,'0'); return `${h}:${m}:${ss}`; };
+
+  // ===== Состояние =====
+  const S = { i:0, canNext:false, timer:null };
+
+  // ===== Утилиты DOM =====
+  const elBody  = ()=> document.getElementById('trivia-body');
+  const elStart = ()=> document.getElementById('trivia-start');
+  const elHint  = ()=> document.getElementById('trivia-start-hint');
+
+  const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
+
+
+  // ===== Рендеры =====
+  function renderStartRow(){
+    const start = elStart(), hint = elHint();
+    if (!start) return;
+
+    const left = remain();
+    start.classList.remove('is-hidden');
+
+    if (left>0){
+      const btn = start.querySelector('[data-action="trivia-start"]');
+      if (btn){ btn.disabled = true; }
+      if (hint){ hint.style.display='inline'; hint.textContent = 'Доступно через ' + fmt(left); }
+      // тикающий таймер
+      clearInterval(S.timer);
+      S.timer = setInterval(()=>{
+        const r = remain();
+        if (r>0){ if (hint) hint.textContent = 'Доступно через ' + fmt(r); }
+        else{
+          clearInterval(S.timer); S.timer=null;
+          if (btn) btn.disabled = false;
+          if (hint) hint.style.display='none';
+        }
+      }, 1000);
+    }else{
+      // доступно: кнопка активна, подсказку прячем
+      const btn = start.querySelector('[data-action="trivia-start"]');
+      if (btn) btn.disabled = false;
+      if (hint) hint.style.display='none';
+      clearInterval(S.timer); S.timer=null;
+    }
+  }
+
+  function renderQuestion(){
+    const box = elBody(); if (!box) return;
+    const q = QUESTIONS[S.i];
+    const total = QUESTIONS.length;
+    S.canNext = false;
+
+    box.innerHTML =
+      `<div class="trivia-q">
+         <div class="trivia-title">Вопрос ${S.i+1} из ${total}: ${q.q}</div>
+         <div class="trivia-opts">
+           ${q.opts.map((t,idx)=>`
+             <label class="trivia-opt" data-idx="${idx}">
+               <input type="radio" name="ans" value="${idx}">
+               <span>${t}</span>
+             </label>`).join('')}
+         </div>
+         <div class="trivia-cta">
+           <button class="btn btn-primary trivia-next is-hidden" data-action="trivia-next" disabled>Далее</button>
+         </div>
+       </div>`;
+  }
+
+  function renderFinish(){
+    const box = elBody(); if (!box) return;
+    box.innerHTML =
+      `<div class="trivia-q">
+         <div class="trivia-title"></div>
+         <p>Поздравляем! На счёт зачислено <b>${REWARD} монет</b>.</p>
+       </div>`;
+  }
+
+  // ===== Флоу =====
+  function startQuiz(){
+    rootCard()?.classList.add('is-running'); // спрятать заголовок
+
+    // скрыть стартовую плашку
+    elStart()?.classList.add('is-hidden');
+    // стопнуть таймер, если был
+    clearInterval(S.timer); S.timer=null;
+    // начать
+    S.i=0; S.canNext=false; renderQuestion();
+  }
+
+  function finishQuiz(){
+    addCoins(REWARD);
+    logPrize(`+${REWARD}🪙 за викторину`);
+    setLast(); haptic('light');
+
+    renderFinish();
+
+    // через 1.4с показываем стартовую плашку с кулдауном
+    setTimeout(renderStartRow, 1400);
+    rootCard()?.classList.remove('is-running'); // вернуть заголовок
+
+  }
+
+  // ===== Делегаты событий =====
+  document.addEventListener('click', (e)=>{
+    const body = elBody();
+    // старт
+    if (e.target.closest?.('[data-action="trivia-start"]')){
+      e.preventDefault();
+      if (remain()>0) return; // защита
+      startQuiz();
+      return;
+    }
+    if (!body) return;
+
+    // выбор варианта
+    const opt = e.target.closest?.('.trivia-opt');
+    if (opt && body.contains(opt)){
+      const pick = +opt.dataset.idx;
+      const ok   = QUESTIONS[S.i].ok;
+
+      body.querySelectorAll('.trivia-opt').forEach(el=> el.classList.remove('wrong','correct'));
+
+      const nextBtn = body.querySelector('.trivia-next');
+      if (pick===ok){
+        opt.classList.add('correct');
+        body.querySelectorAll('.trivia-opt').forEach(el=> el.style.pointerEvents='none');
+        if (nextBtn){ nextBtn.classList.remove('is-hidden'); nextBtn.disabled=false; }
+        S.canNext=true; haptic('light');
+      }else{
+        opt.classList.add('wrong');
+        if (nextBtn){ nextBtn.classList.add('is-hidden'); nextBtn.disabled=true; }
+        S.canNext=false; haptic('medium');
+      }
+      return;
+    }
+
+    // далее (только после верного ответа)
+    if (e.target.closest?.('[data-action="trivia-next"]')){
+      e.preventDefault();
+      if (!S.canNext) return;
+      if (S.i < QUESTIONS.length-1){ S.i++; renderQuestion(); }
+      else { finishQuiz(); }
+    }
+  });
+
+  // ===== Монтаж при появлении в шторке =====
+  function mountIfReady(){
+    const body = elBody(), start = elStart();
+    if (body && start){
+      // при каждом открытии шторки показываем стартовую плашку/таймер
+      renderStartRow();
+      body.innerHTML = ''; // на старте — только плашка
+      return true;
+    }
+    return false;
+  }
+
+  // 1) сразу, если уже вставлено
+  if (!mountIfReady()){
+    // 2) следим за DOM (шторка подставит темплейт позже)
+    const mo = new MutationObserver(()=>{ if (mountIfReady()) mo.disconnect(); });
+    mo.observe(document.body, {childList:true, subtree:true});
+  }
+
+  // экспорт, если хочешь дёргать при openSheet()
+  window.mountTrivia = function(){ renderStartRow(); elBody().innerHTML=''; };
+
+})();
+</script>
+
+<!-- Логика профиля -->
+<script>
+(function(){
+  'use strict';
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+
+  // Ключи локального хранилища (совместимы с твоими модулями)
+  const WALLET_KEY   = 'beer_coins';
+  const PRIZES_KEY   = 'bonus_log_v1';          // [{name, ts}]
+  const PASSPORT_KEY = 'beer_passport_v1';      // {stamps:[]}
+  const FLAPPY_BEST  = 'flappy_best';
+  const LB_DAILY_KEY = ()=>'lb_flappy_' + new Date().toISOString().slice(0,10);
+  const LB_ALL_KEY   ='lb_flappy_all';
+  const REFS_KEY     ='beer_refs_v1';
+
+  // Утилиты
+  const getJSON = (k,def)=>{ try{ return JSON.parse(localStorage.getItem(k) || ''); }catch(_){ return def; } };
+  const setJSON = (k,v)=> localStorage.setItem(k, JSON.stringify(v));
+  const fmtDate = ts => new Date(ts).toLocaleDateString();
+  const esc = s => String(s).replace(/[&<>"']/g, m=>({ "&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[m]));
+
+  // --- Рендер шапки
+  function renderHead(){
+    const u = TG?.initDataUnsafe?.user || {};
+    const name = [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Гость';
+    const uname = u.username ? '@'+u.username : '';
+    const photo = u.photo_url || '';
+
+    document.getElementById('pf-title').textContent = name;
+    document.getElementById('pf-username').textContent = uname;
+    const ava = document.getElementById('pf-ava');
+    if (photo){ ava.src = photo; ava.alt = name; } else { ava.removeAttribute('src'); ava.alt=''; }
+  }
+
+  // --- Монеты
+  function renderCoins(){
+    document.getElementById('pf-coins').textContent = +(localStorage.getItem(WALLET_KEY)||0);
+  }
+
+  // --- Последние призы
+  function renderPrizes(){
+    const wrap = document.getElementById('pf-prizes');
+    const log = getJSON(PRIZES_KEY, []) || [];
+    if (!log.length){ wrap.innerHTML = '<div class="pf-muted">Пока пусто.</div>'; return; }
+    wrap.innerHTML = log.slice(0,6).map(x =>
+      `<div class="pf-item"><i class="pf-dot"></i><div>🎁 ${esc(x.name)}</div><div class="pf-muted">📅 ${fmtDate(x.ts)}</div></div>`
+    ).join('');
+  }
+
+  // --- Игра «Шмель»
+  function renderFlappy(){
+    const best = +(localStorage.getItem(FLAPPY_BEST)||0);
+    document.getElementById('pf-flappy-best').textContent = best;
+
+    const me = String(TG?.initDataUnsafe?.user?.id || 'anon');
+    const daily = getJSON(LB_DAILY_KEY(), []) || [];
+    const all   = getJSON(LB_ALL_KEY,    []) || [];
+
+    const ixToday = daily.findIndex(r=> String(r.uid) === me);
+    const ixAll   = all.findIndex  (r=> String(r.uid) === me);
+
+    document.getElementById('pf-flappy-rank').textContent = ixToday>=0 ? (ixToday+1) : '—';
+    document.getElementById('pf-today-rank').textContent  = ixToday>=0 ? (ixToday+1) : '—';
+    document.getElementById('pf-all-rank').textContent    = ixAll>=0   ? (ixAll+1)   : '—';
+  }
+
+
+  // --- Рефералы
+  function renderRefs(){
+    const list = getJSON(REFS_KEY, []) || [];
+    document.getElementById('pf-refs-count').textContent = list.length;
+    const box = document.getElementById('pf-refs-list');
+    if (!list.length){ box.innerHTML = '<div class="pf-muted">Пока нет приглашённых.</div>'; return; }
+    box.innerHTML = list.slice(-5).reverse().map(r =>
+      `<div class="pf-item"><i class="pf-dot"></i><div>${esc(r.name||('ID '+r.uid))}</div><div class="pf-muted">· ${fmtDate(r.ts)}</div></div>`
+    ).join('');
+  }
+
+  // --- Пригласить друга
+  function bindInvite(){
+    const btn = document.getElementById('pf-invite'); if (!btn) return;
+    btn.onclick = ()=>{
+      try{
+        const uid = TG?.initDataUnsafe?.user?.id || '';
+        const startParam = `ref_${uid||Math.random().toString(36).slice(2,7)}`;
+        const bot = (window.APP&&APP.BOT) || (window.APP_CONFIG&&APP_CONFIG.BOT) || 'your_bot';
+        TG?.openTelegramLink?.(`https://t.me/${bot}/app?startapp=${startParam}`);
+      }catch(_){}
+    };
+  }
+
+  // Публичный API (можно дергать из колеса/игр)
+  window.Profile = {
+    incPoints(n){ // +монеты
+      const cur = +(localStorage.getItem(WALLET_KEY)||0);
+      localStorage.setItem(WALLET_KEY, String(Math.max(0, cur + (n|0))));
+      renderCoins(); try{ window.syncCoinsUI?.(); }catch(_){}
+    },
+    setPrize(name){ // лог приза
+      const log = getJSON(PRIZES_KEY, [])||[];
+      log.unshift({name, ts: Date.now()});
+      setJSON(PRIZES_KEY, log.slice(0,30));
+      renderPrizes();
+    },
+    addReferral(user){ // реферал
+      const list = getJSON(REFS_KEY, [])||[];
+      const uid  = user?.id || ('u'+Math.random().toString(36).slice(2,7));
+      if (!list.find(x=>x.uid===uid)){
+        list.push({uid, name: [user?.first_name,user?.last_name].filter(Boolean).join(' ') || ('User '+uid), ts:Date.now()});
+        setJSON(REFS_KEY, list);
+      }
+      renderRefs();
+    },
+    refresh(){ renderHead(); renderCoins(); renderPrizes(); renderFlappy(); renderPassport(); renderRefs(); }
+  };
+
+  // Экспорт синка монет для других модулей
+  window.syncCoinsUI = renderCoins;
+
+  // Автоинициализация при загрузке страницы
+  function initProfilePage(){
+    renderHead(); renderCoins(); renderPrizes(); renderFlappy(); renderPassport(); renderRefs(); bindInvite();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initProfilePage);
+  else initProfilePage();
+})();
+</script>
+
+<script>
+  // Открыть шторку «Последние призы» и подлить содержимое из профиля
+  window.openLastPrizesSheet = function(){
+    const tpl  = document.getElementById('tpl-lastpriz');
+    const html = tpl ? tpl.innerHTML : '<div class="card"><div class="h1">Последние призы</div><div id="pf-prizes-sheet"></div></div>';
+
+    window.openSheet({ title: 'Последние призы', html, from: 'bottom' });
+
+    // Бережно копируем готовый список призов из профиля
+    const src = document.getElementById('pf-prizes');
+    const dst = document.getElementById('pf-prizes-sheet');
+    if (src && dst) dst.innerHTML = src.innerHTML;
+  };
+</script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const ALLOW = 'input, textarea, select, [contenteditable], .selectable, .allow-select';
+
+  // Блокируем начало выделения за пределами разрешённых мест
+  document.addEventListener('selectstart', (e) => {
+    if (e.target.closest(ALLOW)) return;
+    e.preventDefault();
+  }, { passive:false });
+
+  // Рубим системное меню по долгому тапу (iOS/Android)
+  document.addEventListener('contextmenu', (e) => {
+    if (e.target.closest(ALLOW)) return;
+    e.preventDefault();
+  }, { passive:false });
+
+  // Если что-то всё же выделилось — снимаем выделение
+  document.addEventListener('selectionchange', () => {
+    const activeOk = document.activeElement && document.activeElement.matches(ALLOW);
+    if (!activeOk) {
+      const sel = window.getSelection && window.getSelection();
+      if (sel && sel.rangeCount) sel.removeAllRanges();
+    }
+  });
+});
+</script>
+
+
+
+
+
+
+<!-- === LATE PATCH: server-backed coins/bonuses/game logging (fresh_state aware) === -->
+<script>
+(function(){
+  function toast(msg){ try{ window.showToast?.(msg); }catch(_){ console.log('[toast]', msg); } }
+  function safeNum(x){ const n = Number(x); return Number.isFinite(n) ? n : 0; }
+
+  async function call(type, data){
+    try{ return await (window.api ? window.api(type, data||{}) : Promise.resolve({ok:false, error:'no_api'})); }
+    catch(e){ return { ok:false, error:String(e) }; }
+  }
+
+  // Coins
+  const COIN_KEY='beer_coins';
+  function setLocalCoins(v){
+    localStorage.setItem(COIN_KEY, String(Math.max(0, v|0)));
+    try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
+    const pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(v|0);
+  }
+  window.addCoins = async function(delta, src){
+    delta = safeNum(delta)||0;
+    const res = await call('coins.ledger', { delta, src: src || 'ui' });
+    if (res && res.ok && typeof res.balance === 'number'){ setLocalCoins(res.balance); }
+    else toast('Не удалось обновить баланс');
+    return res;
+  };
+
+  // Wheel claim
+  document.addEventListener('click', async (e)=>{
+    const btn = e.target.closest('#claimBtn');
+    if (!btn) return;
+    const prize = btn.dataset && btn.dataset.bonus || '—';
+    await call('bonus.claim', { prize_name: prize, src:'wheel' });
+  });
+
+
+
+  // Quiz finish (custom event)
+  document.addEventListener('trivia:finish', async (e)=>{
+    const d = e.detail || {};
+    await call('quiz.result', { quiz_id: d.quiz_id || 'beer_trivia_v1', correct: d.correct|0, total: d.total|0, reward_coins: d.reward_coins|0 });
+    if (d.reward_coins) await window.addCoins(d.reward_coins, 'quiz');
+  });
+
+  // Game submit
+  window.Tournament = window.Tournament || {};
+  const _submit = window.Tournament.submit;
+  window.Tournament.submit = async function(score){
+    try{ if (typeof _submit === 'function') _submit(score); }catch(_){}
+    await call('game.submit', { game_id:'flappy_bee', score: score|0, mode:'daily' });
+  };
+})();
+</script>
+
+  <script>
+// PATCH: click on stamp card -> collect (case-insensitive code)
+document.addEventListener('click', async function(e){
+  var card = e.target.closest('#passport-grid .pslot');
+  if (!card) return;
+  var code = String(card.getAttribute('data-code')||'').trim();
+  if (!code) return;
+  try {
+    await (window.api ? window.api('style.collect', { style_id: code.toLowerCase(), status:'collected' }) : Promise.resolve());
+  } catch(_) {}
+}, { passive:true });
+</script>
+
+
+
+
+
+
+
+<!-- === CLEAN FRONT CORE (server-driven) === -->
+<script>
+(function(){
+  const API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG?.ready(); TG?.expand(); TG?.disableVerticalSwipes?.(); }catch(_){}
+
+  const $ = (sel)=>document.querySelector(sel);
+
+  // --- Utils
+  function setText(selList, v){
+    (Array.isArray(selList)?selList:[selList]).forEach(sel=>{
+      const el = document.querySelector(sel);
+      if (el) el.textContent = (v==null? "" : String(v));
+    });
+  }
+  function jsonPost(url, body){
+    return fetch(url, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body||{})
+    }).then(r=>r.json().catch(()=>({ok:false})));
+  }
+  function seal(name, fn){
+    try { Object.defineProperty(window, name, { value: fn, writable:false, configurable:false }); }
+    catch(_) { window[name] = fn; }
+  }
+
+  // --- Final API
+  async function api(type, data){
+    const payload = { type, data:(data||{}), tg_init: TG?.initData || "" };
+    const res = await jsonPost(API_BASE + "/api/mini/event", payload);
+    if (res && res.fresh_state) applyServerState(res.fresh_state);
+    return res;
+  }
+  seal("api", api);
+
+  // public helpers used elsewhere
+  seal("submitGameScore", async (score, gameId="flappy_bee", mode="daily")=>api("game.submit",{ score:Number(score||0), game_id:String(gameId), mode:String(mode) }));
+  seal("claimPrize", async (name, value)=>api("bonus.claim",{ prize_name:String(name||""), prize_value:Number(value||0) }));
+  seal("addStamp", async (styleId)=>api("style.collect",{ style_id:String(styleId||""), status:"collected" }));
+
+  // --- Style id normalizer
+  const MAP_RU = {
+    "лагер":"lager","лаґер":"lager","лягер":"lager",
+    "стаут":"stout",
+    "вайцен":"weizen","вeйцен":"weizen","вeйцeн":"weizen",
+    "витбир":"wit","вітбир":"wit","витбирь":"wit","wit":"wit",
+    "портер":"porter",
+    "пилснер":"pils","пилс":"pils","пильзнер":"pils",
+    "сауэр":"sour","зауэр":"sour",
+    "сидр":"cider",
+    "ipa":"ipa","ипа":"ipa"
+  };
+  function slugify(txt){
+    if (!txt) return "";
+    txt = String(txt).trim().toLowerCase();
+    if (MAP_RU[txt]) return MAP_RU[txt];
+    // fallback: latin slug
+    return txt.normalize('NFKD').replace(/[^\w]+/g,'').replace(/_/g,'') || txt;
+  }
+  function styleIdFromCard(card){
+    if (!card) return "";
+    const ds = card.dataset || {};
+    if (ds.code) return String(ds.code).trim().toLowerCase();
+    if (ds.styleId) return String(ds.styleId).trim().toLowerCase();
+    // try common title elements
+    const titleEl = card.querySelector(".pslot__title, .pslot-title, .pslot__label, .pslot-label, .title, .name");
+    const txt = titleEl ? titleEl.textContent : card.textContent;
+    return slugify(txt);
+  }
+
+  // --- Passport click handler (once)
+  function bindPassportClicks(){
+  const grid = document.querySelector('#passport-grid');
+  if (!grid || grid.__psInit) return;
+  grid.__psInit = true;
+  grid.addEventListener('click', (e)=>{
+    const card = e.target.closest('.pslot');
+    if (!card) return;
+    const code = styleIdFromCard(card);
+    if (!code) return;
+    e.preventDefault();
+    try { collectStyle(code); } catch(_){}
+  }, {passive:false});
+});
+        if (!(res && res.ok)) card.classList.remove("is-pending");
+      }catch(_){ card.classList.remove("is-pending"); }
+    });
+  }
+
+  // --- Leaderboard render (server only)
+  function renderLeaderboard(lb){
+    const box = document.querySelector("#lb-list") || document.querySelector("#leaderboard .lb-list");
+    if (!box) return;
+    const rows = Array.isArray(lb) ? lb : [];
+    if (!rows.length){
+      box.innerHTML = '<div class="muted-sm">Пока нет результатов</div>';
+      setText(["#lb-you-score",".js-lb-me-best","[data-bind='lb-me-best']"], 0);
+      return;
+    }
+    box.innerHTML = rows.slice(0,10).map((r,i)=>{
+      const best = (r.best_score!=null? r.best_score : r.score)||0;
+      const uname = r.username ? "@"+r.username : (r.tg_id||"user");
+      return `<div class="lb-row">
+        <div class="lb-rank">${i+1}</div>
+        <div class="lb-name">${uname}</div>
+        <div class="lb-score">${best}</div>
+      </div>`;
+    }).join("");
+  }
+
+  // --- Profile & passport from server
+  function paintProfile(state){
+  state = state || (window.SWR && SWR.get()) || state;
+
+    const coins = Number(state?.coins||0);
+    setText(["#pf-coins",".js-coins","[data-bind='coins']"], coins);
+    try{ localStorage.setItem("beer_coins", String(coins)); }catch(_){}
+
+    const total = Number(state?.styles_total || 6);
+    const styles = Array.isArray(state?.styles) ? state.styles : [];
+    setText(["#pf-pass-count","#pf-stamps-count",".js-stamps-count","[data-bind='stamps-count']"], `${styles.length}/${total}`);
+
+    const lastLabel = state?.last_stamp_name || state?.last_stamp_id || "—";
+    setText(["#pf-pass-list","#pf-last-stamp","#prof-last-stamp",".js-last-stamp","[data-bind='last-stamp']"], lastLabel);
+    // change caption to "Последний штамп" near pf-pass-list if found
+    const el = document.getElementById("pf-pass-list");
+    if (el && el.parentElement){
+      const lbl = el.parentElement.querySelector(".metric__lbl, .label");
+      if (lbl) lbl.textContent = "Последний штамп";
+    }
+
+    // mark collected in grid
+    try{
+      const owned = new Set(styles.map(s=>String(s).toLowerCase()));
+      document.querySelectorAll("#passport-grid .pslot").forEach(card=>{
+        const code = styleIdFromCard(card);
+        const got = code && owned.has(code);
+        card.classList.toggle("is-done", !!got);
+        const badge = card.querySelector(".pslot__badge, .pslot-badge, [data-role='pslot-badge']");
+        if (badge) badge.textContent = got ? "Получен" : "Получить";
+      });
+    }catch(_){}
+  }
+
+  // --- Final apply
+  function applyServerState(state){
+    if (!state || state.ok===false) return;
+    window.__state = state;
+    // config: spin cost
+    if (state.config && typeof state.config.SPIN_COST === "number"){
+      setText(["#spin-cost",".js-spin-cost","[data-bind='spin-cost']"], state.config.SPIN_COST);
+    }
+    paintProfile(state);
+    window.MiniState = state;
+    try {
+      const _st = Array.isArray(state.styles) ? state.styles : (Array.isArray(state.styles_user) ? state.styles_user : []);
+      localStorage.setItem('beer_passport', JSON.stringify({styles:_st, ts: Date.now()}));
+    } catch(_) {}
+try { paintBadgesFromState(state); } catch(_) {}
+    try { renderLeaderboard(); } catch(_) {};
+    // legacy logs
+    try{
+      const claims = Array.isArray(state.last_prizes)?state.last_prizes:[];
+      const log = claims.map(x=>({ts: Date.parse(x.ts||new Date())||Date.now(), source:"bonus", prize: x.prize_name||"Приз"}));
+      localStorage.setItem("beer_rewards", JSON.stringify(log.slice(0,30)));
+    }catch(_){}
+    bindPassportClicks();
+  }
+  try { Object.defineProperty(window, "applyServerState", { value: applyServerState, writable:false, configurable:false }); }
+  catch(_) { window.applyServerState = applyServerState; }
+
+  // --- Initial bootstrap & state
+  (async function init(){
+    try{
+      const start_param = TG?.initDataUnsafe?.start_param || "";
+      await jsonPost(API_BASE + "/api/mini/bootstrap", { tg_init: TG?.initData || "", data:{ start_param } });
+    }catch(_){}
+    try{
+      const st = await jsonPost(API_BASE + "/api/mini/state", { tg_init: TG?.initData || "" });
+      if (st && st.ok) applyServerState(st);
+    }catch(_){}
+  })();
+
+  // manual refresh buttons (optional)
+  document.addEventListener("click", async (e)=>{
+    if (e.target.matches("#lb-refresh, [data-action='lb-refresh']")){
+      const st = await jsonPost(API_BASE + "/api/mini/state", { tg_init: TG?.initData || "" });
+      if (st && st.ok) applyServerState(st);
+    }
+  });
+})();
+
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || "https://твой-воркер.workers.dev";
+  let KV_VER = 0;            // защита от старых ответов
+  let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
+
+  function updateLbSeg(){
+    try{
+      document.querySelectorAll('.lb-seg [data-lb-tab]').forEach(btn=>{
+        const on = (btn.getAttribute('data-lb-tab') === CURRENT_LB);
+        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      });
+    }catch(_) {}
+  }
+
+
+  // 1) Полностью вырубаем локальный "кэш" лидерборда/скорингов
+  (function killLocalLB(){
+    const DROP = ['leaderboard','lb_','score','best']; // подстроки ключей, которые блокируем
+    const ls = window.localStorage;
+    const g = ls.getItem.bind(ls), s = ls.setItem.bind(ls), r = ls.removeItem.bind(ls);
+    const hit = k => k && DROP.some(x => k.toLowerCase().includes(x));
+    ls.getItem  = k => hit(k) ? null : g(k);
+    ls.setItem  = (k,v) => hit(k) ? void 0 : s(k,v);
+    ls.removeItem = k => r(k);
+  })();
+
+  // 2) Запросы к воркеру
+  async function jpost(path, body){
+  return (async ()=>{
+    try{
+      const res = await fetch((API_BASE||'') + path, {
+        method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store',
+        body: JSON.stringify(body||{})
+      });
+      const ct = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+      if (ct && ct.indexOf('application/json')>=0){
+        try { return await res.json(); } catch(_) { return {ok: res.ok}; }
+      }
+      return {ok: res.ok};
+    }catch(_){ return {ok:false, error:'net'}; }
+  })();
+},
+      cache:'no-store',
+      body: JSON.stringify(body||{})
+    });
+    try { return await res.json(); } catch { return {ok:false}; }
+  }
+
+  // 3) Применяем state только если он свежее
+  const prevApply = window.applyServerState;
+  function applyIfNew(state){
+    if (!state || state.ok === false) return false;
+    const v = Number(state.kv_ver || 0);
+    if (v && KV_VER && v <= KV_VER) return false;
+    KV_VER = v || Date.now();
+    window.MiniState = state;
+    try { prevApply && prevApply(state); } catch {}
+    updateLbSeg(); renderLeaderboard();
+    return true;
+  }
+
+  // 4) Единый рендер лидерборда — только из state.* c воркера
+  function renderLeaderboard(){
+    updateLbSeg();
+    const st = window.MiniState || {};
+    const list = document.querySelector('#lb-list');        // список
+    const you  = document.querySelector('#lb-you');         // блок "YOU best score" (если есть)
+    const arr  = CURRENT_LB === 'all'
+      ? (st.leaderboard_alltime || [])
+      : (st.leaderboard_today   || []);
+
+    // список
+    if (list){
+      list.innerHTML = (arr || []).map((r,i) => {
+        const rank = i+1;
+        const name = r.username ? '@'+r.username : (r.tg_id || '—');
+        const score = (r.score|0);
+        const badge = (i<3) ? ` lb-medal-${rank}` : '';
+        return `
+          <div class="lb-row${badge}">
+            <div class="lb-rank">${rank}</div>
+            <div class="lb-avatar">${(r.username||'U')[0].toUpperCase()}</div>
+            <div class="lb-name">${name}</div>
+            <div class="lb-score">${score}</div>
+          </div>`;
+      }).join('');
+      if (!arr.length) list.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
+    }
+
+    // YOU (берём из того же массива, НЕ из памяти)
+    if (you){
+      const me = (arr || []).find(x => String(x.tg_id||'') === String(st.tg_id||''));
+      you.innerHTML = me
+        ? `<div class="you-row"><div class="you-tag">YOU</div><div class="you-name">${me.username?('@'+me.username):'—'}</div><div class="you-score">${me.score|0}</div></div>`
+        : '';
+    }
+  }
+
+  // 5) Двухфазный старт: быстро из KV → потом свежак из таблицы (fresh:1)
+  async function boot(){
+    const tg_init = TG?.initData || '';
+    const start_param = TG?.initDataUnsafe?.start_param || '';
+    try { const b = await jpost('/api/mini/bootstrap', { tg_init, data:{ start_param } }); applyIfNew(b.fresh_state?b.fresh_state:b); } catch {}
+    try { const s = await jpost('/api/mini/state', { tg_init, fresh:1 }); applyIfNew(s); } catch {}
+  }
+  (function wait(t0){ t0=t0||Date.now(); if (TG?.initData?.length){ boot(); return; } if (Date.now()-t0>2500){ boot(); return; } setTimeout(()=>wait(t0), 40); })();
+
+  // 6) Кнопки: вкладки и «Обновить» — всегда тянут fresh:1
+  document.addEventListener('click', async (e)=>{
+    const tab = e.target.closest('[data-lb-tab]');
+    if (tab){
+      CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
+      updateLbSeg(); renderLeaderboard();
+      return;
+    }
+    if (e.target.closest('[data-action="lb-refresh"]')){
+      const tg_init = TG?.initData || '';
+      const s = await jpost('/api/mini/state', { tg_init, fresh:1 });
+      applyIfNew(s);
+    }
+  });
+})();
+</script>
+
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
+  let KV_VER = 0;            // защита от старых ответов
+  let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
+
+  // 1) Полностью вырубаем локальный "кэш" лидерборда/скорингов
+  (function killLocalLB(){
+    const DROP = ['leaderboard','lb_','score','best']; // подстроки ключей, которые блокируем
+    const ls = window.localStorage;
+    const g = ls.getItem.bind(ls), s = ls.setItem.bind(ls), r = ls.removeItem.bind(ls);
+    const hit = k => k && DROP.some(x => k.toLowerCase().includes(x));
+    ls.getItem  = k => hit(k) ? null : g(k);
+    ls.setItem  = (k,v) => hit(k) ? void 0 : s(k,v);
+    ls.removeItem = k => r(k);
+  })();
+
+  // 2) Запросы к воркеру
+  async function jpost(path, body){
+    const res = await fetch(API_BASE + path, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+      cache:'no-store',
+      body: JSON.stringify(body||{})
+    });
+    try { return await res.json(); } catch { return {ok:false}; }
+  }
+
+  // 3) Применяем state только если он свежее
+  const prevApply = window.applyServerState;
+  function applyIfNew(state){
+    if (!state || state.ok === false) return false;
+    const v = Number(state.kv_ver || 0);
+    if (v && KV_VER && v <= KV_VER) return false;
+    KV_VER = v || Date.now();
+    window.MiniState = state;
+    try { prevApply && prevApply(state); } catch {}
+    updateLbSeg(); renderLeaderboard();
+    return true;
+  }
+
+  // 4) Единый рендер лидерборда — только из state.* c воркера
+  function renderLeaderboard(){
+    updateLbSeg();
+    const st = window.MiniState || {};
+    const list = document.querySelector('#lb-list');        // список
+    const you  = document.querySelector('#lb-you');         // блок "YOU best score" (если есть)
+    const arr  = CURRENT_LB === 'all'
+      ? (st.leaderboard_alltime || [])
+      : (st.leaderboard_today   || []);
+
+    // список
+    if (list){
+      list.innerHTML = (arr || []).map((r,i) => {
+        const rank = i+1;
+        const name = r.username ? '@'+r.username : (r.tg_id || '—');
+        const score = (r.score|0);
+        const badge = (i<3) ? ` lb-medal-${rank}` : '';
+        return `
+          <div class="lb-row${badge}">
+            <div class="lb-rank">${rank}</div>
+            <div class="lb-avatar">${(r.username||'U')[0].toUpperCase()}</div>
+            <div class="lb-name">${name}</div>
+            <div class="lb-score">${score}</div>
+          </div>`;
+      }).join('');
+      if (!arr.length) list.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
+    }
+
+    // YOU (берём из того же массива, НЕ из памяти)
+    if (you){
+      const me = (arr || []).find(x => String(x.tg_id||'') === String(st.tg_id||''));
+      you.innerHTML = me
+        ? `<div class="you-row"><div class="you-tag">YOU</div><div class="you-name">${me.username?('@'+me.username):'—'}</div><div class="you-score">${me.score|0}</div></div>`
+        : '';
+    }
+  }
+
+  // 5) Двухфазный старт: быстро из KV → потом свежак из таблицы (fresh:1)
+  async function boot(){
+    const tg_init = TG?.initData || '';
+    const start_param = TG?.initDataUnsafe?.start_param || '';
+    try { const b = await jpost('/api/mini/bootstrap', { tg_init, data:{ start_param } }); applyIfNew(b.fresh_state?b.fresh_state:b); } catch {}
+    try { const s = await jpost('/api/mini/state', { tg_init, fresh:1 }); applyIfNew(s); } catch {}
+  }
+  (function wait(t0){ t0=t0||Date.now(); if (TG?.initData?.length){ boot(); return; } if (Date.now()-t0>2500){ boot(); return; } setTimeout(()=>wait(t0), 40); })();
+
+  // 6) Кнопки: вкладки и «Обновить» — всегда тянут fresh:1
+  document.addEventListener('click', async (e)=>{
+    const tab = e.target.closest('[data-lb-tab]');
+    if (tab){
+      CURRENT_LB = tab.getAttribute('data-lb-tab') || 'today';
+      updateLbSeg(); renderLeaderboard();
+      return;
+    }
+    if (e.target.closest('[data-action="lb-refresh"]')){
+      const tg_init = TG?.initData || '';
+      const s = await jpost('/api/mini/state', { tg_init, fresh:1 });
+      applyIfNew(s);
+    }
+  });
+})();
+</script>
+
+
+<!-- ===== Hotfix: PIN confirm + reliable badges + LB today/all ===== -->
+<script>
+(function(){
+  // --- config
+  const API_BASE = window.API_BASE || (window.__API_BASE || "");
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  const PIN_CODE = (window.DEMO_PIN || '1111');
+
+  // --- state gates
+  let KV_VER = 0;
+  let CURRENT_LB = (window.CURRENT_LB || 'today');
+  let pinOkSession = false; // PIN спрашиваем один раз за сессию
+
+  // --- small helpers
+  function jpost(path, body){
+    return fetch((API_BASE||'') + path, {
+      method:'POST',
+      headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+      cache:'no-store',
+      body: JSON.stringify(body||{})
+    }).then(r=>r.json()).catch(()=>({ok:false, error:'net'}));
+  }
+  function getTgInit(){
+    try { return TG && TG.initData ? TG.initData : ''; } catch(_){ return ''; }
+  }
+  function showOk(msg){
+    try { if (TG && TG.showPopup) TG.showPopup({message: msg||'ОК'}); else console.log(msg||'ОК'); } catch(_){}
+  
+  // --- cache helpers for passport (support both v1 and legacy map)
+  function getCachedStyles(){
+    try{
+      const v1 = JSON.parse(localStorage.getItem('beer_passport_v1')||'null');
+      if (v1 && Array.isArray(v1.stamps)) return v1.stamps.map(s=>String(s).toLowerCase());
+    }catch(_){}
+    try{
+      const legacy = JSON.parse(localStorage.getItem('beer_passport')||'null');
+      if (legacy){
+        if (Array.isArray(legacy)) return legacy.map(s=>String(s).toLowerCase());
+        if (typeof legacy==='object'){
+          return Object.keys(legacy).filter(k=>legacy[k]).map(s=>String(s).toLowerCase());
+        }
+      }
+    }catch(_){}
+    return [];
+  }
+  function cacheStyles(arr){
+    arr = Array.from(new Set((arr||[]).map(x=>String(x).toLowerCase())));
+    try{ localStorage.setItem('beer_passport_v1', JSON.stringify({stamps: arr})); }catch(_){}
+    try{
+      const map = {}; arr.forEach(s=>map[s]=1);
+      localStorage.setItem('beer_passport', JSON.stringify(map));
+    }catch(_){}
+    return arr;
+  }
+  function cacheAdd(code){
+    code = String(code||'').toLowerCase().trim();
+    if (!code) return;
+    const arr = getCachedStyles();
+    if (!arr.includes(code)) arr.push(code);
+    cacheStyles(arr);
+  }
+}
+  function ensureLbButtons(){
+    document.querySelectorAll('.lb-seg button, .lb-seg [role="button"], .js-lb-mode').forEach(btn=>{
+      const t = (btn.textContent||'').trim().toLowerCase();
+      if (!btn.hasAttribute('data-lb-tab')){
+        if (btn.classList.contains('js-lb-mode')){
+          const m=(btn.dataset.mode||'').toLowerCase();
+          btn.setAttribute('data-lb-tab', m==='all'?'all':'today');
+        }else{
+          if (t==='день'||t==='day') btn.setAttribute('data-lb-tab','today');
+          if (t==='все'||t==='all')  btn.setAttribute('data-lb-tab','all');
+        }
+      }
+      btn.setAttribute('role','button'); btn.setAttribute('tabindex','0'); btn.style.pointerEvents='auto';
+    });
+  }
+  function updateLbSeg(){
+    document.querySelectorAll('[data-lb-tab]').forEach(b=>{
+      const on = (b.getAttribute('data-lb-tab')===CURRENT_LB);
+      b.setAttribute('aria-pressed', on?'true':'false');
+    });
+  }
+
+  // --- reliable leaderboard renderer (override any previous)
+  window.renderLeaderboard = function(){
+    const st = window.MiniState || {};
+    const listEl = document.getElementById('lb-list');
+    if (!listEl) return;
+    const arr = (CURRENT_LB==='all') ? (st.leaderboard_alltime||[]) : (st.leaderboard_today||[]);
+    if (!Array.isArray(arr) || arr.length===0){
+      listEl.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
+    }else{
+      listEl.innerHTML = arr.map(function(r,i){
+        const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
+        const name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
+        const ava   = (r.username||'U').slice(0,1).toUpperCase();
+        return '<div class="lb-row'+medal+'">'+
+          '<div class="lb-rank">'+(i+1)+'</div>'+
+          '<div class="lb-avatar">'+ava+'</div>'+
+          '<div class="lb-name">'+name+'</div>'+
+          '<div class="lb-score">'+(r.score|0)+'</div>'+
+        '</div>';
+      }).join('');
+    }
+    updateLbSeg();
+  };
+
+  // --- badges painter for passport + sheet (strictly from server state)
+  function paintBadgesFromState(st){
+  st = st || (window.SWR && SWR.get()) || st;
+
+    try{
+      const styles = Array.isArray(st.styles) ? st.styles
+                    : (Array.isArray(st.styles_user) ? st.styles_user : []);
+      const owned = new Set((styles||[]).map(x=>String(x).toLowerCase()));
+      // main passport grid
+      document.querySelectorAll('#passport-grid .pslot').forEach(card=>{
+        const code = String(card.getAttribute('data-code')||'').trim().toLowerCase();
+        const ok = !!(code && owned.has(code));
+        card.classList.toggle('is-done', ok);
+        const b = card.querySelector('.pslot__badge, .pslot-badge, [data-role="pslot-badge"]');
+        if (b) b.textContent = ok ? 'Получен' : 'Получить';
+      });
+      // sheet tiles
+      document.querySelectorAll('#sheet .pslot[data-style-id], #sheet .pslot[data-code]').forEach(card=>{
+        const code = String(card.getAttribute('data-style-id')||card.getAttribute('data-code')||'').trim().toLowerCase();
+        const ok = !!(code && owned.has(code));
+        card.classList.toggle('is-done', ok);
+        const b = card.querySelector('.pslot__badge, .pslot-badge, [data-role="pslot-badge"]');
+        if (b) b.textContent = ok ? 'Получен' : 'Получить';
+      });
+    }catch(_){}
+  }
+
+  // --- gate server state and repaint
+  (function(){
+    const prev = window.applyServerState;
+    window.applyServerState = function(state){
+      if (!state || state.ok===false) return;
+      const v = Number(state.kv_ver||0);
+      if (v && KV_VER && v <= KV_VER) return;
+      KV_VER = v || Date.now();
+      window.MiniState = state;
+      try{ prev && prev(state); }catch(_){}
+      paintBadgesFromState(state);
+      window.renderLeaderboard();
+    };
+  })();
+
+  // --- unified collectStyle with single PIN step and clear confirm
+  
+async function collectStyle(styleId){
+  if (!pinOkSession){
+    const pin = prompt('PIN сотрудника (демо: 1111)');
+    if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+    pinOkSession = true; showOk('PIN ОК');
+  }
+  const tg_init = getTgInit();
+  const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
+  if (r && r.ok && r.fresh_state){
+    window.applyServerState(r.fresh_state); // сервер всё подсветит и сохранит
+  }else{
+    // оффлайн/ошибка сети — не даём UX развалиться: подсветим из локального кэша
+    cacheAdd(String(styleId));
+    try{ paintBadgesFromState({styles: getCachedStyles()}); }catch(_){}
+    if (r && r.error) console.warn('collectStyle offline fallback:', r.error);
+    showOk('Штамп отмечен локально');
+  }
+}
+
+  // --- clicks: passport tiles and sheet tiles -> collectStyle
+  document.addEventListener('click', function(e){
+    const tile = e.target.closest('#passport-grid .pslot, #sheet .pslot[data-style-id], #sheet .pslot[data-code]');
+    if (!tile) return;
+    const sid = tile.getAttribute('data-style-id') || tile.getAttribute('data-code') || '';
+    if (!sid) return;
+    e.preventDefault();
+    collectStyle(sid);
+  }, {passive:false});
+
+  // --- LB tab clicks (both new [data-lb-tab] and old .js-lb-mode)
+  document.addEventListener('click', async function(e){
+    const tab = e.target.closest('[data-lb-tab], .js-lb-mode');
+    if (!tab) return;
+    const modeAttr = tab.getAttribute('data-lb-tab') || (tab.dataset && tab.dataset.mode) || 'today';
+    CURRENT_LB = (String(modeAttr).toLowerCase()==='all') ? 'all' : 'today';
+    updateLbSeg();
+    window.renderLeaderboard();
+    if (CURRENT_LB==='all'){
+      const s = await jpost('/api/mini/state', { tg_init: getTgInit(), fresh: 1 });
+      if (s && s.ok) window.applyServerState(s);
+    }
+  }, {passive:true});
+
+  // --- init
+  ensureLbButtons();
+  updateLbSeg();
+  window.renderLeaderboard();
+  if (window.MiniState) paintBadgesFromState(window.MiniState);
+})();
+</script>
+<script>
+(function(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const API_BASE = window.API_BASE || window.__API_BASE || "";
+  const PIN_CODE = (window.DEMO_PIN || '1111');
+  let KV_VER = 0, CURRENT_LB = 'today', pinOkSession = false;
+
+  function jpost(path, body){
+    return fetch((API_BASE||'')+path, {
+      method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+      cache:'no-store', body: JSON.stringify(body||{})
+    }).then(r=>r.json()).catch(()=>({ok:false, error:'net'}));
+  }
+  function getTgInit(){ try{ return TG?.initData || ''; }catch(_){ return ''; } }
+  function saveSWR(state){
+    try{
+      const KEY = (window.SWR && SWR.KEY) || 'beer_state_v2';
+      const cur = (window.SWR && SWR.get && SWR.get()) || {};
+      const merged = Object.assign({}, cur, state); merged._ver = Number(state.kv_ver || Date.now());
+      localStorage.setItem(KEY, JSON.stringify(merged));
+    }catch(_){}
+  }
+
+  function computeMyRanks(st){
+    const uid = String(TG?.initDataUnsafe?.user?.id || '');
+    const uname = String(TG?.initDataUnsafe?.user?.username || '');
+    const today = Array.isArray(st.leaderboard_today)?st.leaderboard_today:[];
+    const all   = Array.isArray(st.leaderboard_alltime)?st.leaderboard_alltime:[];
+    const isMe = r => String(r.tg_id||r.uid||'')===uid || (uname && r.username===uname);
+
+    const ixToday = today.findIndex(isMe);
+    const ixAll   = all.findIndex(isMe);
+    const bestAll = Math.max(0, ...all.filter(isMe).map(r=>r.score|0));
+
+    return {
+      rankToday: ixToday>=0 ? ixToday+1 : '—',
+      rankAll:   ixAll>=0   ? ixAll+1   : '—',
+      best:      (st.my_best_score|0) || bestAll || 0
+    };
+  }
+
+  function paintBadgesMaybe(st){
+    const styles = Array.isArray(st.styles) ? st.styles
+                 : (Array.isArray(st.styles_user) ? st.styles_user : []);
+    if (typeof window.paintBadgesFromState==='function'){
+      window.paintBadgesFromState({styles});
+    }else{
+      // минималка
+      const owned = new Set((styles||[]).map(x=>String(x).toLowerCase()));
+      document.querySelectorAll('#passport-grid .pslot, #sheet .pslot[data-style-id], #sheet .pslot[data-code]').forEach(card=>{
+        const code = (card.getAttribute('data-style-id')||card.getAttribute('data-code')||'').trim().toLowerCase();
+        const ok = code && owned.has(code);
+        card.classList.toggle('is-done', !!ok);
+        const b = card.querySelector('.pslot__badge, .pslot-badge, [data-role="pslot-badge"]');
+        if (b) b.textContent = ok ? 'Получен' : 'Получить';
+      });
+    }
+  }
+
+  function paintProfileFromState(st){
+    // coins
+    if (typeof st.coins === 'number'){
+      const pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(st.coins|0);
+      try{ localStorage.setItem('beer_coins', String(st.coins|0)); window.syncCoinsUI?.(); }catch(_){}
+    }
+    // stamps count + last
+    const total  = Number(st.styles_total || 6);
+    const styles = Array.isArray(st.styles) ? st.styles
+                : (Array.isArray(st.styles_user) ? st.styles_user : []);
+    const cntEl  = document.getElementById('pf-pass-count'); if (cntEl) cntEl.textContent = `${styles.length}/${total}`;
+    const lastEl = document.getElementById('pf-last-stamp');
+    if (lastEl) lastEl.textContent = st.last_stamp_name || st.last_stamp_id || '—';
+
+    // referrals
+    const refs = Number(st.ref_total || st.ref_count || st.refs || 0);
+    const rc = document.getElementById('pf-refs-count'); if (rc) rc.textContent = String(refs);
+
+    // ranks + best (Шмель)
+    const r = computeMyRanks(st);
+    const tEl = document.getElementById('pf-today-rank'); if (tEl) tEl.textContent = r.rankToday;
+    const aEl = document.getElementById('pf-all-rank');   if (aEl) aEl.textContent = r.rankAll;
+    const bEl = document.getElementById('pf-flappy-best');if (bEl) bEl.textContent = r.best;
+
+    paintBadgesMaybe(st);
+    // перерисовать таблицу
+    if (typeof window.renderLeaderboard==='function') window.renderLeaderboard();
+  }
+
+  // --- Финальный приём состояния от воркера
+  const prevApply = window.applyServerState;
+  window.applyServerState = function(state){
+    if (!state || state.ok===false) return;
+    const v = Number(state.kv_ver||0);
+    if (v && KV_VER && v <= KV_VER) return; // не затираем свежак старым
+    KV_VER = v || Date.now();
+    window.MiniState = state;
+    try{ saveSWR(state); }catch(_){}
+    paintProfileFromState(state);
+    try{ prevApply && prevApply(state); }catch(_){}
+  };
+
+  // --- PIN + отметка штампа (паспорт и шторка)
+  document.addEventListener('click', function(e){
+    const tile = e.target.closest('#passport-grid .pslot, #sheet .pslot[data-style-id], #sheet .pslot[data-code]');
+    if (!tile) return;
+    const sid = tile.getAttribute('data-style-id') || tile.getAttribute('data-code') || '';
+    if (!sid) return;
+    e.preventDefault();
+    (async ()=>{
+      if (!pinOkSession){
+        const pin = prompt('PIN сотрудника (демо: 1111)');
+        if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
+        pinOkSession = true; try{ TG?.showPopup?.({message:'PIN ОК'}); }catch(_){}
+      }
+      const r = await jpost('/api/mini/event', { tg_init: getTgInit(), type:'style.collect', data:{ style_id: String(sid) } });
+      if (r && r.ok && r.fresh_state) window.applyServerState(r.fresh_state);
+      else {
+        // оффлайн/фейл — подсветим из кэша
+        try{
+          const key='beer_passport_v1';
+          const cur = JSON.parse(localStorage.getItem(key)||'{"stamps":[]}');
+          const stamps = Array.from(new Set([...(cur.stamps||[]), String(sid)]));
+          localStorage.setItem(key, JSON.stringify({stamps}));
+          paintBadgesMaybe({styles:stamps});
+        }catch(_){}
+      }
+    })();
+  }, {passive:false});
+
+  // --- Heartbeat: мягко подтягиваем свежак
+  setInterval(()=>{ jpost('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); }, 30000);
+  document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) jpost('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); });
+
+  // --- При открытии шторки «Паспорт» докрашиваем из свежего state/кэша
+  const _openSheet = window.openSheet;
+  window.openSheet = function(opts){
+    _openSheet && _openSheet(opts);
+    const title = (opts && opts.title) || '';
+    if (/паспорт/i.test(title)){
+      const st = (window.MiniState || (window.SWR && SWR.get && SWR.get()) || {});
+      paintBadgesMaybe(st);
+    }
+  };
+})();
+</script>
+
 </body>
 </html>
+
+<!-- ===== Instant loader patch (KV-first + fresh) ===== -->
