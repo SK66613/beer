@@ -7,199 +7,10 @@
   <meta name="format-detection" content="telephone=no" />
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<script>
-// === KV-first: in-memory localStorage shim (no persistent cache) ===
-(function(){
-  try{
-    const mem = new Map();
-    const real = window.localStorage;
-    const passthrough = new Set(["beer_state_v2", "beer_coins", "bonus_log_v1", "beer_rewards", "beer_passport", "beer_passport_v1", "leaderboard_cache"]); // add keys if you need persistence
 
-    const _set = real.setItem.bind(real);
-    const _get = real.getItem.bind(real);
-    const _rem = real.removeItem.bind(real);
-    const _clr = real.clear.bind(real);
 
-    Object.defineProperties(window.localStorage, {
-      setItem: { value: function(k,v){ if (passthrough.has(k)) return _set(k,v); mem.set(String(k), String(v)); } },
-      getItem: { value: function(k){ if (passthrough.has(k)) return _get(k); return mem.has(String(k)) ? mem.get(String(k)) : null; } },
-      removeItem: { value: function(k){ mem.delete(String(k)); if (passthrough.has(k)) _rem(k); } },
-      clear: { value: function(){ mem.clear(); if (passthrough.size>0) _clr(); } }
-    });
-  }catch(_){}
-})();
-</script>
 
-<script>
-// === EARLY: Telegram init + API binding to Worker (with fresh_state support) ===
-(function(){
-  var TG = (window.Telegram && window.Telegram.WebApp) || null;
-  try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
-
-  async function apiCall(type, data){
-    try{
-      const res = await fetch(API_BASE + "/api/mini/event", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ type, data: (data||{}), tg_init: TG?.initData || "" })
-      });
-      const j = await res.json();
-      if (j && j.fresh_state && window.applyServerState) {
-        window.applyServerState(j.fresh_state);
-      }
-      return j;
-    }catch(e){ return { ok:false, error: String(e) }; }
-  }
-  window.api = apiCall;
-
-  window.applyServerState = function(state){
-    
-    try{ window.MiniState = state; }catch(_){}
-if (!state || state.ok === false) return;
-    try{
-      // coins
-      if (typeof state.coins === 'number') {
-        localStorage.setItem('beer_coins', String(state.coins));
-        try{ window.syncCoinsUI && window.syncCoinsUI(); }catch(_){}
-        var pf = document.getElementById('pf-coins'); if (pf) pf.textContent = String(state.coins|0);
-      }
-      // last prizes -> two keys used by UI variants
-      var claims = Array.isArray(state.last_prizes) ? state.last_prizes : [];
-      var v1 = claims.map(function(x){ return { name: x.prize_name || 'Приз', ts: Date.parse(x.ts||new Date()) || Date.now() }; });
-      var v2 = claims.map(function(x){ return { ts: Date.parse(x.ts||new Date()) || Date.now(), source: 'bonus', prize: x.prize_name || 'Приз' }; });
-      localStorage.setItem('bonus_log_v1', JSON.stringify(v1.slice(0,30)));
-      localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
-      try{ window.renderRewards && window.renderRewards(); }catch(_){}
-
-      // passport styles -> two formats
-      var styles = Array.isArray(state.styles) ? state.styles : [];
-      var map = {}; styles.forEach(function(s){ map[String(s)] = 1; });
-      localStorage.setItem('beer_passport', JSON.stringify(map));
-      localStorage.setItem('beer_passport_v1', JSON.stringify({ stamps: styles }));
-      try{ window.renderPassport && window.renderPassport(); }catch(_){}
-    }catch(_){}
-  
-      // === PATCH: server-driven profile/leaderboard/passport ===
-      try{
-        // Passport counters + last stamp
-        var total = Number(state.styles_total || 6);
-        var cnt   = (Array.isArray(state.styles) ? state.styles.length : 0);
-        var lastLabel = state.last_stamp_name || state.last_stamp_id || '—';
-        var elCnt = document.getElementById('pf-pass-count'); if (elCnt) elCnt.textContent = String(cnt + '/' + total);
-        var elVal = document.getElementById('pf-pass-list');  if (elVal) elVal.textContent = String(lastLabel);
-        if (elVal && elVal.parentElement){ var lbl = elVal.parentElement.querySelector('.metric__lbl'); if (lbl) lbl.textContent = 'Последний штамп'; }
-
-        // Mark stamps in grid (case-insensitive)
-        var grid = document.getElementById('passport-grid');
-        if (grid){
-          var owned = {}; (Array.isArray(state.styles)?state.styles:[]).forEach(function(s){ owned[String(s).toLowerCase()] = 1; });
-          grid.querySelectorAll('.pslot').forEach(function(card){
-            var code = String(card.getAttribute('data-code')||'').toLowerCase();
-            var ok = !!owned[code];
-            card.classList.toggle('is-done', ok);
-            var b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Получить';
-          });
-        }
-
-        // Leaderboard (server only)
-        if (state.leaderboard_today){
-          var box = document.getElementById('lb-list');
-          if (box){
-            var lb = state.leaderboard_today || [];
-            if (!lb.length){
-              box.innerHTML = '<div class="muted-sm">Пока пусто. Сыграй раунд!</div>';
-            } else {
-              box.innerHTML = lb.map(function(r,i){
-                var medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
-                var name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
-                var ava   = (r.username||'U').slice(0,1).toUpperCase();
-                return '<div class="lb-row'+medal+'">'+
-                  '<div class="lb-rank">'+(i+1)+'</div>'+
-                  '<div class="lb-avatar">'+ava+'</div>'+
-                  '<div class="lb-name">'+name+'</div>'+
-                  '<div class="lb-score">'+(r.score|0)+'</div>'+
-                '</div>';
-              }).join('');
-            }
-          }
-          var meScore = document.getElementById('lb-you-score'); if (meScore) meScore.textContent = String(state.game_today_best||0);
-        }
-      }catch(_){}
-};
-
-  async function bootstrapAndLoad(){
-    try{
-      const sp = TG?.initDataUnsafe?.start_param || "";
-      await fetch(API_BASE + "/api/mini/bootstrap", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param: sp } })
-      });
-    }catch(_){}
-    try{
-      const r = await fetch(API_BASE + "/api/mini/state", {
-        method:"POST",
-        headers:{ "Content-Type":"application/json" },
-        body: JSON.stringify({ tg_init: TG?.initData || "" })
-      });
-      const st = await r.json();
-      if (st && st.ok && window.applyServerState) window.applyServerState(st);
-    }catch(_){}
-  }
-
-  function waitInit(cb){
-    const t0 = Date.now();
-    (function tick(){
-      if (TG && TG.initData && TG.initData.length>0) return cb();
-      if (Date.now()-t0 > 3000) return cb();  // timeout — всё равно попробуем
-      setTimeout(tick, 60);
-    })();
-  }
-
-  waitInit(bootstrapAndLoad);
-})();
-</script>
-<script>
-// --- SWR: persistent cache + bootstrap (stale-while-revalidate) ---
-(function(){
-  const KEY = 'beer_state_v2';
-  function load(){ try{ return JSON.parse(localStorage.getItem(KEY)||'{}'); }catch(_){ return {}; } }
-  function save(st){
-    if (!st || st.ok===false) return;
-    try{
-      const cur = load();
-      const merged = Object.assign({}, cur, st);
-      merged._ver = Number(st.kv_ver || Date.now());
-      localStorage.setItem(KEY, JSON.stringify(merged));
-    }catch(_){}
-  }
-  function ver(){ const s = load(); return Number(s.kv_ver || s._ver || 0); }
-  window.SWR = { get: load, save, ver, KEY };
-
-  // Bootstrap UI instantly from cache (if present)
-  try{
-    const st = load();
-    if (st && Object.keys(st).length){
-      window.MiniState = Object.assign({}, window.MiniState||{}, st);
-      try{ if (typeof paintProfile==='function') paintProfile(st); }catch(_){}
-      try{ if (typeof paintBadgesFromState==='function') paintBadgesFromState(st); }catch(_){}
-      try{ if (typeof renderLeaderboard==='function') renderLeaderboard(); }catch(_){}
-    }
-  }catch(_){}
-
-  // Wrap applyServerState to persist fresh state then render
-  try{
-    const prev = window.applyServerState;
-    window.applyServerState = function(state){
-      if (!state || state.ok===false) return;
-      try{ save(state); }catch(_){}
-      if (typeof prev === 'function') return prev(state);
-    };
-  }catch(_){}
-})();
-</script>
 
 
 <style>
@@ -4194,65 +4005,51 @@ async function collectStyle(styleId){
 </script>
 
 
-<!-- ===== BRO-UNIFIER v2 (final authority) ===== -->
-<script>
+<script id="app-core">
 (function(){
   'use strict';
-  if (window.__BRO_UNIFIER_V2__) return; window.__BRO_UNIFIER_V2__ = true;
 
-  const TG        = (window.Telegram && window.Telegram.WebApp) || null;
-  const API_BASE  = window.API_BASE || window.__API_BASE || "";
-  const PIN_CODE  = (window.DEMO_PIN || window.PIN_CODE || '1111');
+  // ====== TELEGRAM & CONFIG ======
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  try{ TG?.ready?.(); TG?.expand?.(); TG?.disableVerticalSwipes?.(); }catch(_){}
+  const API_BASE = window.API_BASE || window.__API_BASE || "";     // укажи свой воркер в window.API_BASE
+  const DEMO_PIN = window.DEMO_PIN || '1111';
+
+  // ====== CACHE KEYS ======
+  const KEY_STATE = 'beer_state_v2';               // полный state с воркера (SWR)
+  const KEY_PASS  = 'beer_passport_v1';            // {stamps:[]}
+  const KEY_PF    = 'beer_profile_cache_v1';       // слепок профиля для офлайна
+  const KEY_REW   = 'beer_rewards';                // чипы призов (существующий формат)
+  const KEY_BONUS = 'bonus_log_v1';                // альтернативный лог призов
   let   KV_VER    = 0;
-  let   CURRENT_LB= 'today';
-  let   pinOkSession = false;
+  let   CURRENT_LB = 'today';
+  let   PIN_OK = false;
 
-  // ---- Utils
+  // ====== HELPERS ======
   function getTgInit(){ try{ return TG?.initData || ""; }catch(_){ return ""; } }
-  async function jpost(path, body){
+  async function postJSON(path, body){
     try{
-      const res = await fetch((API_BASE||'') + path, {
+      const res = await fetch((API_BASE||"") + path, {
         method:'POST', headers:{'Content-Type':'application/json','Cache-Control':'no-store'}, cache:'no-store',
         body: JSON.stringify(body||{})
       });
-      const ct = res.headers?.get?.('content-type') || '';
-      if (ct.includes('application/json')) return await res.json();
-      return {ok: res.ok};
+      const ct = res.headers?.get?.('content-type')||'';
+      return ct.includes('application/json') ? await res.json() : {ok:res.ok};
     }catch(_){ return {ok:false, error:'net'}; }
   }
-  function lsGet(key, def){ try{ return JSON.parse(localStorage.getItem(key) || 'null') ?? def; }catch(_){ return def; } }
+  function lsGet(key, fallback){ try{ return JSON.parse(localStorage.getItem(key)||'null') ?? fallback; }catch(_){ return fallback; } }
   function lsSet(key, val){ try{ localStorage.setItem(key, JSON.stringify(val)); }catch(_){ } }
-  function text(el, v){ if (el) el.textContent = String(v); }
   function $(sel){ return document.querySelector(sel); }
   function $all(sel){ return Array.from(document.querySelectorAll(sel)); }
+  function text(el, v){ if (el) el.textContent = String(v); }
 
-  // ---- Unified styles cache (server ∪ local)
-  const PASS_KEY = 'beer_passport_v1'; // {stamps:[]}
-  function getCachedStyles(){
-    const obj = lsGet(PASS_KEY, {stamps:[]}) || {stamps:[]};
-    let arr = Array.isArray(obj.stamps) ? obj.stamps : [];
-    if (!arr.length){
-      const legacy = lsGet('beer_passport', {});
-      const keys = (legacy && typeof legacy==='object') ? Object.keys(legacy) : [];
-      if (keys.length) arr = keys;
-    }
-    return Array.from(new Set(arr.map(s => String(s||'').toLowerCase())));
-  }
-  function cacheAddStyle(code){
-    code = String(code||'').trim().toLowerCase();
-    if (!code) return;
-    const cur = getCachedStyles();
-    if (!cur.includes(code)){ cur.push(code); lsSet(PASS_KEY, {stamps: cur}); }
-  }
-  function stylesUnionFromState(st){
-    const server = Array.isArray(st?.styles) ? st.styles
-                 : (Array.isArray(st?.styles_user) ? st.styles_user : []);
-    const cached = getCachedStyles();
-    return Array.from(new Set([...(server||[]), ...cached].map(s=>String(s).toLowerCase())));
-  }
+  // ====== PASSPORT union (server ∪ local) ======
+  function getCachedStyles(){ const o = lsGet(KEY_PASS, {stamps:[]}); const a = Array.isArray(o?.stamps)?o.stamps:[]; return Array.from(new Set(a.map(s=>String(s).toLowerCase()))); }
+  function cacheAddStyle(code){ code=String(code||'').trim().toLowerCase(); if(!code) return; const cur=getCachedStyles(); if(!cur.includes(code)){ cur.push(code); lsSet(KEY_PASS,{stamps:cur}); } }
+  function stylesFromState(st){ const s = Array.isArray(st?.styles)?st.styles : (Array.isArray(st?.styles_user)?st.styles_user:[]); return (s||[]).map(x=>String(x).toLowerCase()); }
+  function stylesUnion(st){ return Array.from(new Set([ ...stylesFromState(st), ...getCachedStyles() ])); }
 
-  // ---- Profile cache (offline-first)
-  const PF_KEY = 'beer_profile_cache_v1';
+  // ====== PROFILE & LEADERBOARD ======
   function computeMyRanks(st){
     const uid   = String(TG?.initDataUnsafe?.user?.id || '');
     const uname = String(TG?.initDataUnsafe?.user?.username || '');
@@ -4261,184 +4058,183 @@ async function collectStyle(styleId){
     const isMe  = r => String(r.tg_id||r.uid||'')===uid || (uname && r.username===uname);
     const ixToday = today.findIndex(isMe);
     const ixAll   = all.findIndex(isMe);
-    const bestAll = Math.max(0, ...all.filter(isMe).map(r=>r.best_score ?? r.score ?? 0));
+    const bestAll = Math.max(0, ...all.filter(isMe).map(r => (r.best_score!=null?r.best_score:r.score)|0));
     return {
       rankToday: ixToday>=0 ? ixToday+1 : '—',
       rankAll:   ixAll>=0   ? ixAll+1   : '—',
       best:      (st?.my_best_score|0) || bestAll || (+(localStorage.getItem('flappy_best')||0)|0) || 0
     };
   }
-  function paintBadgesUnified(st){
-    const owned = new Set(stylesUnionFromState(st));
-    const updCard = (card) => {
+
+  function paintPassport(st){
+    const owned = new Set(stylesUnion(st));
+    const upd = (card)=>{
       const code = String(card.getAttribute('data-style-id')||card.getAttribute('data-code')||'').trim().toLowerCase();
-      const ok   = !!(code && owned.has(code));
+      const ok = !!(code && owned.has(code));
       card.classList.toggle('is-done', ok);
-      const b = card.querySelector('.pslot__badge, .pslot-badge, [data-role="pslot-badge"]');
-      if (b) b.textContent = ok ? 'Получен' : 'Получить';
+      const b = card.querySelector('.pslot__badge'); if (b) b.textContent = ok ? 'Получен' : 'Получить';
     };
-    $all('#passport-grid .pslot').forEach(updCard);
-    $all('#sheet .pslot[data-style-id], #sheet .pslot[data-code]').forEach(updCard);
-    // counters
-    const total = Number((window.MiniState?.styles_total) || 6);
+    $all('#passport-grid .pslot').forEach(upd);
+    $all('#sheet .pslot[data-style-id],#sheet .pslot[data-code]').forEach(upd);
+
+    const total = Number((window.MiniState?.styles_total)||6);
     const cntEl = $('#pf-pass-count'); if (cntEl) cntEl.textContent = `${owned.size}/${total}`;
-    const lastEl = $('#pf-last-stamp'); if (lastEl) lastEl.textContent = window.MiniState?.last_stamp_name || window.MiniState?.last_stamp_id || '—';
+    const lastEl= $('#pf-last-stamp'); if (lastEl) lastEl.textContent = window.MiniState?.last_stamp_name || window.MiniState?.last_stamp_id || '—';
   }
+
   function paintProfile(st){
-    // coins
-    if (typeof st?.coins === 'number'){
-      text($('#pf-coins'), st.coins|0);
-    }else{
-      const c = lsGet(PF_KEY, null)?.coins;
-      if (c!=null) text($('#pf-coins'), c);
-    }
-    // last prizes chip-list (use existing render if present)
-    if (Array.isArray(st?.last_prizes)){
-      try{
-        const v2 = st.last_prizes.map(x=>({ ts: Date.parse(x.ts||new Date())||Date.now(), source:'bonus', prize: x.prize_name||'Приз' }));
-        localStorage.setItem('beer_rewards', JSON.stringify(v2.slice(0,30)));
-        window.renderRewards && window.renderRewards();
-      }catch(_){}
-    }
-    // refs + ranks + best
-    const refs = Number(st?.ref_total || st?.ref_count || st?.refs || 0);
-    text($('#pf-refs-count'), refs);
+    if (typeof st?.coins === 'number'){ text($('#pf-coins'), st.coins|0); }
+    const refs = Number(st?.ref_total || st?.ref_count || st?.refs || 0); text($('#pf-refs-count'), refs);
     const ranks = computeMyRanks(st);
     text($('#pf-today-rank'), ranks.rankToday);
     text($('#pf-all-rank'),   ranks.rankAll);
     text($('#pf-flappy-best'), ranks.best);
-
-    // badges + counters
-    paintBadgesUnified(st);
-
-    // persist minimal snapshot
-    lsSet(PF_KEY, {
-      coins: (st?.coins|0), refs,
-      rankToday: ranks.rankToday, rankAll: ranks.rankAll, best: ranks.best,
+    // prizes log: keep compatibility with existing renderers
+    if (Array.isArray(st?.last_prizes)){
+      const v1 = st.last_prizes.map(x=>({ name:x.prize_name||'Приз', ts: Date.parse(x.ts||new Date())||Date.now() }));
+      const v2 = st.last_prizes.map(x=>({ ts: Date.parse(x.ts||new Date())||Date.now(), source:'bonus', prize:x.prize_name||'Приз' }));
+      lsSet(KEY_BONUS, v1.slice(0,30));
+      lsSet(KEY_REW,   v2.slice(0,30));
+      try{ window.renderRewards && window.renderRewards(); }catch(_){}
+    }
+    paintPassport(st);
+    // minimal profile snapshot
+    lsSet(KEY_PF, {
+      coins:(st?.coins|0), refs,
+      rankToday:ranks.rankToday, rankAll:ranks.rankAll, best:ranks.best,
       passCount: ($('#pf-pass-count')?.textContent)||null,
       last: ($('#pf-last-stamp')?.textContent)||null
     });
   }
   function paintProfileFromCache(){
-    const c = lsGet(PF_KEY, null); if (!c) return;
+    const c = lsGet(KEY_PF,null); if (!c) return;
     if (c.coins!=null) text($('#pf-coins'), c.coins);
-    if (c.passCount!=null){ const el=$('#pf-pass-count'); if (el) el.textContent=c.passCount; }
-    if (c.last!=null) text($('#pf-last-stamp'), c.last);
-    if (c.refs!=null) text($('#pf-refs-count'), c.refs);
+    if (c.refs!=null)  text($('#pf-refs-count'), c.refs);
     if (c.rankToday!=null) text($('#pf-today-rank'), c.rankToday);
-    if (c.rankAll!=null) text($('#pf-all-rank'), c.rankAll);
-    if (c.best!=null) text($('#pf-flappy-best'), c.best);
-    // repaint passport from union cache
-    paintBadgesUnified(window.MiniState||{});
+    if (c.rankAll!=null)   text($('#pf-all-rank'), c.rankAll);
+    if (c.best!=null)      text($('#pf-flappy-best'), c.best);
+    if (c.passCount){ const el=$('#pf-pass-count'); if (el) el.textContent = c.passCount; }
+    if (c.last){ const el=$('#pf-last-stamp'); if (el) el.textContent = c.last; }
+    paintPassport(window.MiniState||{});
   }
 
-  // ---- Leaderboard (today/all)
-  window.renderLeaderboard = function(){
+  function renderLeaderboard(){
     const st = window.MiniState || {};
-    const box = document.getElementById('lb-list');
-    if (!box) return;
-    const arr = (CURRENT_LB==='all') ? (st.leaderboard_alltime||[]) : (st.leaderboard_today||[]);
-    if (!Array.isArray(arr) || arr.length===0){
-      box.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
-    }else{
-      box.innerHTML = arr.map(function(r,i){
-        const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
-        const name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
-        const ava   = (r.username||'U').slice(0,1).toUpperCase();
-        const best  = (r.best_score!=null ? r.best_score : r.score)|0;
-        return '<div class="lb-row'+medal+'">'+
-          '<div class="lb-rank">'+(i+1)+'</div>'+
-          '<div class="lb-avatar">'+ava+'</div>'+
-          '<div class="lb-name">'+name+'</div>'+
-          '<div class="lb-score">'+best+'</div>'+
-        '</div>';
-      }).join('');
-    }
-    const r = computeMyRanks(st);
-    const youScore = document.getElementById('lb-you-score'); if (youScore) youScore.textContent = r.best;
-  };
+    const box = $('#lb-list'); if (!box) return;
+    const rows = (CURRENT_LB==='all' ? (st.leaderboard_alltime||[]) : (st.leaderboard_today||[]));
+    if (!rows.length){ box.innerHTML = '<div class="muted-sm">Пока пусто.</div>'; return; }
+    box.innerHTML = rows.map(function(r,i){
+      const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
+      const name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
+      const ava   = (r.username||'U').slice(0,1).toUpperCase();
+      const best  = (r.best_score!=null ? r.best_score : r.score)|0;
+      return '<div class="lb-row'+medal+'">'+
+        '<div class="lb-rank">'+(i+1)+'</div>'+
+        '<div class="lb-avatar">'+ava+'</div>'+
+        '<div class="lb-name">'+name+'</div>'+
+        '<div class="lb-score">'+best+'</div>'+
+      '</div>';
+    }).join('');
+    const youScore = $('#lb-you-score'); if (youScore){ const r = computeMyRanks(st); text(youScore, r.best); }
+  }
 
-  // ---- State apply (only newer)
-  const prevApply = window.applyServerState;
+  // ====== STATE (single authoritative) ======
   window.applyServerState = function(state){
     if (!state || state.ok===false) return;
     const v = Number(state.kv_ver||0);
-    if (v && KV_VER && v <= KV_VER) return;
+    if (v && KV_VER && v <= KV_VER) return;                  // don't overwrite with stale
     KV_VER = v || Date.now();
     window.MiniState = state;
-    try{ prevApply && prevApply(state); }catch(_){}
+    // persist SWR state
+    try{ const cur = lsGet(KEY_STATE, {}); const merged = Object.assign({}, cur, state, {_ver:KV_VER}); lsSet(KEY_STATE, merged); }catch(_){}
     paintProfile(state);
-    window.renderLeaderboard();
+    renderLeaderboard();
   };
 
-  // ---- Capture handlers (prevent duplicates)
-  function onStampClick(e){
+  // ====== SHEET (open/close) ======
+  const SHEET = $('#sheet');
+  const SHEET_BODY = $('#sheet-body');
+  function openSheet(name){
+    // inject content by template id
+    let tplId = null;
+    if (name==='passport') tplId = 'tpl-passport';
+    if (name==='lastpriz' || name==='prizes') tplId = 'tpl-lastpriz';
+    if (tplId){
+      const tpl = document.getElementById(tplId);
+      if (tpl && SHEET_BODY){ SHEET_BODY.innerHTML = tpl.innerHTML; }
+    }
+    SHEET?.classList.add('is-open');
+    document.body.classList.add('sheet-open');
+    // repaint passport immediately on every open
+    if (document.getElementById('passport-grid')) paintPassport(window.MiniState||{});
+  }
+  function closeSheet(){
+    SHEET?.classList.remove('is-open');
+    document.body.classList.remove('sheet-open');
+    SHEET_BODY && (SHEET_BODY.innerHTML = '');
+  }
+  document.addEventListener('click', function(e){
+    if (e.target.closest('[data-close-sheet]')){ e.preventDefault(); closeSheet(); }
+    if (e.target.closest('[data-open-sheet="passport"], [data-open-passport], #open-passport, a[href="#passport"], button[href="#passport"]')){
+      e.preventDefault(); openSheet('passport');
+    }
+    if (e.target.closest('[data-open-sheet="lastpriz"], [data-open-prizes], a[href="#lastpriz"]')){
+      e.preventDefault(); openSheet('lastpriz');
+    }
+  }, false);
+
+  // ====== STAMP COLLECT (PIN-gated once per session) ======
+  document.addEventListener('click', function(e){
     const tile = e.target.closest('#passport-grid .pslot, #sheet .pslot[data-style-id], #sheet .pslot[data-code]');
     if (!tile) return;
     const sid = tile.getAttribute('data-style-id') || tile.getAttribute('data-code') || '';
     if (!sid) return;
-    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
+    e.preventDefault();
     (async ()=>{
-      if (!pinOkSession){
+      if (!PIN_OK){
         const pin = prompt('PIN сотрудника (демо: 1111)');
-        if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
-        pinOkSession = true; try{ TG?.showPopup?.({message:'PIN ОК'}); }catch(_){}
+        if (pin !== String(DEMO_PIN)){ alert('PIN неверный'); return; }
+        PIN_OK = true; try{ TG?.showPopup?.({message:'PIN ОК'});}catch(_){}
       }
-      const r = await jpost('/api/mini/event', { tg_init: getTgInit(), type:'style.collect', data:{ style_id: String(sid) } });
-      if (r && r.ok && r.fresh_state){ window.applyServerState(r.fresh_state); }
-      else {
-        cacheAddStyle(String(sid)); // optimistic offline
-        paintBadgesUnified(window.MiniState||{});
+      const r = await postJSON('/api/mini/event', { tg_init:getTgInit(), type:'style.collect', data:{ style_id:String(sid) } });
+      if (r && r.ok && r.fresh_state){
+        window.applyServerState(r.fresh_state);
+      } else {
+        // offline optimistic
+        cacheAddStyle(String(sid));
+        paintPassport(window.MiniState||{});
       }
     })();
-  }
-  document.addEventListener('click', onStampClick, true); // capture
+  }, false);
 
-  function onLbTab(e){
+  // ====== LEADERBOARD TABS ======
+  document.addEventListener('click', function(e){
     const tab = e.target.closest('[data-lb-tab], .js-lb-mode');
     if (!tab) return;
     const mode = (tab.getAttribute('data-lb-tab') || tab.dataset.mode || 'today').toLowerCase();
     CURRENT_LB = (mode==='all'?'all':'today');
-    e.preventDefault(); e.stopPropagation(); e.stopImmediatePropagation();
     // aria
     $all('[data-lb-tab]').forEach(b=> b.setAttribute('aria-pressed', b.getAttribute('data-lb-tab')===CURRENT_LB ? 'true':'false'));
-    window.renderLeaderboard();
-    if (CURRENT_LB==='all'){ jpost('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); }
-  }
-  document.addEventListener('click', onLbTab, true);
+    renderLeaderboard();
+    if (CURRENT_LB==='all'){ postJSON('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); }
+  }, false);
 
-  // ---- Passport re-paint on every open (observer)
-  const mo = new MutationObserver((muts)=>{
-    if (document.getElementById('passport-grid')){
-      paintBadgesUnified(window.MiniState||{});
-    }
-  });
-  mo.observe(document.documentElement, {subtree:true, childList:true, attributes:true, attributeFilter:['class','aria-hidden']});
+  // ====== HEARTBEAT & VISIBILITY ======
+  setInterval(()=>{ postJSON('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); }, 30000);
+  document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) postJSON('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); });
 
-  // ---- Heartbeats
-  setInterval(()=>{ jpost('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); }, 30000);
-  document.addEventListener('visibilitychange', ()=>{ if (!document.hidden) jpost('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); }); });
-
-  // ---- Boot: paint from cache instantly, then pull fresh
-  function bootFromCache(){
+  // ====== BOOT: paint from cache instantly, then load fresh ======
+  (function boot(){
+    // 1) from SWR state (if present)
     try{
-      const st = JSON.parse(localStorage.getItem('beer_state_v2')||'{}');
-      if (st && Object.keys(st).length){
-        window.MiniState = Object.assign({}, window.MiniState||{}, st);
-        paintProfile(st);
-        window.renderLeaderboard();
-      }else{
-        paintProfileFromCache();
-      }
-    }catch(_){
-      paintProfileFromCache();
-    }
-    if (document.getElementById('passport-grid')) paintBadgesUnified(window.MiniState||{});
-  }
-  bootFromCache();
-  jpost('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); });
+      const st = lsGet(KEY_STATE, null);
+      if (st && Object.keys(st).length){ window.MiniState = Object.assign({}, window.MiniState||{}, st); KV_VER = Number(st.kv_ver||st._ver||0); paintProfile(st); renderLeaderboard(); }
+      else { paintProfileFromCache(); }
+    }catch(_){ paintProfileFromCache(); }
+    // 2) fresh from worker
+    postJSON('/api/mini/state', { tg_init:getTgInit(), fresh:1 }).then(s=>{ if (s && s.ok) window.applyServerState(s); });
+  })();
 
-  try{ TG?.ready?.(); TG?.expand?.(); TG?.disableVerticalSwipes?.(); }catch(_){}
 })();
 </script>
 </body>
