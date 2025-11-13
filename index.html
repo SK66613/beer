@@ -36,7 +36,7 @@
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = (window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev");
+  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
 
   async function apiCall(type, data){
     try{
@@ -3443,7 +3443,7 @@ document.addEventListener('click', async function(e){
 <!-- === CLEAN FRONT CORE (server-driven) === -->
 <script>
 (function(){
-  const API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
+  const API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
   const TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG?.ready(); TG?.expand(); TG?.disableVerticalSwipes?.(); }catch(_){}
 
@@ -3784,7 +3784,7 @@ if (document.readyState === 'loading') {
 <script>
 (function(){
   const TG = window.Telegram && window.Telegram.WebApp;
-  const API_BASE = window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev";
+  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
   let KV_VER = 0;            // защита от старых ответов
   let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
 
@@ -4774,80 +4774,6 @@ async function collectStyle(styleId){
       }
     });
   }
-})();
-</script>
-
-
-<!-- === LB NUDGE: bootstrap+state ping without changing worker === -->
-<script id="lb-nudge-bootstrap">
-(function(){
-  if (window.__LB_NUDGE__) return; window.__LB_NUDGE__ = true;
-
-  // Your worker base (override, but do not break existing code)
-  window.API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
-
-  function getTG(){
-    try { return (window.Telegram && window.Telegram.WebApp) || null; } catch(_) { return null; }
-  }
-  function getInit(){ try { return getTG()?.initData || ""; } catch(_) { return ""; } }
-  function getStart(){ try { return getTG()?.initDataUnsafe?.start_param || ""; } catch(_) { return ""; } }
-
-  async function postJSON(path, body){
-    try{
-      const res = await fetch((window.API_BASE||"") + path, {
-        method: "POST",
-        headers: { "Content-Type":"application/json", "Cache-Control":"no-store" },
-        cache: "no-store",
-        keepalive: true,
-        body: JSON.stringify(body||{})
-      });
-      const ct = res.headers && res.headers.get ? (res.headers.get("content-type")||"") : "";
-      if (ct.includes("application/json")) return await res.json();
-      return { ok: res.ok };
-    }catch(_){ return { ok:false, error:"net" }; }
-  }
-
-  // Realistic "ping": call /bootstrap (touch GAS) then /state(fresh:1)
-  async function nudge(reason, data){
-    const tg_init = getInit();
-    const start_param = getStart();
-    try { await postJSON("/api/mini/bootstrap", { tg_init, data:{ start_param, reason, extra:data||{} } }); } catch(_){}
-    try {
-      const s = await postJSON("/api/mini/state", { tg_init, fresh:1 });
-      if (s && s.ok){
-        if (typeof window.applyIfNew === "function") window.applyIfNew(s);
-        else if (typeof window.applyServerState === "function") window.applyServerState(s);
-      }
-    } catch(_){}
-  }
-
-  // Day/All tabs -> nudge
-  document.addEventListener("click", function(e){
-    const tab = e.target.closest("[data-lb-tab]");
-    if (!tab) return;
-    nudge("lb.tab", { scope: tab.getAttribute("data-lb-tab")||"today" });
-  });
-
-  // Refresh button -> nudge with UX
-  document.addEventListener("click", async function(e){
-    const btn = e.target.closest("#lb-refresh, [data-action='lb-refresh']");
-    if (!btn) return;
-    const list = document.getElementById("lb-list");
-    const prev = btn.textContent;
-    btn.disabled = true; btn.setAttribute("aria-busy","true"); btn.textContent = "Обновляю…";
-    try { list && list.scrollTo({ top:0, behavior:"smooth" }); } catch(_){}
-    try { await nudge("lb.refresh"); } finally {
-      btn.removeAttribute("aria-busy"); btn.disabled = false; btn.textContent = prev;
-    }
-  });
-
-  // Optional gentle ping when coming back to the app
-  let last = 0;
-  document.addEventListener("visibilitychange", function(){
-    if (document.visibilityState !== "visible") return;
-    const now = Date.now(); if (now - last < 30000) return;
-    last = now; nudge("app.foreground");
-  });
 })();
 </script>
 
