@@ -4781,11 +4781,18 @@ async function collectStyle(styleId){
 <script id="lb-state-pings">
 (function(){
   if (window.__LB_STATE_PINGS__) return; window.__LB_STATE_PINGS__ = true;
+
+  // Force correct worker base (does not change worker logic)
+  if (!window.API_BASE) window.API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
+
   const TG = (window.Telegram && window.Telegram.WebApp) || null;
   const getTgInit = () => { try { return TG && TG.initData || ""; } catch(e){ return ""; } };
-  const postJSON = window.jpost || (async function(path, body){
+
+  async function postJSONAbs(path, body){
+    const base = String(window.API_BASE || "").trim();
+    const url = base && path.startsWith("http") ? path : (base + path);
     try{
-      const res = await fetch((window.API_BASE||"") + path, {
+      const res = await fetch(url, {
         method:"POST",
         headers:{ "Content-Type":"application/json", "Cache-Control":"no-store" },
         cache:"no-store",
@@ -4796,10 +4803,10 @@ async function collectStyle(styleId){
       if (ct.includes("application/json")) return await res.json();
       return { ok: res.ok };
     }catch(_){ return { ok:false, error:"net" }; }
-  });
+  }
 
   async function nudgeState(){
-    const s = await postJSON("/api/mini/state", { tg_init: getTgInit(), fresh:1 });
+    const s = await postJSONAbs("/api/mini/state", { tg_init: getTgInit(), fresh:1 });
     if (s && s.ok){
       if (typeof window.applyIfNew === "function") window.applyIfNew(s);
       else if (typeof window.applyServerState === "function") window.applyServerState(s);
