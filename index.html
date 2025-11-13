@@ -4778,17 +4778,25 @@ async function collectStyle(styleId){
 </script>
 
 
-<!-- ==== Real revalidate ping + SWR refresh (tabs+button+visibility) ==== -->
-<script id="real-ping-handlers">
+<!-- === LB NUDGE: bootstrap+state ping without changing worker === -->
+<script id="lb-nudge-bootstrap">
 (function(){
-  const TG = (window.Telegram && window.Telegram.WebApp) || null;
-  const getTgInit = () => { try{ return TG?.initData || ""; }catch(_){ return ""; } };
+  if (window.__LB_NUDGE__) return; window.__LB_NUDGE__ = true;
 
-  const postJSON = window.jpost || (async function(path, body){
+  // Your worker base (override, but do not break existing code)
+  window.API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
+
+  function getTG(){
+    try { return (window.Telegram && window.Telegram.WebApp) || null; } catch(_) { return null; }
+  }
+  function getInit(){ try { return getTG()?.initData || ""; } catch(_) { return ""; } }
+  function getStart(){ try { return getTG()?.initDataUnsafe?.start_param || ""; } catch(_) { return ""; } }
+
+  async function postJSON(path, body){
     try{
-      const res = await fetch((window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev") + path, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", "Cache-Control":"no-store" },
+      const res = await fetch((window.API_BASE||"") + path, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", "Cache-Control":"no-store" },
         cache: "no-store",
         keepalive: true,
         body: JSON.stringify(body||{})
@@ -4797,44 +4805,48 @@ async function collectStyle(styleId){
       if (ct.includes("application/json")) return await res.json();
       return { ok: res.ok };
     }catch(_){ return { ok:false, error:"net" }; }
-  });
-
-  async function realPing(kind, data){
-    const tg_init = getTgInit();
-    await postJSON("/api/mini/event", { tg_init, type: kind, data: data||{} });
-    const s = await postJSON("/api/mini/state", { tg_init, fresh:1 });
-    if (s && s.ok){
-      if (typeof window.applyIfNew === "function") window.applyIfNew(s);
-      else if (typeof window.applyServerState === "function") window.applyServerState(s);
-    }
-    return s;
   }
 
-  document.addEventListener("click", async (e)=>{
+  // Realistic "ping": call /bootstrap (touch GAS) then /state(fresh:1)
+  async function nudge(reason, data){
+    const tg_init = getInit();
+    const start_param = getStart();
+    try { await postJSON("/api/mini/bootstrap", { tg_init, data:{ start_param, reason, extra:data||{} } }); } catch(_){}
+    try {
+      const s = await postJSON("/api/mini/state", { tg_init, fresh:1 });
+      if (s && s.ok){
+        if (typeof window.applyIfNew === "function") window.applyIfNew(s);
+        else if (typeof window.applyServerState === "function") window.applyServerState(s);
+      }
+    } catch(_){}
+  }
+
+  // Day/All tabs -> nudge
+  document.addEventListener("click", function(e){
     const tab = e.target.closest("[data-lb-tab]");
     if (!tab) return;
-    try{ await realPing("lb.refresh", { scope: tab.getAttribute("data-lb-tab") || "today" }); }catch(_){}
+    nudge("lb.tab", { scope: tab.getAttribute("data-lb-tab")||"today" });
   });
 
-  document.addEventListener("click", async (e)=>{
+  // Refresh button -> nudge with UX
+  document.addEventListener("click", async function(e){
     const btn = e.target.closest("#lb-refresh, [data-action='lb-refresh']");
     if (!btn) return;
     const list = document.getElementById("lb-list");
     const prev = btn.textContent;
     btn.disabled = true; btn.setAttribute("aria-busy","true"); btn.textContent = "Обновляю…";
-    try{ list && list.scrollTo({ top:0, behavior:"smooth" }); }catch(_){}
-    try{ await realPing("state.revalidate"); } finally {
+    try { list && list.scrollTo({ top:0, behavior:"smooth" }); } catch(_){}
+    try { await nudge("lb.refresh"); } finally {
       btn.removeAttribute("aria-busy"); btn.disabled = false; btn.textContent = prev;
     }
   });
 
-  let lastTouch = 0;
-  document.addEventListener("visibilitychange", async ()=>{
+  // Optional gentle ping when coming back to the app
+  let last = 0;
+  document.addEventListener("visibilitychange", function(){
     if (document.visibilityState !== "visible") return;
-    const now = Date.now();
-    if (now - lastTouch < 30000) return;
-    lastTouch = now;
-    try{ await realPing("state.revalidate"); }catch(_){}
+    const now = Date.now(); if (now - last < 30000) return;
+    last = now; nudge("app.foreground");
   });
 })();
 </script>
