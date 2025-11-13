@@ -1984,6 +1984,50 @@ function initSheet(title){
     }
 
 
+
+
+// ===== Referrals =====
+function initRef(){
+  const TG = window.Telegram && window.Telegram.WebApp;
+  const uid = TG && TG.initDataUnsafe && TG.initDataUnsafe.user && TG.initDataUnsafe.user.id
+    ? String(TG.initDataUnsafe.user.id).trim()
+    : "";
+
+  // бот из конфигурации или жёстко наш
+  const rawBot = (window.APP && (APP.BOT_USERNAME || APP.BOT)) || "CineCraft_robot";
+  const bot = String(rawBot).replace(/^@/, ""); // убираем @ на всякий
+
+  // мини-апп диплинк (НЕ bot ?start=)
+  const link = uid
+    ? `https://t.me/${bot}/app?startapp=ref_${uid}`
+    : `https://t.me/${bot}/app`;
+
+  const input = document.getElementById('ref-link');
+  if (input) input.value = link;
+}
+
+async function copyRef(){
+  const el = document.getElementById('ref-link');
+  if (!el) return;
+  try { el.select?.(); document.execCommand?.('copy'); } catch(_) {}
+  try { await navigator.clipboard.writeText(el.value); } catch(_) {}
+  try { haptic('light'); } catch(_) {}
+}
+
+async function shareRef(){
+  const el = document.getElementById('ref-link');
+  if (!el) return;
+  const txt = 'Залетай в пивной мини-апп и забери приз! ' + el.value;
+  try {
+    await navigator.share?.({ text: txt });
+  } catch(_) {
+    try { await navigator.clipboard.writeText(el.value); } catch(_) {}
+  }
+  try { haptic('light'); } catch(_) {}
+}
+
+
+
     // ===== Init state =====
     syncCoins(); renderRewards();
   })();
@@ -3256,39 +3300,6 @@ if (best > bestLS) { try{ localStorage.setItem(FLAPPY_BEST, String(best)); }catc
       `<div class="pf-item"><i class="pf-dot"></i><div>${esc(r.name||('ID '+r.uid))}</div><div class="pf-muted">· ${fmtDate(r.ts)}</div></div>`
     ).join('');
   }
-
-// --- Пригласить друга (микро-замена)
-function bindInvite(){
-  const btn = document.getElementById('pf-invite');
-  if (!btn) return;
-
-  const TG  = window.Telegram?.WebApp;
-  const uid = String(TG?.initDataUnsafe?.user?.id || '').trim(); // твой TGID
-  const bot = 'CineCraft_robot'; // фиксируем нужного бота
-
-  // Итоговая реф-ссылка МИНИ-АППА:
-  const link = uid
-    ? `https://t.me/${bot}/app?startapp=ref_${uid}`
-    : `https://t.me/${bot}/app`;
-
-  // Если есть поле для показа/копирования ссылки — заполним
-  const inp = document.getElementById('ref-link');
-  if (inp) inp.value = link;
-
-  // Кнопка "Пригласить"
-  btn.onclick = () => {
-    try { TG?.openTelegramLink?.(link); } catch(_) {}
-  };
-
-  // Если есть отдельная кнопка копирования
-  const copyBtn = document.querySelector('#ref-link-copy,[data-copy-ref]');
-  if (copyBtn) {
-    copyBtn.onclick = async (e) => {
-      e.preventDefault();
-      try { await navigator.clipboard.writeText(link); } catch(_) {}
-    };
-  }
-}
 
 
   // Публичный API (можно дергать из колеса/игр)
