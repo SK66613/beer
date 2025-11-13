@@ -4636,6 +4636,44 @@ async function collectStyle(styleId){
 })();
 </script>
 
+
+<script id="bootstrap-once">
+(function(){
+  'use strict';
+  if (window.__BOOTSTRAP_ONCE__) return; window.__BOOTSTRAP_ONCE__ = true;
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  const API_BASE = window.API_BASE || window.__API_BASE || "";
+  const KEY_BOOT = "beer_bootstrap_done_v1";
+  function jpost(path, body){
+    return fetch(API_BASE + path, {
+      method: "POST",
+      headers: {"Content-Type":"application/json","Cache-Control":"no-store"},
+      cache: "no-store",
+      body: JSON.stringify(body||{})
+    }).then(r=>r.json()).catch(()=>({ok:false,error:"net"}));
+  }
+  function getTgInit(){ try{ return TG?.initData || ""; }catch(_){ return ""; } }
+  async function runBootstrapOnce(){
+    if (localStorage.getItem(KEY_BOOT)==="1") return;
+    const r = await jpost("/api/mini/bootstrap", { tg_init: getTgInit(), data:{} });
+    if (r && r.ok){
+      localStorage.setItem(KEY_BOOT,"1");
+      if (r.fresh_state && typeof window.applyServerState==="function"){
+        window.applyServerState(r.fresh_state);
+      }
+    } else {
+      // оставим без флага, попробуем на следующем старте
+      console.warn("[bootstrap] failed:", r && r.error);
+    }
+  }
+  if (document.readyState==="loading"){
+    document.addEventListener("DOMContentLoaded", runBootstrapOnce, {once:true});
+  } else {
+    runBootstrapOnce();
+  }
+})();
+</script>
+
 </body>
 </html>
 
