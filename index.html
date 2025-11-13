@@ -3271,38 +3271,44 @@ if (best > bestLS) { try{ localStorage.setItem(FLAPPY_BEST, String(best)); }catc
     ).join('');
   }
 
-// --- Пригласить друга (микро-замена)
+// --- Пригласить друга — формируем ссылку строго вида:
+// https://t.me/CineCraft_robot/app?startapp=ref_<uid>
 function bindInvite(){
   const btn = document.getElementById('pf-invite');
   if (!btn) return;
 
-  const TG  = window.Telegram?.WebApp;
-  const uid = String(TG?.initDataUnsafe?.user?.id || '').trim(); // твой TGID
-  const bot = 'CineCraft_robot'; // фиксируем нужного бота
+  const TG  = window.Telegram && window.Telegram.WebApp;
+  const uid = TG && TG.initDataUnsafe && TG.initDataUnsafe.user && TG.initDataUnsafe.user.id
+    ? String(TG.initDataUnsafe.user.id).trim()
+    : "";
 
-  // Итоговая реф-ссылка МИНИ-АППА:
+  const bot = "CineCraft_robot"; // фиксированно твой бот
   const link = uid
     ? `https://t.me/${bot}/app?startapp=ref_${uid}`
     : `https://t.me/${bot}/app`;
 
-  // Если есть поле для показа/копирования ссылки — заполним
+  // (необязательно) подставим ссылку в инпут, если он есть
   const inp = document.getElementById('ref-link');
   if (inp) inp.value = link;
 
   // Кнопка "Пригласить"
   btn.onclick = () => {
-    try { TG?.openTelegramLink?.(link); } catch(_) {}
+    try { TG && TG.openTelegramLink && TG.openTelegramLink(link); } catch(e) {}
   };
 
-  // Если есть отдельная кнопка копирования
-  const copyBtn = document.querySelector('#ref-link-copy,[data-copy-ref]');
+  // (необязательно) кнопка копирования ссылки, если предусмотрена разметкой
+  const copyBtn = document.querySelector('#ref-link-copy, [data-copy-ref]');
   if (copyBtn) {
     copyBtn.onclick = async (e) => {
       e.preventDefault();
-      try { await navigator.clipboard.writeText(link); } catch(_) {}
+      try { await navigator.clipboard.writeText(link); } catch(e) {}
     };
   }
+
+  // для уверенности можно вывести в консоль
+  try { console.debug('REF LINK:', link); } catch(e) {}
 }
+
 
 
   // Публичный API (можно дергать из колеса/игр)
