@@ -4390,6 +4390,22 @@ async function collectStyle(styleId){
     }
     setIf($('#pf-flappy-best'), best);
 
+    // === Рефералы ===
+    // Priority: profile snapshot.refs -> state.ref_total/ref_count -> beer_refs_v1 list length
+    let refs = c.refs;
+    if (refs==null){
+      refs = (st.ref_total!=null ? st.ref_total : (st.ref_count!=null ? st.ref_count : undefined));
+    }
+    if (refs==null){
+      try{
+        const raw = localStorage.getItem('beer_refs_v1');
+        const arr = raw ? JSON.parse(raw) : [];
+        refs = Array.isArray(arr) ? arr.length : 0;
+      }catch(_){ refs = 0; }
+    }
+    const elRefs = document.getElementById('pf-refs-count');
+    if (elRefs) elRefs.textContent = String(refs);
+
     // === Последний штамп ===
     // Read from profile snapshot.last; if absent, fallback to state.last_stamp_name/id
     let last = c.last;
