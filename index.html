@@ -3271,18 +3271,39 @@ if (best > bestLS) { try{ localStorage.setItem(FLAPPY_BEST, String(best)); }catc
     ).join('');
   }
 
-  // --- Пригласить друга
-  function bindInvite(){
-    const btn = document.getElementById('pf-invite'); if (!btn) return;
-    btn.onclick = ()=>{
-      try{
-        const uid = TG?.initDataUnsafe?.user?.id || '';
-        const startParam = `ref_${uid||Math.random().toString(36).slice(2,7)}`;
-        const bot = (window.APP&&APP.BOT) || (window.APP_CONFIG&&APP_CONFIG.BOT) || 'your_bot';
-        TG?.openTelegramLink?.(`https://t.me/${bot}/app?startapp=${startParam}`);
-      }catch(_){}
+// --- Пригласить друга (микро-замена)
+function bindInvite(){
+  const btn = document.getElementById('pf-invite');
+  if (!btn) return;
+
+  const TG  = window.Telegram?.WebApp;
+  const uid = String(TG?.initDataUnsafe?.user?.id || '').trim(); // твой TGID
+  const bot = 'CineCraft_robot'; // фиксируем нужного бота
+
+  // Итоговая реф-ссылка МИНИ-АППА:
+  const link = uid
+    ? `https://t.me/${bot}/app?startapp=ref_${uid}`
+    : `https://t.me/${bot}/app`;
+
+  // Если есть поле для показа/копирования ссылки — заполним
+  const inp = document.getElementById('ref-link');
+  if (inp) inp.value = link;
+
+  // Кнопка "Пригласить"
+  btn.onclick = () => {
+    try { TG?.openTelegramLink?.(link); } catch(_) {}
+  };
+
+  // Если есть отдельная кнопка копирования
+  const copyBtn = document.querySelector('#ref-link-copy,[data-copy-ref]');
+  if (copyBtn) {
+    copyBtn.onclick = async (e) => {
+      e.preventDefault();
+      try { await navigator.clipboard.writeText(link); } catch(_) {}
     };
   }
+}
+
 
   // Публичный API (можно дергать из колеса/игр)
   window.Profile = {
