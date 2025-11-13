@@ -1984,20 +1984,6 @@ function initSheet(title){
     }
 
 
-
-
-    // ===== Referrals =====
-    function initRef(){
-      const u = TG?.initDataUnsafe?.user; const uid = u?.id || Math.floor(Math.random()*1e9);
-      const code = 'beer_ref_'+uid;
-      const link = `https://t.me/${APP.BOT_USERNAME}?start=${code}`;
-      const input = document.getElementById('ref-link'); if (input) input.value = link;
-    }
-    async function copyRef(){ const el = document.getElementById('ref-link'); if(!el) return; el.select(); document.execCommand?.('copy'); try{ await navigator.clipboard.writeText(el.value); }catch{} haptic('light'); }
-    async function shareRef(){ const el = document.getElementById('ref-link'); if(!el) return; const txt = 'Залетай в пивной мини‑апп и забери приз! '+el.value; try{ await navigator.share?.({text:txt}); }catch{ try{ await navigator.clipboard.writeText(el.value);}catch{} } haptic('light'); }
-
-
-
     // ===== Init state =====
     syncCoins(); renderRewards();
   })();
@@ -3271,44 +3257,38 @@ if (best > bestLS) { try{ localStorage.setItem(FLAPPY_BEST, String(best)); }catc
     ).join('');
   }
 
-// --- Пригласить друга — формируем ссылку строго вида:
-// https://t.me/CineCraft_robot/app?startapp=ref_<uid>
+// --- Пригласить друга (микро-замена)
 function bindInvite(){
   const btn = document.getElementById('pf-invite');
   if (!btn) return;
 
-  const TG  = window.Telegram && window.Telegram.WebApp;
-  const uid = TG && TG.initDataUnsafe && TG.initDataUnsafe.user && TG.initDataUnsafe.user.id
-    ? String(TG.initDataUnsafe.user.id).trim()
-    : "";
+  const TG  = window.Telegram?.WebApp;
+  const uid = String(TG?.initDataUnsafe?.user?.id || '').trim(); // твой TGID
+  const bot = 'CineCraft_robot'; // фиксируем нужного бота
 
-  const bot = "CineCraft_robot"; // фиксированно твой бот
+  // Итоговая реф-ссылка МИНИ-АППА:
   const link = uid
     ? `https://t.me/${bot}/app?startapp=ref_${uid}`
     : `https://t.me/${bot}/app`;
 
-  // (необязательно) подставим ссылку в инпут, если он есть
+  // Если есть поле для показа/копирования ссылки — заполним
   const inp = document.getElementById('ref-link');
   if (inp) inp.value = link;
 
   // Кнопка "Пригласить"
   btn.onclick = () => {
-    try { TG && TG.openTelegramLink && TG.openTelegramLink(link); } catch(e) {}
+    try { TG?.openTelegramLink?.(link); } catch(_) {}
   };
 
-  // (необязательно) кнопка копирования ссылки, если предусмотрена разметкой
-  const copyBtn = document.querySelector('#ref-link-copy, [data-copy-ref]');
+  // Если есть отдельная кнопка копирования
+  const copyBtn = document.querySelector('#ref-link-copy,[data-copy-ref]');
   if (copyBtn) {
     copyBtn.onclick = async (e) => {
       e.preventDefault();
-      try { await navigator.clipboard.writeText(link); } catch(e) {}
+      try { await navigator.clipboard.writeText(link); } catch(_) {}
     };
   }
-
-  // для уверенности можно вывести в консоль
-  try { console.debug('REF LINK:', link); } catch(e) {}
 }
-
 
 
   // Публичный API (можно дергать из колеса/игр)
