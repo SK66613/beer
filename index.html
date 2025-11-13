@@ -13,7 +13,7 @@
   try{
     const mem = new Map();
     const real = window.localStorage;
-    const passthrough = new Set(["beer_state_v2", "beer_coins", "bonus_log_v1", "beer_rewards", "beer_passport", "beer_passport_v1", "leaderboard_cache"]); // add keys if you need persistence
+    const passthrough = new Set(["beer_state_v2", "beer_coins", "bonus_log_v1", "beer_rewards", "beer_passport", "beer_passport_v1", "leaderboard_cache", "beer_profile_cache_v1", "flappy_best", "beer_refs_v1"]); // add keys if you need persistence
 
     const _set = real.setItem.bind(real);
     const _get = real.getItem.bind(real);
@@ -3223,8 +3223,12 @@ claim?.addEventListener('click', () => {
 
   // --- Игра «Шмель»
   function renderFlappy(){
-    const best = +(localStorage.getItem(FLAPPY_BEST)||0);
-    document.getElementById('pf-flappy-best').textContent = best;
+    const st = (window.SWR && SWR.get && SWR.get()) || window.MiniState || {};
+const bestLS = +(localStorage.getItem(FLAPPY_BEST)||0);
+const bestSt = +(st.my_best_score||0);
+const best = Math.max(bestLS, bestSt);
+document.getElementById('pf-flappy-best').textContent = best;
+if (best > bestLS) { try{ localStorage.setItem(FLAPPY_BEST, String(best)); }catch(_){} }
 
     const me = String(TG?.initDataUnsafe?.user?.id || 'anon');
     const daily = getJSON(LB_DAILY_KEY(), []) || [];
