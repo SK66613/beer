@@ -3637,7 +3637,7 @@ try { paintBadgesFromState(state); } catch(_) {}
 <script>
 (function(){
   const TG = window.Telegram && window.Telegram.WebApp;
-  const API_BASE = window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev";
+  const API_BASE = window.API_BASE || "https://твой-воркер.workers.dev";
   let KV_VER = 0;            // защита от старых ответов
   let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
 
@@ -4670,186 +4670,42 @@ async function collectStyle(styleId){
 
 
 <!-- === injected fast ping + overrides === -->
-<script id="override-jpost-and-boot">
+
+<script id="refs-render-hook-min">
 (function(){
-  // Ensure API base
-  if (!window.API_BASE && !window.__API_BASE){
-    window.API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
-    window.__API_BASE = window.API_BASE;
-  }
-
-  // Override jpost globally (wins over earlier definitions)
-  window.jpost = function(path, body, signal){
-    return (async ()=>{
-      try{
-        const res = await fetch(((window.API_BASE||window.__API_BASE)||'') + path, {
-          method:'POST',
-          headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
-          cache:'no-store',
-          keepalive:true,
-          signal: signal || null,
-          body: JSON.stringify(body||{})
-        });
-        const ct = res.headers && res.headers.get ? (res.headers.get('content-type')||'') : '';
-        if (ct.includes('application/json')){
-          try { return await res.json(); } catch(_) { return {ok: res.ok}; }
-        }
-        return {ok: res.ok};
-      }catch(_){ return {ok:false, error:'net'}; }
-    })();
-  };
-
-  // Boot fast (parallel bootstrap/state) – run once
-  if (!window.__BOOTFAST_RAN){
-    window.__BOOTFAST_RAN = true;
-    const TG = (window.Telegram && window.Telegram.WebApp) || null;
-    function applyIfNewSafe(s){
-      try { if (typeof window.applyIfNew === 'function') window.applyIfNew(s);
-        else if (typeof window.applyServerState === 'function') window.applyServerState(s);
-      } catch(_){}
-    }
-    async function bootFast(){
-      const tg_init = TG && TG.initData || '';
-      const start_param = TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param || '';
-
-      const ctl1 = new AbortController(), ctl2 = new AbortController();
-      setTimeout(()=>{ try{ctl1.abort();}catch(_){}} , 2000);
-      setTimeout(()=>{ try{ctl2.abort();}catch(_){}} , 2000);
-
-      const pBootstrap = window.jpost('/api/mini/bootstrap', { tg_init, data:{ start_param } }, ctl1.signal)
-        .then(r => applyIfNewSafe(r && (r.fresh_state || r)))
-        .catch(()=>{});
-      const pState = window.jpost('/api/mini/state', { tg_init, fresh:1 }, ctl2.signal)
-        .then(applyIfNewSafe)
-        .catch(()=>{});
-
-      try { await Promise.race([pBootstrap, pState]); } catch(_){}
-      try { await Promise.allSettled([pBootstrap, pState]); } catch(_){}
-    }
-    if (document.readyState === 'loading'){
-      document.addEventListener('DOMContentLoaded', bootFast, { once:true });
-    } else {
-      bootFast();
-    }
-  }
-
-  // SWR pings: Day/All tabs & Refresh button
-  if (!window.__LB_HANDLERS__){
-    window.__LB_HANDLERS__ = true;
-    const TG = (window.Telegram && window.Telegram.WebApp) || null;
-    const getTgInit = () => { try{ return (TG && TG.initData) || ''; }catch(_){ return ''; } };
-
-    document.addEventListener('click', async (e)=>{
-      const tab = e.target.closest('[data-lb-tab]');
-      if (!tab) return;
-      try{
-        const s = await window.jpost('/api/mini/state', { tg_init: getTgInit(), fresh:1 });
-        if (s && s.ok){
-          if (typeof window.applyIfNew === 'function') window.applyIfNew(s);
-          else if (typeof window.applyServerState === 'function') window.applyServerState(s);
-        }
-      }catch(_){}
-    });
-
-    document.addEventListener('click', async (e)=>{
-      const btn = e.target.closest('#lb-refresh, [data-action="lb-refresh"]');
-      if (!btn) return;
-      const list = document.getElementById('lb-list');
-      const prev = btn.textContent;
-      btn.disabled = true;
-      btn.setAttribute('aria-busy','true');
-      btn.textContent = 'Обновляю…';
-      try { list && list.scrollTo({ top:0, behavior:'smooth' }); } catch(_){}
-
-      try{
-        const s = await window.jpost('/api/mini/state', { tg_init: getTgInit(), fresh:1 });
-        if (s && s.ok){
-          if (typeof window.applyIfNew === 'function') window.applyIfNew(s);
-          else if (typeof window.applyServerState === 'function') window.applyServerState(s);
-        }
-      } finally {
-        btn.removeAttribute('aria-busy');
-        btn.disabled = false;
-        btn.textContent = prev;
+  if (window.__REFS_HOOK_MIN__) return; window.__REFS_HOOK_MIN__ = true;
+  function applyRefsFromState(s){
+    try{
+      var refs = (s && (s.ref_total!=null ? s.ref_total : s.ref_count));
+      if (refs == null){
+        try{
+          var raw = localStorage.getItem('beer_refs_v1');
+          if (raw){ var arr = JSON.parse(raw); refs = Array.isArray(arr) ? arr.length : 0; }
+        }catch(_){}
       }
-    });
+      if (refs == null){
+        try{ refs = +(localStorage.getItem('beer_refs_total')||'0'); }catch(_){}
+      }
+      refs = Number(refs||0);
+      var el = document.getElementById('pf-refs-count');
+      if (el) el.textContent = String(refs);
+      try{ localStorage.setItem('beer_refs_total', String(refs)); }catch(_){}
+    }catch(_){}
   }
+  // hook both state appliers
+  var _a = window.applyServerState;
+  window.applyServerState = function(s){ try{ _a && _a(s); } finally { applyRefsFromState(s); } };
+  var _b = window.applyIfNew;
+  window.applyIfNew = function(s){ try{ _b && _b(s); } finally { applyRefsFromState(s); } };
+  // paint from cache on boot
+  try{
+    var cached = +(localStorage.getItem('beer_refs_total')||'0');
+    var el = document.getElementById('pf-refs-count');
+    if (el && cached) el.textContent = String(cached);
+  }catch(_){}
 })();
 </script>
 
-
-<!-- ===== REFS & PROFILE LATE PATCH (non‑breaking) ===== -->
-<script>
-(function(){
-  const TG = (window.Telegram && window.Telegram.WebApp) || {};
-  const API_BASE = window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev";
-
-  // Helpers
-  function setText(sel, txt){ try{ const el=document.querySelector(sel); if (el) el.textContent = String(txt); }catch(_){} }
-  function setVal(sel, val){ try{ const el=document.querySelector(sel); if (el) el.value = String(val); }catch(_){} }
-
-  // 1) Paint refs from state or cache
-  function paintRefsFromState(state){
-    if (!state) state = {};
-    const refs = Number(state.ref_total || state.refs_count || 0) || 0;
-    setText('#pf-refs-count', refs);
-    try { localStorage.setItem('beer_refs_total', String(refs)); } catch(_){}
-  }
-
-  // 2) Restore cached refs on boot
-  (function restoreRefsFromCache(){
-    try{
-      const cached = localStorage.getItem('beer_refs_total');
-      if (cached != null) setText('#pf-refs-count', Number(cached)||0);
-    }catch(_){}
-  })();
-
-  // 3) Ensure share link uses startapp= (opens mini‑app directly)
-  function ensureRefLink(){
-    try{
-      const bot = (window.APP && window.APP.BOT_USERNAME || "@CineCraft_robot").replace("@","");
-      const uid = TG?.initDataUnsafe?.user?.id || "";
-      const link = uid ? (`https://t.me/${bot}?startapp=ref_` + uid) : (`https://t.me/${bot}`);
-      setVal('#ref-link', link);
-      const a = document.querySelector('#ref-link-copy,#btn-ref-copy,[data-copy-ref]');
-      if (a){
-        a.addEventListener('click', async (e)=>{
-          e.preventDefault();
-          try{ await navigator.clipboard.writeText(link); }catch(_){}
-        }, { once: true });
-      }
-    }catch(_){}
-  }
-  ensureRefLink();
-
-  // 4) Hook into existing applyServerState if present
-  (function hookApply(){
-    const prev = window.applyServerState;
-    window.applyServerState = function(state){
-      try{ if (prev) prev(state); }catch(_){}
-      try{ paintRefsFromState(state); }catch(_){}
-    };
-  })();
-
-  // 5) If we already have a MiniState (after initial bootstrap) — paint once
-  try{ if (window.MiniState) paintRefsFromState(window.MiniState); }catch(_){}
-
-  // 6) Minimal bootstrap to make sure start_param is sent (for ref fix)
-  (async function ensureBootstrapOnce(){
-    try{
-      if (window.__ref_boot_ok__) return;
-      window.__ref_boot_ok__ = true;
-      const start_param = TG?.initDataUnsafe?.start_param || "";
-      await fetch(API_BASE + "/api/mini/bootstrap", {
-        method:"POST",
-        headers:{"Content-Type":"application/json","Cache-Control":"no-store"},
-        cache:"no-store",
-        body: JSON.stringify({ tg_init: TG?.initData || "", data:{ start_param } })
-      });
-    }catch(_){}
-  })();
-})();
-</script>
 </body>
 </html>
 
