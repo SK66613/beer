@@ -4668,6 +4668,115 @@ async function collectStyle(styleId){
 })();
 </script>
 
+
+<!-- === injected fast ping + overrides === -->
+<script id="override-jpost-and-boot">
+(function(){
+  // Ensure API base
+  if (!window.API_BASE && !window.__API_BASE){
+    window.API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
+    window.__API_BASE = window.API_BASE;
+  }
+
+  // Override jpost globally (wins over earlier definitions)
+  window.jpost = function(path, body, signal){
+    return (async ()=>{
+      try{
+        const res = await fetch(((window.API_BASE||window.__API_BASE)||'') + path, {
+          method:'POST',
+          headers:{'Content-Type':'application/json','Cache-Control':'no-store'},
+          cache:'no-store',
+          keepalive:true,
+          signal: signal || null,
+          body: JSON.stringify(body||{})
+        });
+        const ct = res.headers && res.headers.get ? (res.headers.get('content-type')||'') : '';
+        if (ct.includes('application/json')){
+          try { return await res.json(); } catch(_) { return {ok: res.ok}; }
+        }
+        return {ok: res.ok};
+      }catch(_){ return {ok:false, error:'net'}; }
+    })();
+  };
+
+  // Boot fast (parallel bootstrap/state) – run once
+  if (!window.__BOOTFAST_RAN){
+    window.__BOOTFAST_RAN = true;
+    const TG = (window.Telegram && window.Telegram.WebApp) || null;
+    function applyIfNewSafe(s){
+      try { if (typeof window.applyIfNew === 'function') window.applyIfNew(s);
+        else if (typeof window.applyServerState === 'function') window.applyServerState(s);
+      } catch(_){}
+    }
+    async function bootFast(){
+      const tg_init = TG && TG.initData || '';
+      const start_param = TG && TG.initDataUnsafe && TG.initDataUnsafe.start_param || '';
+
+      const ctl1 = new AbortController(), ctl2 = new AbortController();
+      setTimeout(()=>{ try{ctl1.abort();}catch(_){}} , 2000);
+      setTimeout(()=>{ try{ctl2.abort();}catch(_){}} , 2000);
+
+      const pBootstrap = window.jpost('/api/mini/bootstrap', { tg_init, data:{ start_param } }, ctl1.signal)
+        .then(r => applyIfNewSafe(r && (r.fresh_state || r)))
+        .catch(()=>{});
+      const pState = window.jpost('/api/mini/state', { tg_init, fresh:1 }, ctl2.signal)
+        .then(applyIfNewSafe)
+        .catch(()=>{});
+
+      try { await Promise.race([pBootstrap, pState]); } catch(_){}
+      try { await Promise.allSettled([pBootstrap, pState]); } catch(_){}
+    }
+    if (document.readyState === 'loading'){
+      document.addEventListener('DOMContentLoaded', bootFast, { once:true });
+    } else {
+      bootFast();
+    }
+  }
+
+  // SWR pings: Day/All tabs & Refresh button
+  if (!window.__LB_HANDLERS__){
+    window.__LB_HANDLERS__ = true;
+    const TG = (window.Telegram && window.Telegram.WebApp) || null;
+    const getTgInit = () => { try{ return (TG && TG.initData) || ''; }catch(_){ return ''; } };
+
+    document.addEventListener('click', async (e)=>{
+      const tab = e.target.closest('[data-lb-tab]');
+      if (!tab) return;
+      try{
+        const s = await window.jpost('/api/mini/state', { tg_init: getTgInit(), fresh:1 });
+        if (s && s.ok){
+          if (typeof window.applyIfNew === 'function') window.applyIfNew(s);
+          else if (typeof window.applyServerState === 'function') window.applyServerState(s);
+        }
+      }catch(_){}
+    });
+
+    document.addEventListener('click', async (e)=>{
+      const btn = e.target.closest('#lb-refresh, [data-action="lb-refresh"]');
+      if (!btn) return;
+      const list = document.getElementById('lb-list');
+      const prev = btn.textContent;
+      btn.disabled = true;
+      btn.setAttribute('aria-busy','true');
+      btn.textContent = 'Обновляю…';
+      try { list && list.scrollTo({ top:0, behavior:'smooth' }); } catch(_){}
+
+      try{
+        const s = await window.jpost('/api/mini/state', { tg_init: getTgInit(), fresh:1 });
+        if (s && s.ok){
+          if (typeof window.applyIfNew === 'function') window.applyIfNew(s);
+          else if (typeof window.applyServerState === 'function') window.applyServerState(s);
+        }
+      } finally {
+        btn.removeAttribute('aria-busy');
+        btn.disabled = false;
+        btn.textContent = prev;
+      }
+    });
+  }
+})();
+</script>
+
 </body>
 </html>
 
