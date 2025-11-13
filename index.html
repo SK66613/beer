@@ -36,7 +36,7 @@
   var TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG && TG.ready && TG.ready(); TG && TG.expand && TG.expand(); TG && TG.disableVerticalSwipes && TG.disableVerticalSwipes(); }catch(_){}
 
-  var API_BASE = (window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev");
+  var API_BASE = (window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev");
 
   async function apiCall(type, data){
     try{
@@ -3443,7 +3443,7 @@ document.addEventListener('click', async function(e){
 <!-- === CLEAN FRONT CORE (server-driven) === -->
 <script>
 (function(){
-  const API_BASE = "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = "https://cifrovichkoff.cyberian13.workers.dev";
   const TG = (window.Telegram && window.Telegram.WebApp) || null;
   try{ TG?.ready(); TG?.expand(); TG?.disableVerticalSwipes?.(); }catch(_){}
 
@@ -3784,7 +3784,7 @@ if (document.readyState === 'loading') {
 <script>
 (function(){
   const TG = window.Telegram && window.Telegram.WebApp;
-  const API_BASE = window.API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
+  const API_BASE = window.API_BASE || "https://cifrovichkoff.cyberian13.workers.dev";
   let KV_VER = 0;            // защита от старых ответов
   let CURRENT_LB = 'today';  // вкладка: 'today' | 'all'
 
@@ -4774,6 +4774,77 @@ async function collectStyle(styleId){
       }
     });
   }
+})();
+</script>
+
+
+<script id="lb-state-pings">
+(function(){
+  if (window.__LB_STATE_PINGS__) return; window.__LB_STATE_PINGS__ = true;
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  const getTgInit = () => { try { return TG && TG.initData || ""; } catch(e){ return ""; } };
+  const postJSON = window.jpost || (async function(path, body){
+    try{
+      const res = await fetch((window.API_BASE||"") + path, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", "Cache-Control":"no-store" },
+        cache:"no-store",
+        keepalive:true,
+        body: JSON.stringify(body||{})
+      });
+      const ct = res.headers && res.headers.get ? (res.headers.get("content-type")||"") : "";
+      if (ct.includes("application/json")) return await res.json();
+      return { ok: res.ok };
+    }catch(_){ return { ok:false, error:"net" }; }
+  });
+
+  async function nudgeState(){
+    const s = await postJSON("/api/mini/state", { tg_init: getTgInit(), fresh:1 });
+    if (s && s.ok){
+      if (typeof window.applyIfNew === "function") window.applyIfNew(s);
+      else if (typeof window.applyServerState === "function") window.applyServerState(s);
+    }
+  }
+
+  document.addEventListener("click", function(e){
+    const tab = e.target.closest("[data-lb-tab]");
+    if (tab){ nudgeState(); }
+  });
+
+  document.addEventListener("click", async function(e){
+    const btn = e.target.closest("#lb-refresh, [data-action='lb-refresh']");
+    if (!btn) return;
+    const prev = btn.textContent;
+    btn.disabled = true; btn.setAttribute("aria-busy","true"); btn.textContent = "Обновляю…";
+    try { await nudgeState(); } finally {
+      btn.removeAttribute("aria-busy"); btn.disabled = false; btn.textContent = prev;
+    }
+  });
+})();
+</script>
+
+
+<script id="refs-render-hook">
+(function(){
+  if (window.__REFS_RENDER__) return; window.__REFS_RENDER__ = true;
+  function renderRefs(s){
+    try{
+      var refs = Number((s && s.ref_total) || 0);
+      ["#pf-refs-count",".js-refs-count","[data-bind='refs-count']"].forEach(function(sel){
+        document.querySelectorAll(sel).forEach(function(el){ el.textContent = refs; });
+      });
+    }catch(_){}
+  }
+  var _applyNew = window.applyIfNew;
+  window.applyIfNew = function(s){ try{ _applyNew && _applyNew(s); } finally { renderRefs(s); } };
+  var _apply = window.applyServerState;
+  window.applyServerState = function(s){ try{ _apply && _apply(s); } finally { renderRefs(s); } };
+  setTimeout(function(){
+    try{
+      var s = (window.SWR && SWR.get && SWR.get()) || window.__STATE || null;
+      renderRefs(s);
+    }catch(_){}
+  }, 0);
 })();
 </script>
 
