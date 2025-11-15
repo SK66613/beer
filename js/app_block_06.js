@@ -21,12 +21,13 @@
   const cta    = document.getElementById('fl-cta');
 
   /* ===== ASSETS: поменяй пути/размеры под свои картинки ===== */
-  const ASSETS = {
-    bird:   { img: 'img/bumblebee.png',  w: 56, h: 42 },
-    pipes:  { top:'pipe_top.png', bottom:'pipe_bottom.png', width:54 },
-    coin:   { img:'img/coin.png',   w:32, h:32, value:5 },
-    shield: { img:'shield.png', w:34, h:34, dur_ms:6000 }
-  };
+const ASSETS = {
+  bird:   { img: 'img/bumblebee.png',  w: 56, h: 42 },
+  pipes:  { top:'img/pipe_top.png', bottom:'img/pipe_bottom.png', width:54 },
+  coin:   { img:'img/coin.png',   w:32, h:32, value:5 },
+  shield: { img:'img/shield.png', w:34, h:34, dur_ms:6000 }
+};
+
 
   /* ===== TUNING ===== */
   const WORLD_RECORD     = 200;
