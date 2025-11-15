@@ -23,7 +23,7 @@
   }
   function showOk(msg){
     try { if (TG && TG.showPopup) TG.showPopup({message: msg||'ОК'}); else console.log(msg||'ОК'); } catch(_){}
-  
+  }
   // --- cache helpers for passport (support both v1 and legacy map)
   function getCachedStyles(){
     try{
@@ -57,7 +57,6 @@
     if (!arr.includes(code)) arr.push(code);
     cacheStyles(arr);
   }
-}
   function ensureLbButtons(){
     document.querySelectorAll('.lb-seg button, .lb-seg [role="button"], .js-lb-mode').forEach(btn=>{
       const t = (btn.textContent||'').trim().toLowerCase();
