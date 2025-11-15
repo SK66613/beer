@@ -80,29 +80,128 @@
     });
   }
 
+  // --- YOU helpers: current user + YOU block renderer
+  function getCurrentUserFromTG(){
+    try{
+      return (TG && TG.initDataUnsafe && TG.initDataUnsafe.user) ? TG.initDataUnsafe.user : {};
+    }catch(_){
+      return {};
+    }
+  }
+
+  function renderYouBlock(st, arr){
+    const youEl = document.getElementById('lb-you');
+    if (!youEl) return;
+
+    const mode = (CURRENT_LB === 'all') ? 'all' : 'today';
+    const u = getCurrentUserFromTG() || {};
+
+    const nameEl  = youEl.querySelector('[data-role="lb-you-name"], .lb-you-name');
+    const scoreEl = youEl.querySelector('[data-role="lb-you-score"], .lb-you-score');
+    const labelEl = youEl.querySelector('[data-role="lb-you-label"], .lb-you-label');
+    const avaEl   = youEl.querySelector('[data-role="lb-you-avatar"], .lb-you-avatar');
+
+    let row = null;
+    const tgId = (u && u.id!=null) ? String(u.id) : '';
+    if (tgId && Array.isArray(arr)){
+      row = arr.find(function(r){ return String(r.tg_id||'') === tgId; }) || null;
+    }
+    if (!row && u && u.username && Array.isArray(arr)){
+      const uname = String(u.username).toLowerCase();
+      row = arr.find(function(r){ return String(r.username||'').toLowerCase() === uname; }) || null;
+    }
+
+    const firstName = (row && row.first_name) || u.first_name || '';
+    const lastName  = (row && row.last_name)  || u.last_name  || '';
+    let fullName = (firstName + ' ' + lastName).trim();
+    if (!fullName){
+      if (u && u.username) fullName = '@' + u.username;
+      else fullName = 'YOU';
+    }
+
+    const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
+    const photo = (row && (row.photo_url || row.photo || row.avatar_url))
+               || (u && (u.photo_url || u.photo))
+               || '';
+
+    var bestAll = 0;
+    var bestDay = 0;
+
+    if (st && st.my_best_score!=null) bestAll = st.my_best_score|0;
+    try{
+      const lsBest = +(localStorage.getItem('flappy_best') || 0);
+      if (lsBest > bestAll) bestAll = lsBest;
+    }catch(_){}
+
+    if (row && (row.best_score!=null || row.score!=null)){
+      const rowBest = (row.best_score!=null ? row.best_score : row.score)|0;
+      if (mode === 'all' && rowBest > bestAll) bestAll = rowBest;
+    }
+
+    if (row && (row.best_score!=null || row.score!=null)){
+      bestDay = (row.best_score!=null ? row.best_score : row.score)|0;
+    }else if (mode === 'today' && st && st.my_today_score!=null){
+      bestDay = st.my_today_score|0;
+    }
+
+    const scoreToShow = mode === 'all' ? bestAll : bestDay;
+    const labelText = (mode === 'all') ? 'best score all' : 'best score day';
+
+    if (nameEl)  nameEl.textContent  = fullName;
+    if (scoreEl) scoreEl.textContent = scoreToShow || 0;
+    if (labelEl) labelEl.textContent = labelText;
+
+    if (avaEl){
+      if (photo){
+        avaEl.classList.add('has-photo');
+        avaEl.style.backgroundImage = 'url("' + photo + '")';
+        avaEl.textContent = '';
+      }else{
+        avaEl.classList.remove('has-photo');
+        avaEl.style.backgroundImage = '';
+        avaEl.textContent = initial;
+      }
+    }
+  }
+
   // --- reliable leaderboard renderer (override any previous)
   window.renderLeaderboard = function(){
     const st = window.MiniState || {};
     const listEl = document.getElementById('lb-list');
-    if (!listEl) return;
+    if (!listEl){
+      updateLbSeg();
+      try{ renderYouBlock(st, []); }catch(_){}
+      return;
+    }
     const arr = (CURRENT_LB==='all') ? (st.leaderboard_alltime||[]) : (st.leaderboard_today||[]);
     if (!Array.isArray(arr) || arr.length===0){
       listEl.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
     }else{
       listEl.innerHTML = arr.map(function(r,i){
         const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
-        const name  = r.username ? ('@'+r.username) : (r.tg_id||'—');
-        const ava   = (r.username||'U').slice(0,1).toUpperCase();
+        const fullName = (((r.first_name||'') + ' ' + (r.last_name||'')).trim()) ||
+                         (r.username ? ('@'+r.username) : (r.tg_id||'—'));
+        const labelInitial = (fullName || 'U').trim().charAt(0).toUpperCase();
+        const photo = r.photo_url || r.photo || r.avatar_url || '';
+        var avatarHtml;
+        if (photo){
+          avatarHtml = '<div class="lb-avatar lb-avatar--img" style="background-image:url(\''+photo+'\')"></div>';
+        }else{
+          avatarHtml = '<div class="lb-avatar">'+labelInitial+'</div>';
+        }
+        const sc = ((r.best_score!=null ? r.best_score : r.score)|0);
         return '<div class="lb-row'+medal+'">'+
           '<div class="lb-rank">'+(i+1)+'</div>'+
-          '<div class="lb-avatar">'+ava+'</div>'+
-          '<div class="lb-name">'+name+'</div>'+
-          '<div class="lb-score">'+(r.score|0)+'</div>'+
+          avatarHtml+
+          '<div class="lb-name">'+fullName+'</div>'+
+          '<div class="lb-score">'+sc+'</div>'+
         '</div>';
       }).join('');
     }
+    try{ renderYouBlock(st, arr); }catch(_){}
     updateLbSeg();
   };
+
 
   // --- badges painter for passport + sheet (strictly from server state)
   function paintBadgesFromState(st){
@@ -190,6 +289,40 @@ async function collectStyle(styleId){
       if (s && s.ok) window.applyServerState(s);
     }
   }, {passive:true});
+
+  // --- manual refresh button for leaderboard (пинок воркеру)
+  async function refreshLeaderboard(btn){
+    btn = btn || document.querySelector('[data-lb-refresh], .js-lb-refresh');
+    if (!btn) return;
+    const labelEl = btn.querySelector('[data-role="lb-refresh-label"]') || btn;
+    const origHtml = labelEl.innerHTML;
+    btn.disabled = true;
+    btn.classList.add('is-loading');
+    labelEl.innerHTML = 'Обновляю…';
+    try{
+      const s = await jpost('/api/mini/state', { tg_init: getTgInit(), fresh: 1 });
+      if (s && s.ok){
+        window.applyServerState(s);
+        try{
+          const listEl = document.getElementById('lb-list');
+          if (listEl && listEl.scrollTo){
+            listEl.scrollTo({top:0, behavior:'smooth'});
+          }
+        }catch(_){}
+      }
+    }finally{
+      btn.disabled = false;
+      btn.classList.remove('is-loading');
+      labelEl.innerHTML = origHtml;
+    }
+  }
+
+  document.addEventListener('click', function(e){
+    const btn = e.target.closest('[data-lb-refresh], .js-lb-refresh');
+    if (!btn) return;
+    e.preventDefault();
+    refreshLeaderboard(btn);
+  }, {passive:false});
 
   // --- init
   ensureLbButtons();
