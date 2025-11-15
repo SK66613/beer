@@ -385,14 +385,15 @@
   </div>
 
   <!-- Ты -->
-  <div class="lb-you" id="lb-you">
-    <div class="lb-you__avatar" id="lb-you-ava">YOU</div>
-    <div class="lb-you__meta">
-      <div class="lb-you__name" id="lb-you-name">You</div>
-      <div class="lb-sub" id="lb-you-note">best score</div>
-    </div>
-    <div class="lb-you__score" id="lb-you-score">0</div>
+<div id="lb-you" class="lb-you">
+  <div class="lb-you-avatar" data-role="lb-you-avatar"></div>
+  <div class="lb-you-meta">
+    <div class="lb-you-name" data-role="lb-you-name">YOU</div>
+    <div class="lb-you-label" data-role="lb-you-label">best score day</div>
   </div>
+  <div class="lb-you-score" data-role="lb-you-score">0</div>
+</div>
+
 
   <!-- Топ -->
   <div class="lb-list" id="lb-list">
@@ -400,7 +401,10 @@
   </div>
 
   <div class="lb-actions">
-    <button class="lb-btn" id="lb-refresh" type="button">Обновить</button>
+    <button class="lb-refresh-btn js-lb-refresh">
+  <span data-role="lb-refresh-label">Обновить</span>
+</button>
+
     <button class="lb-btn lb-btn--primary" type="button" data-open-flappy>Играть</button>
   </div>
 </div>
