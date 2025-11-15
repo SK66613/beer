@@ -21,13 +21,12 @@
   const cta    = document.getElementById('fl-cta');
 
   /* ===== ASSETS: поменяй пути/размеры под свои картинки ===== */
-const ASSETS = {
-  bird:   { img: 'img/bumblebee.png',  w: 56, h: 42 },
-  pipes:  { top:'img/pipe_top.png', bottom:'img/pipe_bottom.png', width:54 },
-  coin:   { img:'img/coin.png',   w:32, h:32, value:5 },
-  shield: { img:'img/shield.png', w:34, h:34, dur_ms:6000 }
-};
-
+  const ASSETS = {
+    bird:   { img: 'img/bumblebee.png',  w: 56, h: 42 },
+    pipes:  { top:'img/pipe_top.png', bottom:'img/pipe_bottom.png', width:54 },
+    coin:   { img:'img/coin.png',   w:32, h:32, value:5 },
+    shield: { img:'img/shield.png', w:34, h:34, dur_ms:6000 }
+  };
 
   /* ===== TUNING ===== */
   const WORLD_RECORD     = 200;
@@ -68,13 +67,58 @@ const ASSETS = {
   let shieldActive=false, shieldUntil=0;
 
   // ---- Global wallet (общий баланс мини-аппа) ----
-const WALLET_KEY = 'beer_coins';
-function getWallet(){ return +(localStorage.getItem(WALLET_KEY)||0); }
-function setWallet(v){ localStorage.setItem(WALLET_KEY, String(Math.max(0, v|0))); try{ window.syncCoinsUI?.(); }catch(_){ } }
-// Унифицировано: если у тебя уже есть window.addCoins — используем его.
-function addWallet(n){ if (typeof window.addCoins==='function') return window.addCoins(n|0); setWallet(getWallet()+(n|0)); }
-const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в общий баланс (поменяй при желании)
+  const WALLET_KEY = 'beer_coins';
+  function getWallet(){ return +(localStorage.getItem(WALLET_KEY)||0); }
+  function setWallet(v){
+    localStorage.setItem(WALLET_KEY, String(Math.max(0, v|0)));
+    try{ window.syncCoinsUI?.(); }catch(_){}
+  }
+  // Унифицировано: если у тебя уже есть window.addCoins — используем его.
+  function addWallet(n){
+    if (typeof window.addCoins === 'function') return window.addCoins(n|0);
+    setWallet(getWallet() + (n|0));
+  }
+  const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в общий баланс (поменяй при желании)
 
+  // ---- Статистика для плашки: мой лучший счёт + мировой рекорд из кэша ----
+  function getFlappyPanelStats(){
+    // базовые значения: что знаем внутри игры
+    let myBest = best | 0;
+    let worldBest = WORLD_RECORD | 0;
+
+    try {
+      const st = (window.SWR && window.SWR.get && window.SWR.get()) || window.MiniState || {};
+
+      const lsBest = +(localStorage.getItem('flappy_best') || 0);
+      const stBest = (st.my_best_score | 0) || 0;
+      myBest = Math.max(myBest, stBest, lsBest);
+
+      const all = Array.isArray(st.leaderboard_alltime) ? st.leaderboard_alltime : [];
+      if (all.length) {
+        const maxAll = Math.max(
+          0,
+          ...all.map(r => (r.best_score != null ? r.best_score : r.score) | 0)
+        );
+        if (maxAll > 0) worldBest = maxAll;
+      } else {
+        try {
+          const raw = localStorage.getItem('lb_flappy_all');
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr) && arr.length) {
+              const maxCache = Math.max(
+                0,
+                ...arr.map(r => (r.best_score != null ? r.best_score : r.score) | 0)
+              );
+              if (maxCache > 0) worldBest = maxCache;
+            }
+          }
+        } catch(_) {}
+      }
+    } catch(_) {}
+
+    return { myBest, worldBest };
+  }
 
   // helpers
   const haptic = lvl=>{ try{ TG?.HapticFeedback?.impactOccurred(lvl||'light'); }catch(_){} };
@@ -321,17 +365,37 @@ const COIN_TO_WALLET = 1; // 1 подобранная монетка = 1 в об
   function crash(){ haptic('heavy'); finish(); }
   function finish(){
     running=false; cancelAnimationFrame(raf);
-    if (score > best){ best=score; try{ localStorage.setItem('flappy_best', String(best)); }catch(_){ } }
+
+    // обновляем локальный лучший результат
+    if (score > best){
+      best = score;
+      try{ localStorage.setItem('flappy_best', String(best)); }catch(_){}
+    }
 
     // submit в турнир (как у тебя)
-    try { window.Tournament?.submit(score); } catch(_) {}
+    try{ window.Tournament?.submit(score); }catch(_){}
 
-    addWallet(Math.floor(coins * COIN_TO_WALLET)); // зачисляем все собранные за раунд
+    // зачисляем все собранные за раунд монеты в общий баланс
+    addWallet(Math.floor(coins * COIN_TO_WALLET));
 
+    // берём актуальные цифры из кэша/state:
+    // мой лучший счёт + мировой рекорд из вкладки «ВСЕ»
+    const stats = getFlappyPanelStats();
+    const myBest    = stats.myBest | 0;
+    const worldBest = (stats.worldBest | 0) || WORLD_RECORD;
 
-    document.getElementById('fl-best').textContent = best;
-    document.getElementById('fl-world').textContent = WORLD_RECORD;
-    resBox.classList.add('show'); cta.classList.add('show');
+    // обновляем профиль, если есть блок «Шмель — лучший счёт»
+    try{
+      const pfBestEl = document.getElementById('pf-flappy-best');
+      if (pfBestEl) pfBestEl.textContent = myBest;
+    }catch(_){}
+
+    // рисуем значения на плашке внутри игры
+    document.getElementById('fl-best').textContent  = myBest;
+    document.getElementById('fl-world').textContent = worldBest;
+
+    resBox.classList.add('show');
+    cta.classList.add('show');
   }
 
   function resetScene(){
