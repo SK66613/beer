@@ -1,0 +1,65 @@
+/* ===== Карточка «Паспорт» (рамка) ===== */
+.card.passport{
+  padding: var(--card-pad);
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px;
+  background: rgba(255,255,255,.04);
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: stretch;
+}
+/* Левая картинка */
+.passport__media{
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255,255,255,.04);
+  display: grid; place-items: center;
+}
+.passport__media img{
+  width:100%; height:100%; object-fit:cover; display:block;
+}
+/* Правая колонка */
+.passport__body{ display:grid; gap:10px; }
+/* ===== Сетка мини-карточек ===== */
+#passport-grid{
+  display:grid;
+  grid-template-columns: repeat(3, minmax(0,1fr));
+  gap:10px;
+}
+/* ЕДИНАЯ карточка стиля (название + бейдж внутри обводки) */
+.pslot{
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.04);
+  border-radius:12px;
+  padding:10px;
+  display:grid; gap:8px;
+  transition: border-color .2s ease, background-color .2s ease, box-shadow .2s ease;
+}
+.pslot__title{ font-weight:800; line-height:1.2; }
+/* бейдж статуса */
+.pslot__badge{
+  display:grid; place-items:center;
+  padding:8px 10px; border-radius:999px;
+  font-weight:800; font-size:13px;
+  border:1px solid rgba(255,255,255,.12);
+  background:rgba(255,255,255,.06); color:#fff; opacity:.95;
+}
+/* Подсветка при получении штампа — ВЕСЬ блок */
+.pslot.is-done{
+  border-color: rgba(55,214,122,.55);
+  background: rgba(55,214,122,.12);
+  box-shadow: 0 0 0 1px rgba(55,214,122,.25) inset;
+}
+.pslot.is-done .pslot__title{ color:#37d67a; }
+.pslot.is-done .pslot__badge{
+  border-color: rgba(55,214,122,.55);
+  background: linear-gradient(180deg, rgba(55,214,122,.9), rgba(55,214,122,.75));
+  color:#0b1a12;
+}
+.passport__media{
+    margin: calc(-1*var(--card-pad)) calc(-1*var(--card-pad)) 10px;
+    border-radius: 16px 16px 0 0;
+    aspect-ratio: 16/9;
+  }
+#passport-grid{ grid-template-columns: repeat(2, minmax(0,1fr)); }

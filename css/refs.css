@@ -1,0 +1,53 @@
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* ===== Слайдер Slider ===== */
+:root{ --introBottomPad: 28px; }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* ===== GAMES CARD Карточки на главной игры ===== */
+.list-card.games .list__item{ background:transparent; border:0; box-shadow:none }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* ===== LEADERBOARD Турнир (Clicker) ===== */
+.lb-card { padding:12px; }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* ===== FLAPPY LITE+ Шмель  (overlay) ===== */
+.flappy{ position:fixed; inset:0; z-index:10060; background:#000; color:#fff; display:none; }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* ===== BONUSES (чистая версия) ===== */
+
+    /* Отступы между карточками в разделе */
+    #bonuses>.card {
+      margin-top: 14px;
+    }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* Toasts ТОСТ ОКОШКО*/
+.toasts{
+  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
+}
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* Trivia Викторина */
+
+.trivia-q{ display:grid; gap:12px; }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* ===== ровные отступы и лёгкая иерархия ===== */
+.card{ padding:14px; border-radius:16px; border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.04); }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+:root{ --card-pad:14px; }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+<style>
+/* Глобально запрещаем выделение + контекст по долгому тапу */
+*, *::before, *::after{
+  -webkit-user-select: none !important;
+          user-select: none !important;
+  -webkit-touch-callout: none !important;
+  -webkit-tap-highlight-color: transparent;
+}

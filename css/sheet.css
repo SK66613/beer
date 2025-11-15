@@ -1,0 +1,56 @@
+/* sheet */
+    .sheet{ position:fixed; inset:0; z-index:9990; pointer-events:none; }
+.sheet.is-open{ pointer-events:auto; }
+.sheet__overlay{
+      position:absolute; left:0; right:0; top:0;
+      bottom: calc(var(--tabH) + var(--navGap) + env(safe-area-inset-bottom, 0px));
+      background: rgba(0,0,0,.48); opacity:0; transition:opacity .2s ease;
+      -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
+    }
+.sheet.is-open .sheet__overlay{ opacity:1; }
+.sheet__panel{
+      position:absolute; left:0; right:0; margin:0 auto;
+      width:min(820px,100%); max-height:88vh; overflow:auto;
+      background:linear-gradient(180deg, rgba(18,20,24,.98), rgba(18,20,24,.96));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 20px 40px rgba(0,0,0,.45);
+      transition: transform .28s cubic-bezier(.2,.8,.2,1), opacity .2s ease;
+      padding:12px 14px calc(16px + var(--tabH) + var(--navGap) + env(safe-area-inset-bottom, 0px));
+      will-change: transform;
+      touch-action: pan-y;
+    }
+.sheet.sheet-bottom .sheet__panel{ bottom:0; top:auto; border-radius: 16px 16px 0 0; transform: translateY(100%); }
+.sheet.is-open.sheet-bottom .sheet__panel{ transform: translateY(0); }
+.sheet__handle{ width:42px; height:4px; border-radius:999px; margin:6px auto 10px; background:rgba(255,255,255,.18) }
+.sheet__header{ display:flex; align-items:center; gap:10px; margin:0 0 8px }
+.sheet__title{ font-weight:800; font-size:18px; margin:0 }
+.sheet__close{ margin-left:auto; border:0; background:transparent; color:#fff; opacity:.85; width:36px; height:36px; border-radius:10px; display:grid; place-items:center }
+.sheet__close:active{ transform:translateY(1px); opacity:1 }
+.sheet__body{ display:grid; gap:10px }
+body.sheet-open{ overflow:hidden }
+/*Последние призы для шторки горизонтальные строчки призов только внутри шторки */
+#sheet #pf-prizes-sheet{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  overflow:visible;
+}
+/* клон-дорожку марквии в шторке прячем */
+#sheet #pf-prizes-sheet + .ticker__clone{ display:none; }
+/* Если есть нижний таббар, чтобы шторка его перекрывала */
+.sheet{ z-index: 12000 !important; }
+/* ===== split from REF_index_refs_clean.html ===== */
+
+/* Disable action on collected stamp */
+#passport-grid .pslot.is-done .pslot__badge,
+#sheet #passport-grid .pslot.is-done .pslot__badge{
+  pointer-events: none !important;
+  cursor: default !important;
+  opacity: .9;
+}
+/* While sending — visually lock */
+#passport-grid .pslot.is-busy .pslot__badge,
+#sheet #passport-grid .pslot.is-busy .pslot__badge{
+  pointer-events: none !important;
+  opacity: .6;
+}

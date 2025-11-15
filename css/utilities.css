@@ -1,0 +1,45 @@
+.badge--amber{ background:rgba(249,178,77,.15); border-color:rgba(249,178,77,.35); color:#ffd59c }
+.badge--green{ background:rgba(55,214,122,.15); border-color:rgba(55,214,122,.35); color:#bff5d6 }
+.intro__actions--one{ grid-template-columns:1fr }
+.intro__actions--two{ grid-template-columns:1fr 1fr }
+.intro__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.intro__btn--ghost{ background:transparent }
+.list__btn--primary{ background:#fff; color:#000; border-color:#fff }
+.lb-btn--primary{ background:#fff; color:#000; border-color:#fff; }
+.fl-bird--sprite{ background:center/contain no-repeat; border-radius:0; box-shadow:none; }
+.fl-bird--shield{ box-shadow:0 0 0 3px rgba(107,227,255,.8), 0 0 30px rgba(107,227,255,.55); }
+.fl-pipe--sprite{ background: center / 100% 100% no-repeat; border:none; box-shadow:none; }
+/* если используешь спрайт — оставляем скругление */
+.fl-bird--sprite{ border-radius: var(--bird-radius); }
+/* активный щит: кольцо + подсветка + пульс */
+.fl-bird--shield{
+  box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color);
+  position: relative;
+}
+.fl-bird--shield::after{
+  content:"";
+  position:absolute; inset: calc(-1*var(--shield-ring));
+  border-radius: inherit;
+  border: var(--shield-ring) solid var(--shield-ring-color);
+  box-shadow: 0 0 var(--shield-glow-blur) var(--shield-glow-color);
+  animation: shieldPulse var(--shield-pulse) ease-in-out infinite;
+  pointer-events: none;
+}
+.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
+.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
+/* жёлтая пилюля */
+.pill-amber{ background:transparent; color:#ffb02e; border:1.5px solid #ffb02e; }
+.pill-amber{ background:transparent; color:#ffb02e; border:1.5px solid #ffb02e; }
+.chip--muted{ opacity:.6; }
+.metric--balance{
+  justify-self:end;
+  padding:8px 12px;
+  background:rgba(255,255,255,.03);
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:12px;
+  min-width:96px;           /* можно убрать/изменить */
+}
+.metric--balance .metric__val{ font-weight:900; font-size:18px; line-height:1; }
+.metric--balance .metric__lbl{ opacity:.75; font-size:12px; margin-top:2px; }
+.metric--balance .metric__val{ font-size:16px; }
+.ticker--reverse .ticker__track{ animation-direction: reverse; }
