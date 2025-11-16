@@ -480,31 +480,32 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
   let panel;
 
   function ensurePanel() {
-    if (panel) return panel;
-    panel = document.createElement('div');
-    panel.id = 'debug-panel';
-    panel.style.position = 'fixed';
-    panel.style.left = '0';
-    panel.style.bottom = '0';
-    panel.style.width = '100%';
-    panel.style.maxHeight = '40%';
-    panel.style.overflowY = 'auto';
-    panel.style.fontSize = '11px';
-    panel.style.fontFamily = 'monospace';
-    panel.style.background = 'rgba(0,0,0,.85)';
-    panel.style.color = '#0f0';
-    panel.style.zIndex = '999999';
-    panel.style.padding = '4px 6px';
-    panel.style.boxSizing = 'border-box';
-    panel.style.whiteSpace = 'pre-wrap';
-    panel.style.wordBreak = 'break-word';
-    panel.innerHTML = '[debug] панель логов (тапни, чтобы скрыть)';
-    panel.addEventListener('click', () => {
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    });
-    document.body.appendChild(panel);
-    return panel;
-  }
+  if (panel) return panel;
+  panel = document.createElement('div');
+  panel.id = 'debug-panel';
+  panel.style.position = 'fixed';
+  panel.style.left = '0';
+  panel.style.top = '0';              // 🔹 было bottom: '0'
+  // panel.style.bottom = '0';        // 🔹 эту строку можно удалить
+  panel.style.width = '100%';
+  panel.style.maxHeight = '40%';
+  panel.style.overflowY = 'auto';
+  panel.style.fontSize = '11px';
+  panel.style.fontFamily = 'monospace';
+  panel.style.background = 'rgba(0,0,0,.85)';
+  panel.style.color = '#0f0';
+  panel.style.zIndex = '999999';
+  panel.style.padding = '4px 6px';
+  panel.style.boxSizing = 'border-box';
+  panel.style.whiteSpace = 'pre-wrap';
+  panel.style.wordBreak = 'break-word';
+  panel.innerHTML = '[debug] панель логов (тапни, чтобы скрыть)';
+  panel.addEventListener('click', () => {
+    panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+  });
+  document.body.appendChild(panel);
+  return panel;
+}
 
   function write(kind, args) {
     const p = ensurePanel();
