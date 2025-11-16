@@ -1,13 +1,12 @@
 (function(){
   // --- config
-  const API_BASE = window.API_BASE || (window.__API_BASE || "");
-  const TG = (window.Telegram && window.Telegram.WebApp) || null;
-  const PIN_CODE = (window.DEMO_PIN || '1111');
+const API_BASE = window.API_BASE || (window.__API_BASE || "");
+const TG = (window.Telegram && window.Telegram.WebApp) || null;
 
-  // --- state gates
-  let KV_VER = 0;
-  let CURRENT_LB = (window.CURRENT_LB || 'today');
-  let pinOkSession = false; // PIN спрашиваем один раз за сессию
+// --- state gates
+let KV_VER = 0;
+let CURRENT_LB = (window.CURRENT_LB || 'today');
+
 
   // --- small helpers
   function jpost(path, body){
@@ -271,24 +270,40 @@
 
   // --- unified collectStyle with single PIN step and clear confirm
   
+// --- unified collectStyle with server-side PIN check
+
 async function collectStyle(styleId){
-  if (!pinOkSession){
-    const pin = prompt('PIN сотрудника (демо: 1111)');
-    if (pin !== PIN_CODE){ alert('PIN неверный'); return; }
-    pinOkSession = true; showOk('PIN ОК');
+  const pin = prompt('PIN сотрудника (одноразовый)');
+  if (pin == null || String(pin).trim() === ''){
+    showOk('Ввод PIN отменён');
+    return;
   }
+
   const tg_init = getTgInit();
-  const r = await jpost('/api/mini/event', { tg_init, type:'style.collect', data:{ style_id: String(styleId) } });
+  const r = await jpost('/api/mini/event', {
+    tg_init,
+    type: 'style.collect',
+    data: { style_id: String(styleId), pin: String(pin).trim() }
+  });
+
   if (r && r.ok && r.fresh_state){
-    window.applyServerState(r.fresh_state); // сервер всё подсветит и сохранит
+    // сервер всё подсветит и сохранит
+    window.applyServerState(r.fresh_state);
   }else{
-    // оффлайн/ошибка сети — не даём UX развалиться: подсветим из локального кэша
-    cacheAdd(String(styleId));
-    try{ paintBadgesFromState({styles: getCachedStyles()}); }catch(_){}
-    if (r && r.error) console.warn('collectStyle offline fallback:', r.error);
-    showOk('Штамп отмечен локально');
+    if (r && r.error === 'pin_invalid'){
+      showOk('ПИН неверный или уже использован');
+    }else if (r && r.error === 'pin_used'){
+      showOk('Этот ПИН уже был использован');
+    }else if (r && r.error === 'pin_required'){
+      showOk('Нужно ввести ПИН у сотрудника');
+    }else if (r && r.error){
+      showOk('Ошибка: ' + r.error);
+    }else{
+      showOk('Ошибка сети, попробуйте ещё раз');
+    }
   }
 }
+
 
   // --- clicks: passport tiles and sheet tiles -> collectStyle
   document.addEventListener('click', function(e){
