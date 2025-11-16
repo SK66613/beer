@@ -338,15 +338,18 @@
           : null;
 
         if (!r || !r.ok) {
-          if (r && r.error === 'no_coins') {
-            showToast('Не хватает монет для крутки', 'error', 3000);
-          } else if (r && r.error === 'no_prize_config') {
-            showToast('Призы пока не настроены', 'error', 3000);
-          } else {
-            showToast('Ошибка при крутке, попробуй ещё раз', 'error', 3000);
-          }
-          return;
-        }
+  console.log('wheel.spin response:', r);
+
+  if (r && r.error === 'no_coins') {
+    showToast('Не хватает монет для крутки', 'error', 3000);
+  } else if (r && r.error === 'no_prize_config') {
+    showToast('Призы пока не настроены', 'error', 3000);
+  } else {
+    showToast('Ошибка при крутке: ' + (r && r.error ? r.error : 'неизвестно'), 'error', 4000);
+  }
+  return;
+}
+
 
         if (r.fresh_state && window.applyServerState) {
           window.applyServerState(r.fresh_state);
