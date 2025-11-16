@@ -18,6 +18,14 @@
 
     const TG = window.Telegram && window.Telegram.WebApp;
 
+    // ===== настройки анимации =====
+    const CONFETTI_CODES = ['coins_20', 'coins_5']; // 🎉 только для монет
+    const PRE_LAPS       = 2;       // сколько кругов делает предспин
+    const PRE_DUR        = 900;     // длительность предспина (мс)
+    const FINAL_LAPS     = 1;       // сколько кругов делает финальный спин
+    const FINAL_DUR      = 1200;    // длительность финального спина (мс)
+    const MIN_SPIN_MS    = 1600;    // минимальное общее время крутки (мс)
+
     // ========= helpers: state =========
 
     function getMiniState() {
@@ -282,38 +290,42 @@
       syncCoinsUI();
     }
 
+    // spinTo теперь возвращает Promise, чтобы можно было await'ить
     function spinTo(targetIdx, laps = 1, dur = 1600) {
-      const base = nearest(curr, targetIdx, N);
-      const dir  = (base >= curr ? 1 : -1) || 1;
-      const to   = base + dir * (laps * N);
+      return new Promise(resolve => {
+        const base = nearest(curr, targetIdx, N);
+        const dir  = (base >= curr ? 1 : -1) || 1;
+        const to   = base + dir * (laps * N);
 
-      const from = curr;
-      const t0   = performance.now();
-      let lastPulse = 0;
+        const from = curr;
+        const t0   = performance.now();
+        let lastPulse = 0;
 
-      function tick(t) {
-        const k = Math.min((t - t0) / dur, 1);
-        curr = from + (to - from) * (1 - Math.pow(1 - k, 3));
-        updateUI();
-
-        const period = 80 + 180 * k;
-        if (t - lastPulse >= period) {
-          hapticPulse('light');
-          lastPulse = t;
-        }
-
-        if (k < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          curr = to;
-          interacted = true;
+        function tick(t) {
+          const k = Math.min((t - t0) / dur, 1);
+          curr = from + (to - from) * (1 - Math.pow(1 - k, 3));
           updateUI();
+
+          const period = 80 + 180 * k;
+          if (t - lastPulse >= period) {
+            hapticPulse('light');
+            lastPulse = t;
+          }
+
+          if (k < 1) {
+            requestAnimationFrame(tick);
+          } else {
+            curr = to;
+            interacted = true;
+            updateUI();
+            resolve();
+          }
         }
-      }
-      requestAnimationFrame(tick);
+        requestAnimationFrame(tick);
+      });
     }
 
-    // ========= SPIN (wheel.spin via window.api) =========
+    // ========= SPIN (wheel.spin via window.api, с предспином и минимальным временем) =========
 
     spin?.addEventListener('click', async () => {
       if (spinning) return;
@@ -338,16 +350,42 @@
       spinning = true;
       spin.classList.add('is-locked');
 
-      try {
-        const r = await api('wheel.spin', {});
-        console.log('[wheel] spin response:', r);
+      const startTs = performance.now();
 
+      try {
+        // 1) Предспин — сразу крутим рандомный сектор
+        const preIdx  = Math.floor(Math.random() * N);
+        console.log('[wheel] start pre-spin, target=', preIdx);
+        const preSpinPromise = spinTo(preIdx, PRE_LAPS, PRE_DUR);
+
+        // 2) Параллельно ждём ответ от бэка
+        let r;
+        try {
+          r = await api('wheel.spin', {});
+          console.log('[wheel] spin response:', r);
+        } catch (e) {
+          console.error('[wheel] api error:', e);
+          r = { ok:false, error:'network' };
+        }
+
+        // 3) Дожидаемся конца предспина
+        await preSpinPromise;
+
+        // 4) Гарантируем минимальное общее время крутки
+        const elapsed = performance.now() - startTs;
+        if (elapsed < MIN_SPIN_MS) {
+          await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
+        }
+
+        // 5) Обрабатываем ответ бэка
         if (!r || !r.ok) {
           const err = r && r.error;
           if (err === 'no_coins') {
             showToast('Не хватает монет для крутки', 'error', 3000);
           } else if (err === 'no_prize_config') {
             showToast('Призы пока не настроены', 'error', 3000);
+          } else if (err === 'network') {
+            showToast('Ошибка сети, попробуй ещё раз', 'error', 3000);
           } else {
             showToast('Ошибка при крутке: ' + (err || 'неизвестно'), 'error', 4000);
           }
@@ -367,18 +405,30 @@
           idx = Math.floor(Math.random() * N);
         }
 
-        hapticPulse('light');
+        console.log('[wheel] final spin to idx=', idx, 'code=', code);
+
+        // 6) Финальный спин к реальному призу
         const rect = spin.getBoundingClientRect();
-        confettiBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        spinTo(idx, 1, 1600);
+
+        // Конфетти — только если выпали монеты
+        const shouldConfetti = CONFETTI_CODES.includes(code);
+
+        if (shouldConfetti) {
+          hapticPulse('light');
+          confettiBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        }
+
+        await spinTo(idx, FINAL_LAPS, FINAL_DUR);
+
+        // после финального спина уже всё обновлено
+        syncCoinsUI();
+        refreshClaimState();
       } catch (e) {
         console.error('[wheel] exception in spin handler', e);
         showToast('Ошибка сети, попробуй ещё раз', 'error', 3000);
       } finally {
         spinning = false;
         spin.classList.remove('is-locked');
-        syncCoinsUI();
-        refreshClaimState();
       }
     });
 
