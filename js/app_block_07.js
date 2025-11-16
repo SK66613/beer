@@ -20,11 +20,10 @@
 
     // ===== настройки анимации =====
     const CONFETTI_CODES = ['coins_20', 'coins_5']; // 🎉 только для монет
-    const PRE_LAPS       = 2;       // сколько кругов делает предспин
-    const PRE_DUR        = 900;     // длительность предспина (мс)
-    const FINAL_LAPS     = 1;       // сколько кругов делает финальный спин
+    const FINAL_LAPS     = 1;       // кругов при финальном замедлении
     const FINAL_DUR      = 1200;    // длительность финального спина (мс)
     const MIN_SPIN_MS    = 1600;    // минимальное общее время крутки (мс)
+    const FREE_SPIN_RPS  = 2.2;     // оборотов в секунду при "фальш-спине"
 
     // ========= helpers: state =========
 
@@ -290,7 +289,8 @@
       syncCoinsUI();
     }
 
-    // spinTo теперь возвращает Promise, чтобы можно было await'ить
+    // ========= финальный спин (замедление к нужному сектору) =========
+
     function spinTo(targetIdx, laps = 1, dur = 1600) {
       return new Promise(resolve => {
         const base = nearest(curr, targetIdx, N);
@@ -325,7 +325,38 @@
       });
     }
 
-    // ========= SPIN (wheel.spin via window.api, с предспином и минимальным временем) =========
+    // ========= free-spin: непрерывное кручение, пока бэк отвечает =========
+
+    const FREE_SPIN_SPEED = (FREE_SPIN_RPS * N) / 1000; // секторов в мс
+    let freeSpinRunning   = false;
+    let freeSpinFrameId   = null;
+
+    function startFreeSpin() {
+      if (freeSpinRunning) return;
+      freeSpinRunning = true;
+      let last = performance.now();
+
+      function loop(now) {
+        if (!freeSpinRunning) {
+          freeSpinFrameId = null;
+          return;
+        }
+        const dt = now - last;
+        last = now;
+        curr = mod(curr + FREE_SPIN_SPEED * dt, N);
+        updateUI();
+        freeSpinFrameId = requestAnimationFrame(loop);
+      }
+
+      freeSpinFrameId = requestAnimationFrame(loop);
+    }
+
+    function stopFreeSpin() {
+      freeSpinRunning = false;
+      // requestAnimationFrame сам затухнет на следующем кадре
+    }
+
+    // ========= SPIN (wheel.spin via window.api, с free-spin и min time) =========
 
     spin?.addEventListener('click', async () => {
       if (spinning) return;
@@ -351,14 +382,9 @@
       spin.classList.add('is-locked');
 
       const startTs = performance.now();
+      startFreeSpin();
 
       try {
-        // 1) Предспин — сразу крутим рандомный сектор
-        const preIdx  = Math.floor(Math.random() * N);
-        console.log('[wheel] start pre-spin, target=', preIdx);
-        const preSpinPromise = spinTo(preIdx, PRE_LAPS, PRE_DUR);
-
-        // 2) Параллельно ждём ответ от бэка
         let r;
         try {
           r = await api('wheel.spin', {});
@@ -368,16 +394,14 @@
           r = { ok:false, error:'network' };
         }
 
-        // 3) Дожидаемся конца предспина
-        await preSpinPromise;
-
-        // 4) Гарантируем минимальное общее время крутки
+        // ждём минимальное время крутки
         const elapsed = performance.now() - startTs;
         if (elapsed < MIN_SPIN_MS) {
           await new Promise(res => setTimeout(res, MIN_SPIN_MS - elapsed));
         }
 
-        // 5) Обрабатываем ответ бэка
+        stopFreeSpin();
+
         if (!r || !r.ok) {
           const err = r && r.error;
           if (err === 'no_coins') {
@@ -407,20 +431,15 @@
 
         console.log('[wheel] final spin to idx=', idx, 'code=', code);
 
-        // 6) Финальный спин к реальному призу
-        const rect = spin.getBoundingClientRect();
-
-        // Конфетти — только если выпали монеты
         const shouldConfetti = CONFETTI_CODES.includes(code);
-
         if (shouldConfetti) {
+          const rect = spin.getBoundingClientRect();
           hapticPulse('light');
           confettiBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
         }
 
         await spinTo(idx, FINAL_LAPS, FINAL_DUR);
 
-        // после финального спина уже всё обновлено
         syncCoinsUI();
         refreshClaimState();
       } catch (e) {
