@@ -93,8 +93,11 @@
   const youEl = document.getElementById('lb-you');
   if (!youEl) return;
 
+  // какая вкладка: день / всё
   const mode = (CURRENT_LB === 'all') ? 'all' : 'today';
-  const u = getCurrentUserFromTG() || {};
+
+  // берём пользователя так же, как в профиле
+  const u = (window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.initDataUnsafe && window.Telegram.WebApp.initDataUnsafe.user) || {};
 
   const nameEl  = youEl.querySelector('[data-role="lb-you-name"], .lb-you-name');
   const scoreEl = youEl.querySelector('[data-role="lb-you-score"], .lb-you-score');
@@ -112,7 +115,7 @@
     row = arr.find(function(r){ return String(r.username||'').toLowerCase() === uname; }) || null;
   }
 
-  // имя: сначала из row (leaderboard), потом из Telegram user
+  // имя: сначала из leaderboard (если есть), потом из Telegram
   const firstName = (row && row.first_name) || u.first_name || '';
   const lastName  = (row && row.last_name)  || u.last_name  || '';
   let fullName = (firstName + ' ' + lastName).trim();
@@ -123,10 +126,10 @@
 
   const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
 
-  // 💡 АВАТАР: ровно как в профиле — напрямую из TG.initDataUnsafe.user.photo_url
-  const photo = (u && u.photo_url) ? u.photo_url : '';
+  // ФОТО: как в профиле — напрямую из u.photo_url
+  const photo = u && u.photo_url ? u.photo_url : '';
 
-  // считаем bestAll / bestDay (как раньше)
+  // считаем bestAll / bestDay (как у нас уже сделано)
   var bestAll = 0;
   var bestDay = 0;
 
@@ -166,6 +169,7 @@
     }
   }
 }
+
 
 
   // --- reliable leaderboard renderer (override any previous)
