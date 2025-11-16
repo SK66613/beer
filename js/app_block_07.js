@@ -1,10 +1,11 @@
+// ===== WHEEL (bonus wheel) =====
 (function () {
 
   function initWheel() {
     const wheel = document.getElementById('bonusWheel');
     const track = document.getElementById('wheelTrack');
     if (!wheel || !track) {
-      console.log('[wheel] no DOM, abort');
+      console.log('[wheel] no DOM for wheel, abort init');
       return;
     }
 
@@ -17,50 +18,17 @@
 
     const TG = window.Telegram && window.Telegram.WebApp;
 
-    /* ====== утилита: дергаем воркер /api/mini/event ====== */
-     // Базовый адрес API — такой же, как у остального мини-аппа
-    const API_BASE = (window.API_BASE || '').replace(/\/$/, '');
+    // ========= helpers: state =========
 
-    async function callMiniEvent(type, data) {
-      const tg_init = (window.getTgInit && window.getTgInit()) ||
-                      (TG && TG.initData) || '';
-
-      const payload = { tg_init, type, data: data || {} };
-
-      // Если API_BASE не задан, шьём относительный путь (когда фронт и воркер на одном домене)
-      const url = (API_BASE ? API_BASE : '') + '/api/mini/event';
-
-      console.log('[wheel] callMiniEvent', type, url, payload);
-
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-
-       const text = await res.text();
-console.log('[wheel] raw response text:', text);   // было
-console.log('[wheel] RAW:', text);                // добавь ЭТО
-
-        let jsonRes;
-        try {
-          jsonRes = JSON.parse(text);
-        } catch (e) {
-          console.error('[wheel] bad JSON from backend', e);
-          return { ok:false, error:'bad_json', raw:text };
-        }
-
-        console.log('[wheel] parsed response:', jsonRes);
-        return jsonRes;
-      } catch (e) {
-        console.error('[wheel] network error', e);
-        return { ok:false, error:'network', detail:String(e) };
-      }
+    function getMiniState() {
+      return (window.MiniState || {});
+    }
+    function getWheelState() {
+      const st = getMiniState();
+      return st.wheel || {};
     }
 
-
-    /* ================== общие утилиты ================== */
+    // ========= geometry / layout =========
 
     let STEP = 114;
     requestAnimationFrame(() => {
@@ -69,11 +37,11 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       if (a && b) {
         const dx = Math.round(b.left - a.left);
         if (dx > 40 && dx < 300) STEP = dx;
-        console.log('[wheel] STEP =', STEP);
       }
+      console.log('[wheel] STEP =', STEP);
     });
 
-    let curr = 0;
+    let curr       = 0;
     let interacted = false;
     let spinning   = false;
 
@@ -86,7 +54,8 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       return t;
     }
 
-    /* ===== Хаптики (Telegram + фоллбек) ===== */
+    // ========= haptics =========
+
     function hapticPulse(level = 'light') {
       try {
         if (TG?.HapticFeedback) {
@@ -102,16 +71,8 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       } catch (_) {}
     }
 
-    /* ====== состояние из MiniState ====== */
-    function getMiniState() {
-      return (window.MiniState || {});
-    }
-    function getWheelState() {
-      const st = getMiniState();
-      return st.wheel || {};
-    }
+    // ========= claim cooldown =========
 
-    /* ====== кулдаун на «Забрать бонус» ====== */
     let claimTimerId    = null;
     let claimLeftMsLocal = 0;
 
@@ -119,8 +80,8 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       if (!claim) return;
 
       const wheelState = getWheelState();
-      const rem       = Number(wheelState.claim_cooldown_left_ms || 0);
-      const hasPrize  = !!wheelState.has_unclaimed;
+      const rem      = Number(wheelState.claim_cooldown_left_ms || 0);
+      const hasPrize = !!wheelState.has_unclaimed;
 
       if (claimTimerId) {
         clearInterval(claimTimerId);
@@ -165,7 +126,119 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       claimTimerId = setInterval(tick, 1000);
     }
 
-    /* ================== UI ================== */
+    // ========= coins / config =========
+
+    function getCoins() {
+      const st = getMiniState();
+      return Number(st.coins || 0);
+    }
+
+    function getSpinCost() {
+      const st = getMiniState();
+      const cfg = st.config || {};
+      if (typeof cfg.WHEEL_SPIN_COST === 'number') return cfg.WHEEL_SPIN_COST;
+      if (typeof cfg.SPIN_COST === 'number')       return cfg.SPIN_COST;
+      return 0;
+    }
+
+    function syncCoinsUI() {
+      const coins = getCoins();
+      ['coins-inline', 'coins-inline-2', 'coins-profile'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = coins;
+      });
+      if (spin) {
+        const lock = (coins < getSpinCost()) || spinning;
+        spin.classList.toggle('is-locked', lock);
+      }
+    }
+
+    // ========= toasts + confetti =========
+
+    function ensureToastStyles() {
+      if (document.getElementById('toast-styles')) return;
+      const css = `
+.toasts{
+  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
+}
+.toast{
+  pointer-events:auto; display:flex; align-items:center; gap:10px;
+  padding:12px 14px; border-radius:14px; color:#fff;
+  background:rgba(18,20,24,.96); border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 10px 24px rgba(0,0,0,.35);
+  transform:translateX(120%); opacity:0; animation:toast-in .25s ease forwards;
+}
+.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
+.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
+.toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
+@keyframes toast-in { to { transform:translateX(0); opacity:1; } }
+@keyframes toast-out{ to { transform:translateX(120%); opacity:0; } }
+
+#spinBtn.is-locked{ opacity:.6; }
+#spinBtn.is-locked:active{ transform:none; }
+
+#confetti { position: fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:10000; }
+.confetti-piece{ position: fixed; left: var(--x); top: var(--y); width:8px; height:8px; border-radius:2px; transform: translate(-50%,-50%); animation: confetti-fall .95s ease-out forwards; }
+@keyframes confetti-fall { to { transform: translate(calc(var(--dx)), calc(var(--dy))) rotate(260deg); opacity:0; } }
+`;
+      const style = document.createElement('style');
+      style.id = 'toast-styles';
+      style.textContent = css;
+      document.head.appendChild(style);
+    }
+
+    function showToast(msg, type = 'error', ms = 3000) {
+      ensureToastStyles();
+      const host = document.getElementById('toasts') || (() => {
+        const d = document.createElement('div');
+        d.id = 'toasts';
+        d.className = 'toasts';
+        document.body.appendChild(d);
+        return d;
+      })();
+      const el = document.createElement('div');
+      el.className = 'toast' + (type === 'ok' ? ' toast--ok' : ' toast--error');
+      el.innerHTML = `<span>${msg}</span><button class="toast__close" aria-label="Закрыть">✕</button>`;
+      host.appendChild(el);
+      const close = () => {
+        el.style.animation = 'toast-out .22s ease forwards';
+        setTimeout(() => el.remove(), 240);
+      };
+      el.querySelector('.toast__close').addEventListener('click', close);
+      setTimeout(close, ms);
+    }
+
+    function confettiBurst(x, y) {
+      ensureToastStyles();
+      let layer = document.getElementById('confetti');
+      if (!layer) {
+        layer = document.createElement('div');
+        layer.id = 'confetti';
+        document.body.appendChild(layer);
+      }
+      const colors = ['#7b5bff', '#3de0c5', '#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
+      const rect = document.body.getBoundingClientRect();
+      const ox = (x ?? rect.width / 2);
+      const oy = (y ?? rect.height / 3);
+      for (let i = 0; i < 36; i++) {
+        const el = document.createElement('div');
+        el.className = 'confetti-piece';
+        el.style.background = colors[i % colors.length];
+        const angle = (i / 36) * Math.PI * 2;
+        const speed = 140 + Math.random() * 120;
+        const dx = Math.cos(angle) * speed;
+        const dy = Math.sin(angle) * speed + 220;
+        el.style.setProperty('--x', ox + 'px');
+        el.style.setProperty('--y', oy + 'px');
+        el.style.setProperty('--dx', dx + 'px');
+        el.style.setProperty('--dy', dy + 'px');
+        layer.appendChild(el);
+        setTimeout(() => el.remove(), 950);
+      }
+    }
+
+    // ========= UI / layout updates =========
 
     function updatePillByIndex(idx) {
       const it   = items[idx];
@@ -237,126 +310,13 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       requestAnimationFrame(tick);
     }
 
-    /* ================== монеты ================== */
-
-    function getCoins() {
-      const st = getMiniState();
-      return Number(st.coins || 0);
-    }
-
-    function getSpinCost() {
-      const st = getMiniState();
-      const cfg = st.config || {};
-      if (typeof cfg.WHEEL_SPIN_COST === 'number') return cfg.WHEEL_SPIN_COST;
-      if (typeof cfg.SPIN_COST === 'number')       return cfg.SPIN_COST;
-      return 0;
-    }
-
-    function syncCoinsUI() {
-      const coins = getCoins();
-      ['coins-inline', 'coins-inline-2', 'coins-profile'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = coins;
-      });
-      if (spin) {
-        const lock = (coins < getSpinCost()) || spinning;
-        spin.classList.toggle('is-locked', lock);
-      }
-    }
-
-    /* ================== toasts + конфетти ================== */
-
-    function ensureToastStyles() {
-      if (document.getElementById('toast-styles')) return;
-      const css = `
-.toasts{
-  position:fixed; right:16px; bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
-  z-index:100000; display:grid; gap:8px; width:min(92vw,320px); pointer-events:none;
-}
-.toast{
-  pointer-events:auto; display:flex; align-items:center; gap:10px;
-  padding:12px 14px; border-radius:14px; color:#fff;
-  background:rgba(18,20,24,.96); border:1px solid rgba(255,255,255,.12);
-  box-shadow:0 10px 24px rgba(0,0,0,.35);
-  transform:translateX(120%); opacity:0; animation:toast-in .25s ease forwards;
-}
-.toast--error{ border-color:rgba(255,107,107,.45); box-shadow:0 10px 24px rgba(255,107,107,.15); }
-.toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
-.toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
-@keyframes toast-in { to { transform:translateX(0); opacity:1; } }
-@keyframes toast-out{ to { transform:translateX(120%); opacity:0); } }
-
-#spinBtn.is-locked{ opacity:.6; }
-#spinBtn.is-locked:active{ transform:none; }
-
-#confetti { position: fixed; left:0; top:0; width:100%; height:100%; pointer-events:none; overflow:visible; z-index:10000; }
-.confetti-piece{ position: fixed; left: var(--x); top: var(--y); width:8px; height:8px; border-radius:2px; transform: translate(-50%,-50%); animation: confetti-fall .95s ease-out forwards; }
-@keyframes confetti-fall { to { transform: translate(calc(var(--dx)), calc(var(--dy))) rotate(260deg); opacity:0; } }
-`;
-      const style = document.createElement('style');
-      style.id = 'toast-styles';
-      style.textContent = css;
-      document.head.appendChild(style);
-    }
-
-    function showToast(msg, type = 'error', ms = 3000) {
-      ensureToastStyles();
-      const host = document.getElementById('toasts') || (() => {
-        const d = document.createElement('div');
-        d.id = 'toasts';
-        d.className = 'toasts';
-        document.body.appendChild(d);
-        return d;
-      })();
-      const el = document.createElement('div');
-      el.className = 'toast' + (type === 'ok' ? ' toast--ok' : ' toast--error');
-      el.innerHTML = `<span>${msg}</span><button class="toast__close" aria-label="Закрыть">✕</button>`;
-      host.appendChild(el);
-      const close = () => {
-        el.style.animation = 'toast-out .22s ease forwards';
-        setTimeout(() => el.remove(), 240);
-      };
-      el.querySelector('.toast__close').addEventListener('click', close);
-      setTimeout(close, ms);
-    }
-
-    function confettiBurst(x, y) {
-      ensureToastStyles();
-      let layer = document.getElementById('confetti');
-      if (!layer) {
-        layer = document.createElement('div');
-        layer.id = 'confetti';
-        document.body.appendChild(layer);
-      }
-      const colors = ['#7b5bff', '#3de0c5', '#ffd166', '#ef476f', '#06d6a0', '#118ab2'];
-      const rect = document.body.getBoundingClientRect();
-      const ox = (x ?? rect.width / 2);
-      const oy = (y ?? rect.height / 3);
-      for (let i = 0; i < 36; i++) {
-        const el = document.createElement('div');
-        el.className = 'confetti-piece';
-        el.style.background = colors[i % colors.length];
-        const angle = (i / 36) * Math.PI * 2;
-        const speed = 140 + Math.random() * 120;
-        const dx = Math.cos(angle) * speed;
-        const dy = Math.sin(angle) * speed + 220;
-        el.style.setProperty('--x', ox + 'px');
-        el.style.setProperty('--y', oy + 'px');
-        el.style.setProperty('--dx', dx + 'px');
-        el.style.setProperty('--dy', dy + 'px');
-        layer.appendChild(el);
-        setTimeout(() => el.remove(), 950);
-      }
-    }
-
-    /* ================== события ================== */
+    // ========= SPIN (wheel.spin via window.api) =========
 
     spin?.addEventListener('click', async () => {
       if (spinning) return;
 
       const coins = getCoins();
       const cost  = getSpinCost();
-
       console.log('[wheel] click spin, coins=', coins, 'cost=', cost);
 
       if (coins < cost) {
@@ -365,11 +325,18 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
         return;
       }
 
+      const api = window.api;
+      if (typeof api !== 'function') {
+        console.error('[wheel] window.api is not defined');
+        showToast('API не инициализировалось, перезапусти мини-приложение', 'error', 4000);
+        return;
+      }
+
       spinning = true;
       spin.classList.add('is-locked');
 
       try {
-        const r = await callMiniEvent('wheel.spin', {});
+        const r = await api('wheel.spin', {});
         console.log('[wheel] spin response:', r);
 
         if (!r || !r.ok) {
@@ -379,7 +346,7 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
           } else if (err === 'no_prize_config') {
             showToast('Призы пока не настроены', 'error', 3000);
           } else {
-            showToast('Ошибка при крутке: ' + (err || 'нет ответа от сервера'), 'error', 4000);
+            showToast('Ошибка при крутке: ' + (err || 'неизвестно'), 'error', 4000);
           }
           return;
         }
@@ -412,11 +379,20 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       }
     });
 
+    // ========= CLAIM (wheel.claim via window.api) =========
+
     claim?.addEventListener('click', async () => {
       if (claim.disabled) return;
 
+      const api = window.api;
+      if (typeof api !== 'function') {
+        console.error('[wheel] window.api is not defined');
+        showToast('API не инициализировалось, перезапусти мини-приложение', 'error', 4000);
+        return;
+      }
+
       try {
-        const r = await callMiniEvent('wheel.claim', {});
+        const r = await api('wheel.claim', {});
         console.log('[wheel] claim response:', r);
 
         if (!r || !r.ok) {
@@ -462,7 +438,8 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
       }
     });
 
-    /* старт */
+    // ========= старт =========
+
     console.log('[wheel] init done, items=', N);
     updateUI();
   }
@@ -474,6 +451,7 @@ console.log('[wheel] RAW:', text);                // добавь ЭТО
   }
 
 })();
+
 
 
 (function () {
