@@ -120,9 +120,17 @@
     }
 
     const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
-    const photo = (row && (row.photo_url || row.photo || row.avatar_url))
-               || (u && (u.photo_url || u.photo))
-               || '';
+let photo = (row && (row.photo_url || row.photo || row.avatar_url))
+         || (u && (u.photo_url || u.photo))
+         || '';
+
+// fallback: берём то же фото, что уже подставлено в профиль
+if (!photo){
+  const pfAva = document.getElementById('pf-ava');
+  // src у <img> будет абсолютным урлом — то, что нам и нужно
+  if (pfAva && pfAva.src) photo = pfAva.src;
+}
+
 
     var bestAll = 0;
     var bestDay = 0;
