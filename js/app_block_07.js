@@ -335,16 +335,22 @@
           })
         : null;
 
-      if (!r || !r.ok) {
-        if (r && r.error === 'no_coins') {
-          showToast('Не хватает монет для крутки', 'error', 3000);
-        } else if (r && r.error === 'no_prize_config') {
-          showToast('Призы пока не настроены', 'error', 3000);
-        } else {
-          showToast('Ошибка при крутке, попробуй ещё раз', 'error', 3000);
-        }
-        return;
-      }
+if (!r || !r.ok) {
+  const err = r && r.error ? String(r.error) : 'unknown';
+
+  if (err === 'no_coins') {
+    showToast('Не хватает монет для крутки', 'error', 3000);
+  } else if (err === 'no_prize_config') {
+    showToast('Призы пока не настроены', 'error', 3000);
+  } else {
+    // ВРЕМЕННО — чтобы понять, что именно отвечает воркер/GAS
+    showToast('Ошибка при крутке: ' + err, 'error', 4000);
+  }
+
+  console.log('wheel.spin resp', r);  // чтобы в консоли было видно весь ответ
+  return;
+}
+
 
       if (r.fresh_state && window.applyServerState) {
         window.applyServerState(r.fresh_state);
