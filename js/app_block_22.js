@@ -69,19 +69,22 @@
       const badge = card.querySelector('.pslot__badge');
       if (badge) badge.setAttribute('aria-busy','true');
 
-      const pin = window.prompt('PIN сотрудника (демо: 1111)');
+      const pin = window.prompt('PIN сотрудника (одноразовый)');
       if (pin == null){ // cancel
         toast('Отменено', false);
         return;
       }
-      if (String(pin) !== PIN_CODE){
-        toast('PIN неверный', false);
+      if (String(pin).trim() === ''){
+        toast('Введите PIN', false);
         return;
       }
 
-      // Correct PIN -> send event to worker
+      // Отправляем одноразовый PIN на бэкенд, проверка только на сервере
       if (API){
-        const r = await API('style.collect', { style_id: String(code) });
+        const r = await API('style.collect', {
+          style_id: String(code),
+          pin: String(pin).trim()
+        });
         if (r && r.ok){
           // Update local caches and repaint
           updatePassportCaches(code);
@@ -103,12 +106,23 @@
           }catch(_){}
           toast('Штамп получен', true);
         }else{
-          toast((r && r.error) ? r.error : 'Ошибка сети', false);
+          if (r && r.error === 'pin_invalid'){
+            toast('ПИН неверный или уже использован', false);
+          }else if (r && r.error === 'pin_used'){
+            toast('Этот ПИН уже был использован', false);
+          }else if (r && r.error === 'pin_required'){
+            toast('Нужно ввести ПИН у сотрудника', false);
+          }else if (r && r.error){
+            toast(r.error, false);
+          }else{
+            toast('Ошибка сети', false);
+          }
         }
       }else{
         // No API available — do not send, do not mark collected
         toast('API недоступен', false);
       }
+
     }finally{
       card.classList.remove('is-busy');
       const badge = card.querySelector('.pslot__badge');
