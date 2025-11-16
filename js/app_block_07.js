@@ -39,8 +39,9 @@
           body: JSON.stringify(payload)
         });
 
-        const text = await res.text();
-        console.log('[wheel] raw response text:', text);
+       const text = await res.text();
+console.log('[wheel] raw response text:', text);   // было
+console.log('[wheel] RAW:', text);                // добавь ЭТО
 
         let jsonRes;
         try {
