@@ -101,16 +101,18 @@
   const labelEl = youEl.querySelector('[data-role="lb-you-label"], .lb-you-label');
   const avaEl   = youEl.querySelector('[data-role="lb-you-avatar"], .lb-you-avatar');
 
+  // ищем свою строку в текущем массиве лидерборда
   let row = null;
   const tgId = (u && u.id!=null) ? String(u.id) : '';
   if (tgId && Array.isArray(arr)){
-    row = arr.find(r => String(r.tg_id||'') === tgId) || null;
+    row = arr.find(function(r){ return String(r.tg_id||'') === tgId; }) || null;
   }
   if (!row && u && u.username && Array.isArray(arr)){
     const uname = String(u.username).toLowerCase();
-    row = arr.find(r => String(r.username||'').toLowerCase() === uname) || null;
+    row = arr.find(function(r){ return String(r.username||'').toLowerCase() === uname; }) || null;
   }
 
+  // имя: сначала из row (leaderboard), потом из Telegram user
   const firstName = (row && row.first_name) || u.first_name || '';
   const lastName  = (row && row.last_name)  || u.last_name  || '';
   let fullName = (firstName + ' ' + lastName).trim();
@@ -121,18 +123,10 @@
 
   const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
 
-  let photo = (row && (row.photo_url || row.photo || row.avatar_url))
-           || (u && (u.photo_url || u.photo))
-           || '';
+  // 💡 АВАТАР: ровно как в профиле — напрямую из TG.initDataUnsafe.user.photo_url
+  const photo = (u && u.photo_url) ? u.photo_url : '';
 
-  // fallback: берём ту же фотку, что уже стоит в профиле
-  if (!photo){
-    const pfAva = document.getElementById('pf-ava');
-    if (pfAva && pfAva.src) {
-      photo = pfAva.src;
-    }
-  }
-
+  // считаем bestAll / bestDay (как раньше)
   var bestAll = 0;
   var bestDay = 0;
 
