@@ -3,7 +3,10 @@
   function initWheel() {
     const wheel = document.getElementById('bonusWheel');
     const track = document.getElementById('wheelTrack');
-    if (!wheel || !track) return;
+    if (!wheel || !track) {
+      console.log('[wheel] no DOM, abort');
+      return;
+    }
 
     const items = Array.from(track.children);
     const N = items.length;
@@ -12,17 +15,43 @@
     const claim = document.getElementById('claimBtn');
     const spin  = document.getElementById('spinBtn');
 
-    /* Название -> ссылка (можно донастроить) */
-    const bonusLinks = {
-      "Кружка": "#tpl-lastpriz",
-      "Футболка": "#tpl-lastpriz",
-      "Фисташки": "#tpl-lastpriz",
-      "Скидка": "#tpl-lastpriz",
-      "Дегустация": "#tpl-lastpriz",
-      "Монеты": "#tpl-lastpriz"
-    };
+    const TG = window.Telegram && window.Telegram.WebApp;
+
+    /* ====== утилита: дергаем воркер /api/mini/event ====== */
+    async function callMiniEvent(type, data) {
+      const tg_init = (window.getTgInit && window.getTgInit()) ||
+                      (TG && TG.initData) || '';
+
+      const payload = { tg_init, type, data: data || {} };
+
+      console.log('[wheel] callMiniEvent', type, payload);
+
+      try {
+        const res = await fetch('/api/mini/event', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+
+        const text = await res.text();
+        console.log('[wheel] raw response text:', text);
+
+        try {
+          const json = JSON.parse(text);
+          console.log('[wheel] parsed response:', json);
+          return json;
+        } catch (e) {
+          console.error('[wheel] bad JSON from worker', e);
+          return { ok:false, error:'bad_json', raw:text };
+        }
+      } catch (e) {
+        console.error('[wheel] network error', e);
+        return { ok:false, error:'network', detail:String(e) };
+      }
+    }
 
     /* ================== общие утилиты ================== */
+
     let STEP = 114;
     requestAnimationFrame(() => {
       const a = items[0]?.getBoundingClientRect();
@@ -30,13 +59,13 @@
       if (a && b) {
         const dx = Math.round(b.left - a.left);
         if (dx > 40 && dx < 300) STEP = dx;
+        console.log('[wheel] STEP =', STEP);
       }
     });
 
     let curr = 0;
-    let startX = 0, startCurr = 0, dragging = false, lastX = 0, lastT = 0, vel = 0;
     let interacted = false;
-    let spinning = false;
+    let spinning   = false;
 
     const mod = (a, n) => ((a % n) + n) % n;
     const easeOut = t => 1 - Math.pow(1 - t, 3);
@@ -48,7 +77,6 @@
     }
 
     /* ===== Хаптики (Telegram + фоллбек) ===== */
-    const TG = window.Telegram && window.Telegram.WebApp;
     function hapticPulse(level = 'light') {
       try {
         if (TG?.HapticFeedback) {
@@ -64,7 +92,7 @@
       } catch (_) {}
     }
 
-    /* ====== Состояние из server state (MiniState) ====== */
+    /* ====== состояние из MiniState ====== */
     function getMiniState() {
       return (window.MiniState || {});
     }
@@ -73,16 +101,16 @@
       return st.wheel || {};
     }
 
-    /* ====== Кулдаун "Забрать бонус" на основе MiniState.wheel ====== */
-    let claimTimerId = null;
+    /* ====== кулдаун на «Забрать бонус» ====== */
+    let claimTimerId    = null;
     let claimLeftMsLocal = 0;
 
     function refreshClaimState() {
       if (!claim) return;
 
       const wheelState = getWheelState();
-      const rem = Number(wheelState.claim_cooldown_left_ms || 0);
-      const hasPrize = !!wheelState.has_unclaimed;
+      const rem       = Number(wheelState.claim_cooldown_left_ms || 0);
+      const hasPrize  = !!wheelState.has_unclaimed;
 
       if (claimTimerId) {
         clearInterval(claimTimerId);
@@ -128,10 +156,11 @@
     }
 
     /* ================== UI ================== */
+
     function updatePillByIndex(idx) {
-      const it = items[idx];
+      const it   = items[idx];
       const name = it?.dataset?.name || '—';
-      const img = it?.querySelector('img')?.src || '';
+      const img  = it?.querySelector('img')?.src || '';
       if (!pill) return;
       pill.classList.remove('muted');
       pill.innerHTML = img ? `<img src="${img}" alt=""><span>${name}</span>` : name;
@@ -167,14 +196,13 @@
       syncCoinsUI();
     }
 
-    /* ====== Вращение ====== */
     function spinTo(targetIdx, laps = 1, dur = 1600) {
       const base = nearest(curr, targetIdx, N);
-      const dir = (base >= curr ? 1 : -1) || 1;
-      const to = base + dir * (laps * N);
+      const dir  = (base >= curr ? 1 : -1) || 1;
+      const to   = base + dir * (laps * N);
 
       const from = curr;
-      const t0 = performance.now();
+      const t0   = performance.now();
       let lastPulse = 0;
 
       function tick(t) {
@@ -199,25 +227,8 @@
       requestAnimationFrame(tick);
     }
 
-    function snapTo(targetIdx, dur = 420) {
-      const to = nearest(curr, targetIdx, N);
-      const from = curr;
-      const t0 = performance.now();
-      function tick(t) {
-        const k = Math.min((t - t0) / dur, 1);
-        curr = from + (to - from) * easeOut(k);
-        updateUI();
-        if (k < 1) requestAnimationFrame(tick);
-        else {
-          curr = to;
-          interacted = true;
-          updateUI();
-        }
-      }
-      requestAnimationFrame(tick);
-    }
+    /* ================== монеты ================== */
 
-    /* ================== Монеты из server state ================== */
     function getCoins() {
       const st = getMiniState();
       return Number(st.coins || 0);
@@ -227,7 +238,7 @@
       const st = getMiniState();
       const cfg = st.config || {};
       if (typeof cfg.WHEEL_SPIN_COST === 'number') return cfg.WHEEL_SPIN_COST;
-      if (typeof cfg.SPIN_COST === 'number') return cfg.SPIN_COST;
+      if (typeof cfg.SPIN_COST === 'number')       return cfg.SPIN_COST;
       return 0;
     }
 
@@ -243,7 +254,8 @@
       }
     }
 
-    /* ================== Toasts ================== */
+    /* ================== toasts + конфетти ================== */
+
     function ensureToastStyles() {
       if (document.getElementById('toast-styles')) return;
       const css = `
@@ -262,7 +274,7 @@
 .toast--ok{    border-color:rgba(55,214,122,.45);  box-shadow:0 10px 24px rgba(55,214,122,.15); }
 .toast__close{ margin-left:auto; opacity:.7; background:transparent; border:0; color:inherit; cursor:pointer; }
 @keyframes toast-in { to { transform:translateX(0); opacity:1; } }
-@keyframes toast-out{ to { transform:translateX(120%); opacity:0; } }
+@keyframes toast-out{ to { transform:translateX(120%); opacity:0); } }
 
 #spinBtn.is-locked{ opacity:.6; }
 #spinBtn.is-locked:active{ transform:none; }
@@ -298,145 +310,6 @@
       setTimeout(close, ms);
     }
 
-    /* ================== события ================== */
-
-    // Если нужно, можно вернуть клик по карточке и drag — пока отключено, чтобы не путать
-    /*
-    track.addEventListener('click', (e) => {
-      const b = e.target.closest('.bonus'); if (!b) return;
-      const idx = items.indexOf(b);
-      if (idx >= 0) snapTo(idx, 320);
-    });
-    */
-
-    /* ===== Крутануть: запрос к GAS (wheel.spin) ===== */
-    spin?.addEventListener('click', async () => {
-      if (spinning) return;
-
-      const coins = getCoins();
-      const cost  = getSpinCost();
-
-      if (coins < cost) {
-        hapticPulse('medium');
-        showToast(`Недостаточно монет. Нужно ${cost} 🪙`, 'error', 3000);
-        return;
-      }
-
-      spinning = true;
-      spin.classList.add('is-locked');
-
-      try {
-        const tg_init = (window.getTgInit && window.getTgInit()) ||
-                        (TG && TG.initData) || '';
-
-        const r = window.jpost
-          ? await window.jpost('/api/mini/event', {
-              tg_init,
-              type: 'wheel.spin',
-              data: {}
-            })
-          : null;
-
-        if (!r || !r.ok) {
-  console.log('wheel.spin response:', r);
-
-  if (r && r.error === 'no_coins') {
-    showToast('Не хватает монет для крутки', 'error', 3000);
-  } else if (r && r.error === 'no_prize_config') {
-    showToast('Призы пока не настроены', 'error', 3000);
-  } else {
-    showToast('Ошибка при крутке: ' + (r && r.error ? r.error : 'неизвестно'), 'error', 4000);
-  }
-  return;
-}
-
-
-        if (r.fresh_state && window.applyServerState) {
-          window.applyServerState(r.fresh_state);
-        }
-
-        const prize = r.prize || {};
-        const code  = prize.code || '';
-        let idx = items.findIndex(el =>
-          (el.dataset.code || el.dataset.name || '').toString() === code.toString()
-        );
-        if (idx < 0) {
-          idx = Math.floor(Math.random() * N);
-        }
-
-        hapticPulse('light');
-        const rect = spin.getBoundingClientRect();
-        confettiBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
-        spinTo(idx, 1, 1600);
-      } catch (e) {
-        showToast('Ошибка сети, попробуй ещё раз', 'error', 3000);
-      } finally {
-        spinning = false;
-        spin.classList.remove('is-locked');
-        syncCoinsUI();
-        refreshClaimState();
-      }
-    });
-
-    /* ===== «Забрать бонус»: запрос к GAS (wheel.claim) ===== */
-    claim?.addEventListener('click', async () => {
-      if (claim.disabled) return;
-
-      try {
-        const tg_init = (window.getTgInit && window.getTgInit()) ||
-                        (TG && TG.initData) || '';
-
-        const r = window.jpost
-          ? await window.jpost('/api/mini/event', {
-              tg_init,
-              type: 'wheel.claim',
-              data: {}
-            })
-          : null;
-
-        if (!r || !r.ok) {
-          if (r && r.error === 'claim_cooldown') {
-            showToast('Забрать бонус можно позже', 'error', 3000);
-          } else if (r && r.error === 'no_unclaimed_prize') {
-            showToast('Нет приза к выдаче', 'error', 3000);
-          } else {
-            showToast('Ошибка, попробуй ещё раз', 'error', 3000);
-          }
-          refreshClaimState();
-          return;
-        }
-
-        if (r.fresh_state && window.applyServerState) {
-          window.applyServerState(r.fresh_state);
-        }
-
-        // Имя приза — из стейта колеса, если есть
-        let name = '';
-        const st = getWheelState();
-        if (st.last_prize_title) {
-          name = st.last_prize_title;
-        } else {
-          const idx = mod(Math.round(curr), N);
-          name = items[idx]?.dataset?.name || '';
-        }
-
-        try {
-          window.Profile?.incPoints?.(100);
-          window.Profile?.setPrize?.(name);
-        } catch (_) {}
-
-        showToast('Приз подтверждён, подойди к бармену', 'ok', 2500);
-        try {
-          window.openLastPrizesSheet && window.openLastPrizesSheet();
-        } catch (_) {}
-
-        refreshClaimState();
-      } catch (e) {
-        showToast('Ошибка сети, попробуй ещё раз', 'error', 3000);
-      }
-    });
-
-    /* ================== конфетти (DOM) ================== */
     function confettiBurst(x, y) {
       ensureToastStyles();
       let layer = document.getElementById('confetti');
@@ -466,70 +339,128 @@
       }
     }
 
+    /* ================== события ================== */
+
+    spin?.addEventListener('click', async () => {
+      if (spinning) return;
+
+      const coins = getCoins();
+      const cost  = getSpinCost();
+
+      console.log('[wheel] click spin, coins=', coins, 'cost=', cost);
+
+      if (coins < cost) {
+        hapticPulse('medium');
+        showToast(`Недостаточно монет. Нужно ${cost} 🪙`, 'error', 3000);
+        return;
+      }
+
+      spinning = true;
+      spin.classList.add('is-locked');
+
+      try {
+        const r = await callMiniEvent('wheel.spin', {});
+        console.log('[wheel] spin response:', r);
+
+        if (!r || !r.ok) {
+          const err = r && r.error;
+          if (err === 'no_coins') {
+            showToast('Не хватает монет для крутки', 'error', 3000);
+          } else if (err === 'no_prize_config') {
+            showToast('Призы пока не настроены', 'error', 3000);
+          } else {
+            showToast('Ошибка при крутке: ' + (err || 'нет ответа от сервера'), 'error', 4000);
+          }
+          return;
+        }
+
+        if (r.fresh_state && window.applyServerState) {
+          window.applyServerState(r.fresh_state);
+        }
+
+        const prize = r.prize || {};
+        const code  = prize.code || '';
+        let idx = items.findIndex(el =>
+          (el.dataset.code || el.dataset.name || '').toString() === code.toString()
+        );
+        if (idx < 0) {
+          idx = Math.floor(Math.random() * N);
+        }
+
+        hapticPulse('light');
+        const rect = spin.getBoundingClientRect();
+        confettiBurst(rect.left + rect.width / 2, rect.top + rect.height / 2);
+        spinTo(idx, 1, 1600);
+      } catch (e) {
+        console.error('[wheel] exception in spin handler', e);
+        showToast('Ошибка сети, попробуй ещё раз', 'error', 3000);
+      } finally {
+        spinning = false;
+        spin.classList.remove('is-locked');
+        syncCoinsUI();
+        refreshClaimState();
+      }
+    });
+
+    claim?.addEventListener('click', async () => {
+      if (claim.disabled) return;
+
+      try {
+        const r = await callMiniEvent('wheel.claim', {});
+        console.log('[wheel] claim response:', r);
+
+        if (!r || !r.ok) {
+          const err = r && r.error;
+          if (err === 'claim_cooldown') {
+            showToast('Забрать бонус можно позже', 'error', 3000);
+          } else if (err === 'no_unclaimed_prize') {
+            showToast('Нет приза к выдаче', 'error', 3000);
+          } else {
+            showToast('Ошибка при подтверждении приза: ' + (err || 'неизвестно'), 'error', 4000);
+          }
+          refreshClaimState();
+          return;
+        }
+
+        if (r.fresh_state && window.applyServerState) {
+          window.applyServerState(r.fresh_state);
+        }
+
+        let name = '';
+        const st = getWheelState();
+        if (st.last_prize_title) {
+          name = st.last_prize_title;
+        } else {
+          const idx = mod(Math.round(curr), N);
+          name = items[idx]?.dataset?.name || '';
+        }
+
+        try {
+          window.Profile?.incPoints?.(100);
+          window.Profile?.setPrize?.(name);
+        } catch (_) {}
+
+        showToast('Приз подтверждён, подойди к бармену', 'ok', 2500);
+        try {
+          window.openLastPrizesSheet && window.openLastPrizesSheet();
+        } catch (_) {}
+
+        refreshClaimState();
+      } catch (e) {
+        console.error('[wheel] exception in claim handler', e);
+        showToast('Ошибка сети, попробуй ещё раз', 'error', 3000);
+      }
+    });
+
     /* старт */
+    console.log('[wheel] init done, items=', N);
     updateUI();
   }
 
-  // Ждём, пока DOM загрузится, чтобы #bonusWheel и #wheelTrack уже были в разметке
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initWheel);
   } else {
     initWheel();
   }
 
-})();
-
-
-(function () {
-  let panel;
-
-  function ensurePanel() {
-    if (panel) return panel;
-    panel = document.createElement('div');
-    panel.id = 'debug-panel';
-    panel.style.position = 'fixed';
-    panel.style.left = '0';
-    panel.style.bottom = '0';
-    panel.style.width = '100%';
-    panel.style.maxHeight = '40%';
-    panel.style.overflowY = 'auto';
-    panel.style.fontSize = '11px';
-    panel.style.fontFamily = 'monospace';
-    panel.style.background = 'rgba(0,0,0,.85)';
-    panel.style.color = '#0f0';
-    panel.style.zIndex = '999999';
-    panel.style.padding = '4px 6px';
-    panel.style.boxSizing = 'border-box';
-    panel.style.whiteSpace = 'pre-wrap';
-    panel.style.wordBreak = 'break-word';
-    panel.innerHTML = '[debug] панель логов (тапни, чтобы скрыть)';
-    panel.addEventListener('click', () => {
-      panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
-    });
-    document.body.appendChild(panel);
-    return panel;
-  }
-
-  function write(kind, args) {
-    const p = ensurePanel();
-    const line = `[${kind}] ` + args.map(a => {
-      try { return typeof a === 'string' ? a : JSON.stringify(a); }
-      catch { return String(a); }
-    }).join(' ');
-    p.textContent += '\n' + line;
-    p.scrollTop = p.scrollHeight;
-  }
-
-  const oldLog = console.log;
-  const oldErr = console.error;
-
-  console.log = function (...args) {
-    write('LOG', args);
-    oldLog && oldLog.apply(console, args);
-  };
-
-  console.error = function (...args) {
-    write('ERR', args);
-    oldErr && oldErr.apply(console, args);
-  };
 })();
