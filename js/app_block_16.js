@@ -124,53 +124,24 @@ let photo = (row && (row.photo_url || row.photo || row.avatar_url))
          || (u && (u.photo_url || u.photo))
          || '';
 
-// fallback: берём то же фото, что уже подставлено в профиль
+// fallback: берём ту же фотку, что уже стоит в профиле
 if (!photo){
   const pfAva = document.getElementById('pf-ava');
-  // src у <img> будет абсолютным урлом — то, что нам и нужно
   if (pfAva && pfAva.src) photo = pfAva.src;
 }
 
-
-    var bestAll = 0;
-    var bestDay = 0;
-
-    if (st && st.my_best_score!=null) bestAll = st.my_best_score|0;
-    try{
-      const lsBest = +(localStorage.getItem('flappy_best') || 0);
-      if (lsBest > bestAll) bestAll = lsBest;
-    }catch(_){}
-
-    if (row && (row.best_score!=null || row.score!=null)){
-      const rowBest = (row.best_score!=null ? row.best_score : row.score)|0;
-      if (mode === 'all' && rowBest > bestAll) bestAll = rowBest;
-    }
-
-    if (row && (row.best_score!=null || row.score!=null)){
-      bestDay = (row.best_score!=null ? row.best_score : row.score)|0;
-    }else if (mode === 'today' && st && st.my_today_score!=null){
-      bestDay = st.my_today_score|0;
-    }
-
-    const scoreToShow = mode === 'all' ? bestAll : bestDay;
-    const labelText = (mode === 'all') ? 'best score all' : 'best score day';
-
-    if (nameEl)  nameEl.textContent  = fullName;
-    if (scoreEl) scoreEl.textContent = scoreToShow || 0;
-    if (labelEl) labelEl.textContent = labelText;
-
-    if (avaEl){
-      if (photo){
-        avaEl.classList.add('has-photo');
-        avaEl.style.backgroundImage = 'url("' + photo + '")';
-        avaEl.textContent = '';
-      }else{
-        avaEl.classList.remove('has-photo');
-        avaEl.style.backgroundImage = '';
-        avaEl.textContent = initial;
-      }
-    }
+if (avaEl){
+  if (photo){
+    avaEl.classList.add('has-photo');
+    avaEl.style.backgroundImage = 'url("' + photo + '")';
+    avaEl.textContent = '';
+  }else{
+    avaEl.classList.remove('has-photo');
+    avaEl.style.backgroundImage = '';
+    avaEl.textContent = initial;
   }
+}
+
 
   // --- reliable leaderboard renderer (override any previous)
   window.renderLeaderboard = function(){
