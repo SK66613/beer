@@ -119,10 +119,20 @@
       else fullName = 'YOU';
     }
 
-    const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
-    const photo = (row && (row.photo_url || row.photo || row.avatar_url))
-               || (u && (u.photo_url || u.photo))
-               || '';
+const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
+
+let photo = (row && (row.photo_url || row.photo || row.avatar_url))
+         || (u && (u.photo_url || u.photo))
+         || '';
+
+// fallback: берём ту же фотку, что уже стоит в профиле
+if (!photo){
+  const pfAva = document.getElementById('pf-ava');
+  if (pfAva && pfAva.src) {
+    photo = pfAva.src;
+  }
+}
+
 
     var bestAll = 0;
     var bestDay = 0;
