@@ -23,7 +23,7 @@
   }
   function showOk(msg){
     try { if (TG && TG.showPopup) TG.showPopup({message: msg||'ОК'}); else console.log(msg||'ОК'); } catch(_){}
-  
+  }
   // --- cache helpers for passport (support both v1 and legacy map)
   function getCachedStyles(){
     try{
@@ -57,7 +57,6 @@
     if (!arr.includes(code)) arr.push(code);
     cacheStyles(arr);
   }
-}
   function ensureLbButtons(){
     document.querySelectorAll('.lb-seg button, .lb-seg [role="button"], .js-lb-mode').forEach(btn=>{
       const t = (btn.textContent||'').trim().toLowerCase();
@@ -120,13 +119,9 @@
     }
 
     const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
-    let photo = (row && (row.photo_url || row.photo || row.avatar_url))
-             || (u && (u.photo_url || u.photo))
-             || '';
-    if (!photo){
-      const pfAva = document.getElementById('pf-ava');
-      if (pfAva && pfAva.src) photo = pfAva.src;
-    }
+    const photo = (row && (row.photo_url || row.photo || row.avatar_url))
+               || (u && (u.photo_url || u.photo))
+               || '';
 
     var bestAll = 0;
     var bestDay = 0;
@@ -181,33 +176,18 @@
     if (!Array.isArray(arr) || arr.length===0){
       listEl.innerHTML = '<div class="muted-sm">Пока пусто.</div>';
     }else{
-      const u = getCurrentUserFromTG();
       listEl.innerHTML = arr.map(function(r,i){
         const medal = (i<3 ? (' lb-medal-'+(i+1)) : '');
-        const isYou = u && String(r.tg_id||'') === String(u.id||'');
-
-        // Имя: сначала first_name / last_name, для себя — подставляем из TG
-        let firstName = r.first_name || '';
-        let lastName  = r.last_name  || '';
-        if (isYou){
-          if (!firstName && u.first_name) firstName = u.first_name;
-          if (!lastName  && u.last_name)  lastName  = u.last_name;
+        const fullName = (((r.first_name||'') + ' ' + (r.last_name||'')).trim()) ||
+                         (r.username ? ('@'+r.username) : (r.tg_id||'—'));
+        const labelInitial = (fullName || 'U').trim().charAt(0).toUpperCase();
+        const photo = r.photo_url || r.photo || r.avatar_url || '';
+        var avatarHtml;
+        if (photo){
+          avatarHtml = '<div class="lb-avatar lb-avatar--img" style="background-image:url(\''+photo+'\')"></div>';
+        }else{
+          avatarHtml = '<div class="lb-avatar">'+labelInitial+'</div>';
         }
-        let fullName = (firstName + ' ' + lastName).trim();
-
-        // Если имени нет — username; если и его нет, не светим tg_id, пишем "Игрок"
-        if (!fullName){
-          if (r.username) fullName = '@'+r.username;
-          else if (isYou && u.username) fullName = '@'+u.username;
-          else fullName = 'Игрок';
-        }
-
-        const initialSrc = fullName.replace(/^@/,'').trim() || 'U';
-        const labelInitial = initialSrc.charAt(0).toUpperCase();
-
-        // В строках турнира аватарки упрощаем до кружка с буквой
-        const avatarHtml = '<div class="lb-avatar">'+labelInitial+'</div>';
-
         const sc = ((r.best_score!=null ? r.best_score : r.score)|0);
         return '<div class="lb-row'+medal+'">'+
           '<div class="lb-rank">'+(i+1)+'</div>'+
@@ -220,7 +200,6 @@
     try{ renderYouBlock(st, arr); }catch(_){}
     updateLbSeg();
   };
-
 
 
   // --- badges painter for passport + sheet (strictly from server state)
