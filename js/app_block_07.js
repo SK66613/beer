@@ -18,16 +18,22 @@
     const TG = window.Telegram && window.Telegram.WebApp;
 
     /* ====== утилита: дергаем воркер /api/mini/event ====== */
+     // Базовый адрес API — такой же, как у остального мини-аппа
+    const API_BASE = (window.API_BASE || '').replace(/\/$/, '');
+
     async function callMiniEvent(type, data) {
       const tg_init = (window.getTgInit && window.getTgInit()) ||
                       (TG && TG.initData) || '';
 
       const payload = { tg_init, type, data: data || {} };
 
-      console.log('[wheel] callMiniEvent', type, payload);
+      // Если API_BASE не задан, шьём относительный путь (когда фронт и воркер на одном домене)
+      const url = (API_BASE ? API_BASE : '') + '/api/mini/event';
+
+      console.log('[wheel] callMiniEvent', type, url, payload);
 
       try {
-        const res = await fetch('/api/mini/event', {
+        const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -36,19 +42,22 @@
         const text = await res.text();
         console.log('[wheel] raw response text:', text);
 
+        let jsonRes;
         try {
-          const json = JSON.parse(text);
-          console.log('[wheel] parsed response:', json);
-          return json;
+          jsonRes = JSON.parse(text);
         } catch (e) {
-          console.error('[wheel] bad JSON from worker', e);
+          console.error('[wheel] bad JSON from backend', e);
           return { ok:false, error:'bad_json', raw:text };
         }
+
+        console.log('[wheel] parsed response:', jsonRes);
+        return jsonRes;
       } catch (e) {
         console.error('[wheel] network error', e);
         return { ok:false, error:'network', detail:String(e) };
       }
     }
+
 
     /* ================== общие утилиты ================== */
 
