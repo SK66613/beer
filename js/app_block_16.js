@@ -89,90 +89,90 @@
     }
   }
 
-  function renderYouBlock(st, arr){
-    const youEl = document.getElementById('lb-you');
-    if (!youEl) return;
+ function renderYouBlock(st, arr){
+  const youEl = document.getElementById('lb-you');
+  if (!youEl) return;
 
-    const mode = (CURRENT_LB === 'all') ? 'all' : 'today';
-    const u = getCurrentUserFromTG() || {};
+  const mode = (CURRENT_LB === 'all') ? 'all' : 'today';
+  const u = getCurrentUserFromTG() || {};
 
-    const nameEl  = youEl.querySelector('[data-role="lb-you-name"], .lb-you-name');
-    const scoreEl = youEl.querySelector('[data-role="lb-you-score"], .lb-you-score');
-    const labelEl = youEl.querySelector('[data-role="lb-you-label"], .lb-you-label');
-    const avaEl   = youEl.querySelector('[data-role="lb-you-avatar"], .lb-you-avatar');
+  const nameEl  = youEl.querySelector('[data-role="lb-you-name"], .lb-you-name');
+  const scoreEl = youEl.querySelector('[data-role="lb-you-score"], .lb-you-score');
+  const labelEl = youEl.querySelector('[data-role="lb-you-label"], .lb-you-label');
+  const avaEl   = youEl.querySelector('[data-role="lb-you-avatar"], .lb-you-avatar');
 
-    let row = null;
-    const tgId = (u && u.id!=null) ? String(u.id) : '';
-    if (tgId && Array.isArray(arr)){
-      row = arr.find(function(r){ return String(r.tg_id||'') === tgId; }) || null;
+  let row = null;
+  const tgId = (u && u.id!=null) ? String(u.id) : '';
+  if (tgId && Array.isArray(arr)){
+    row = arr.find(r => String(r.tg_id||'') === tgId) || null;
+  }
+  if (!row && u && u.username && Array.isArray(arr)){
+    const uname = String(u.username).toLowerCase();
+    row = arr.find(r => String(r.username||'').toLowerCase() === uname) || null;
+  }
+
+  const firstName = (row && row.first_name) || u.first_name || '';
+  const lastName  = (row && row.last_name)  || u.last_name  || '';
+  let fullName = (firstName + ' ' + lastName).trim();
+  if (!fullName){
+    if (u && u.username) fullName = '@' + u.username;
+    else fullName = 'YOU';
+  }
+
+  const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
+
+  let photo = (row && (row.photo_url || row.photo || row.avatar_url))
+           || (u && (u.photo_url || u.photo))
+           || '';
+
+  // fallback: берём ту же фотку, что уже стоит в профиле
+  if (!photo){
+    const pfAva = document.getElementById('pf-ava');
+    if (pfAva && pfAva.src) {
+      photo = pfAva.src;
     }
-    if (!row && u && u.username && Array.isArray(arr)){
-      const uname = String(u.username).toLowerCase();
-      row = arr.find(function(r){ return String(r.username||'').toLowerCase() === uname; }) || null;
+  }
+
+  var bestAll = 0;
+  var bestDay = 0;
+
+  if (st && st.my_best_score!=null) bestAll = st.my_best_score|0;
+  try{
+    const lsBest = +(localStorage.getItem('flappy_best') || 0);
+    if (lsBest > bestAll) bestAll = lsBest;
+  }catch(_){}
+
+  if (row && (row.best_score!=null || row.score!=null)){
+    const rowBest = (row.best_score!=null ? row.best_score : row.score)|0;
+    if (mode === 'all' && rowBest > bestAll) bestAll = rowBest;
+  }
+
+  if (row && (row.best_score!=null || row.score!=null)){
+    bestDay = (row.best_score!=null ? row.best_score : row.score)|0;
+  }else if (mode === 'today' && st && st.my_today_score!=null){
+    bestDay = st.my_today_score|0;
+  }
+
+  const scoreToShow = mode === 'all' ? bestAll : bestDay;
+  const labelText = (mode === 'all') ? 'best score all' : 'best score day';
+
+  if (nameEl)  nameEl.textContent  = fullName;
+  if (scoreEl) scoreEl.textContent = scoreToShow || 0;
+  if (labelEl) labelEl.textContent = labelText;
+
+  if (avaEl){
+    if (photo){
+      avaEl.classList.add('has-photo');
+      avaEl.style.backgroundImage = 'url("' + photo + '")';
+      avaEl.textContent = '';
+    }else{
+      avaEl.classList.remove('has-photo');
+      avaEl.style.backgroundImage = '';
+      avaEl.textContent = initial;
     }
-
-    const firstName = (row && row.first_name) || u.first_name || '';
-    const lastName  = (row && row.last_name)  || u.last_name  || '';
-    let fullName = (firstName + ' ' + lastName).trim();
-    if (!fullName){
-      if (u && u.username) fullName = '@' + u.username;
-      else fullName = 'YOU';
-    }
-
-const initial = fullName.trim() ? fullName.trim().charAt(0).toUpperCase() : 'Y';
-
-let photo = (row && (row.photo_url || row.photo || row.avatar_url))
-         || (u && (u.photo_url || u.photo))
-         || '';
-
-// fallback: берём ту же фотку, что уже стоит в профиле
-if (!photo){
-  const pfAva = document.getElementById('pf-ava');
-  if (pfAva && pfAva.src) {
-    photo = pfAva.src;
   }
 }
 
-
-    var bestAll = 0;
-    var bestDay = 0;
-
-    if (st && st.my_best_score!=null) bestAll = st.my_best_score|0;
-    try{
-      const lsBest = +(localStorage.getItem('flappy_best') || 0);
-      if (lsBest > bestAll) bestAll = lsBest;
-    }catch(_){}
-
-    if (row && (row.best_score!=null || row.score!=null)){
-      const rowBest = (row.best_score!=null ? row.best_score : row.score)|0;
-      if (mode === 'all' && rowBest > bestAll) bestAll = rowBest;
-    }
-
-    if (row && (row.best_score!=null || row.score!=null)){
-      bestDay = (row.best_score!=null ? row.best_score : row.score)|0;
-    }else if (mode === 'today' && st && st.my_today_score!=null){
-      bestDay = st.my_today_score|0;
-    }
-
-    const scoreToShow = mode === 'all' ? bestAll : bestDay;
-    const labelText = (mode === 'all') ? 'best score all' : 'best score day';
-
-    if (nameEl)  nameEl.textContent  = fullName;
-    if (scoreEl) scoreEl.textContent = scoreToShow || 0;
-    if (labelEl) labelEl.textContent = labelText;
-
-    if (avaEl){
-      if (photo){
-        avaEl.classList.add('has-photo');
-        avaEl.style.backgroundImage = 'url("' + photo + '")';
-        avaEl.textContent = '';
-      }else{
-        avaEl.classList.remove('has-photo');
-        avaEl.style.backgroundImage = '';
-        avaEl.textContent = initial;
-      }
-    }
-  }
 
   // --- reliable leaderboard renderer (override any previous)
   window.renderLeaderboard = function(){
