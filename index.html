@@ -243,18 +243,29 @@
 
 
 <template id="tpl-trivia">
-  <div class="card trivia-card">
-    <div class="h1">Ответь на 4 простых вопроса и получи 100 монет</div>
-
-    <!-- Стартовая плашка -->
-    <div class="trivia-start" id="trivia-start">
-      <button class="btn btn-primary" data-action="trivia-start">Начать</button>
-      <span id="trivia-start-hint" class="muted-sm" style="margin-left:8px; display:none"></span>
+<div class="trivia-card">
+  <div id="trivia-start" class="trivia-start">
+    <div class="trivia-title">
+      Ответь на 4 простых вопроса и получи 100 монет
     </div>
 
-    <!-- Здесь рендерятся вопросы/результаты -->
-    <div id="trivia-body"></div>
+    <!-- здесь будет текст после прохождения квиза -->
+    <p id="trivia-start-hint" class="trivia-start__hint"></p>
+
+    <!-- кнопка: используем тот же стиль, что у "Далее" -->
+    <button
+      type="button"
+      class="btn btn-primary trivia-next trivia-start-btn"
+      data-action="trivia-start"
+    >
+      Начать
+    </button>
   </div>
+
+  <div id="trivia-body"></div>
+</div>
+
+
 </template>
 
 
