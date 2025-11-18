@@ -813,8 +813,27 @@
   // экспорт, если нужно дернуть вручную
   window.mountTrivia = function(){
     ensureStyles();
+
+    // сбрасываем внутренний контент квиза
+    const body = elBody();
+    if (body) body.innerHTML = '';
+
+    // показываем стартовый экран
+    const start = elStart();
+    if (start) start.classList.remove('is-hidden');
+
+    // сбрасываем временное состояние (без отметки "квиз пройден")
+    S.i = 0;
+    S.canNext = false;
+    S.score = 0;
+    S.earned = new Array(STEPS.length).fill(false);
+    S.profile = {};
+    S.birthdayTouched = false;
+
+    // синхронизируем кнопку с фактом прохождения:
+    //  - если квиз не проходили → жёлтая "Начать"
+    //  - если уже проходили → "Квиз пройден" и неактивна
     renderStartRow();
-    const b = elBody(); if (b) b.innerHTML = '';
   };
 
 })();
