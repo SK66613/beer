@@ -138,7 +138,7 @@
       type: 'birthday',
       id: 'birthday_date',
       coins: 0,
-      text: 'Ты набрал уже прилично монет в этой викторине вкуса. Укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции.'
+      text: 'Укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции. За это ещё подкинем монет 😉'
     }
   ];
 
@@ -147,7 +147,7 @@
 
   const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
-  // ===== Telegram / хаптики =====
+  // ===== Telegram / haptic =====
   const TG = window.Telegram && window.Telegram.WebApp;
   function haptic(level){
     try{
@@ -157,7 +157,7 @@
     }
   }
 
-  // ===== Баланс / лента призов =====
+  // ===== Баланс / призы =====
   const COIN_KEY = 'beer_coins';
   function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
   function setCoins(v){
@@ -172,7 +172,7 @@
     try{ window.logReward?.({source:'profile_quiz', prize:txt}); }catch(_){}
   }
 
-  // ===== Служебные ключи / состояние прохождения =====
+  // ===== Ключи прохождения =====
   const UID = TG?.initDataUnsafe?.user?.id || 'anon';
   const QUIZ_ID = 'beer_profile_quiz_v1';
   const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
@@ -183,11 +183,10 @@
   const setLast = (ts = now()) => localStorage.setItem(LAST_KEY, String(ts));
   const hasCompleted = () => getLast() > 0;
 
-  // ===== Состояние в рантайме =====
+  // ===== Состояние =====
   const S = {
     i: 0,
     canNext: false,
-    timer: null,
     score: 0,
     earned: [],
     profile: {},
@@ -196,13 +195,13 @@
     birthdayTouched: false
   };
 
-  // ===== Утилиты DOM =====
+  // ===== DOM =====
   const elBody  = () => document.getElementById('trivia-body');
   const elStart = () => document.getElementById('trivia-start');
   const elHint  = () => document.getElementById('trivia-start-hint');
   const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
 
-  // ===== Стили для квиза и барабанов =====
+  // ===== Стили квиза + барабанов =====
   let stylesInjected = false;
   function ensureStyles(){
     if (stylesInjected) return;
@@ -281,6 +280,7 @@
         margin:16px 0 8px;
       }
       .bday-wheel{
+        position:relative;
         display:flex;
         flex-direction:column;
         align-items:center;
@@ -291,40 +291,42 @@
         opacity:0.7;
         margin-bottom:4px;
       }
-      .bday-wheel-ctrl{
-        display:flex;
-        flex-direction:column;
-        align-items:center;
-        gap:4px;
+      .bday-wheel-scroll{
+        width:100%;
+        max-height:120px;
+        overflow-y:auto;
+        padding:20px 0;
+        scrollbar-width:none;
+        -ms-overflow-style:none;
       }
-      .bday-wheel-btn{
-        border:none;
-        border-radius:999px;
-        width:32px;
-        height:24px;
+      .bday-wheel-scroll::-webkit-scrollbar{
+        display:none;
+      }
+      .bday-wheel-item{
+        height:28px;
         display:flex;
         align-items:center;
         justify-content:center;
-        background:rgba(255,255,255,0.06);
-        color:inherit;
         font-size:14px;
+        opacity:0.55;
+        transition:opacity .12s ease, transform .12s ease;
       }
-      .bday-wheel-btn:active{
-        background:rgba(255,255,255,0.12);
-      }
-      .bday-wheel-value{
-        min-width:72px;
-        text-align:center;
+      .bday-wheel-item.is-active{
         font-size:18px;
         font-weight:600;
-        padding:6px 10px;
-        border-radius:999px;
-        background:rgba(255,255,255,0.08);
-        transition:transform .12s ease,background .12s ease;
+        opacity:1;
+        transform:scale(1.0);
       }
-      .bday-wheel-value.is-spin{
-        transform:translateY(-3px);
-        background:rgba(255,255,255,0.16);
+      .bday-wheel-highlight{
+        position:absolute;
+        left:6px;
+        right:6px;
+        top:50%;
+        height:32px;
+        transform:translateY(-50%);
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,0.3);
+        pointer-events:none;
       }
     `;
     const styleEl = document.createElement('style');
@@ -354,7 +356,7 @@
     }
   }
 
-  // ===== Вспомогательное: номер вопроса среди только type="q" =====
+  // ===== Прогресс: номер вопроса среди type="q" =====
   function getQuestionIndex(stepIndex){
     let idx = 0;
     for (let i = 0; i <= stepIndex; i++){
@@ -368,7 +370,6 @@
     const step = STEPS[S.i];
     const box = elBody();
     if (!box || !step) return;
-
     ensureStyles();
 
     if (step.type === 'q'){
@@ -392,7 +393,6 @@
          <div class="trivia-progress">
            <div class="trivia-progress-bar" style="width:${progress}%"></div>
          </div>
-         <div class="trivia-title">Вопрос ${qIndex} из ${totalQ}</div>
          <div class="trivia-sub">Вопрос на ${step.coins} монет</div>
          <p class="trivia-text">${step.text}</p>
          <div class="trivia-opts">
@@ -408,11 +408,125 @@
        </div>`;
   }
 
+  // ===== Инициализация барабанов =====
+  function enableBirthdayButton(){
+    const body = elBody(); if (!body) return;
+    const btn = body.querySelector('[data-action="trivia-save-bday"]');
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.add('is-active');
+  }
+
+  function initBirthdayWheels(){
+    const body = elBody(); if (!body) return;
+    const wheels = body.querySelectorAll('.bday-wheel-scroll');
+    wheels.forEach(scrollEl => {
+      const kind = scrollEl.dataset.kind;
+      setupWheel(scrollEl, kind);
+    });
+  }
+
+  function setupWheel(scrollEl, kind){
+    const items = Array.from(scrollEl.querySelectorAll('.bday-wheel-item'));
+    if (!items.length) return;
+
+    let initialValue = kind === 'day' ? (S.birthdayDay || 1) : (S.birthdayMonth || 1);
+    if (kind === 'day'){
+      if (initialValue < 1 || initialValue > 31) initialValue = 1;
+    }else{
+      if (initialValue < 1 || initialValue > 12) initialValue = 1;
+    }
+
+    function applyState(newVal, meta){
+      newVal = Number(newVal);
+      const silent = meta && meta.silent;
+      if (kind === 'day'){
+        if (newVal !== S.birthdayDay){
+          S.birthdayDay = newVal;
+          if (!silent){
+            S.birthdayTouched = true;
+            enableBirthdayButton();
+            haptic('light');
+          }
+        }
+      }else{
+        if (newVal !== S.birthdayMonth){
+          S.birthdayMonth = newVal;
+          if (!silent){
+            S.birthdayTouched = true;
+            enableBirthdayButton();
+            haptic('light');
+          }
+        }
+      }
+    }
+
+    function selectValue(newVal, opts){
+      const smooth = opts && opts.smooth;
+      const silent = opts && opts.silent;
+      let targetItem = null;
+      items.forEach(it => {
+        const v = parseInt(it.dataset.value, 10);
+        if (v === newVal){
+          targetItem = it;
+          it.classList.add('is-active');
+        }else{
+          it.classList.remove('is-active');
+        }
+      });
+      if (!targetItem) return;
+      const container = scrollEl;
+      const itemOffset = targetItem.offsetTop;
+      const containerHeight = container.clientHeight;
+      const itemHeight = targetItem.offsetHeight;
+      const scrollTop = itemOffset - (containerHeight/2 - itemHeight/2);
+      try{
+        container.scrollTo({ top: scrollTop, behavior: smooth ? 'smooth' : 'auto' });
+      }catch(_){
+        container.scrollTop = scrollTop;
+      }
+      applyState(newVal, {silent});
+    }
+
+    let scrollTimeout = null;
+    function handleScroll(){
+      if (!items.length) return;
+      if (scrollTimeout) clearTimeout(scrollTimeout);
+      scrollTimeout = setTimeout(()=>{
+        const containerRect = scrollEl.getBoundingClientRect();
+        const centerY = containerRect.top + containerRect.height/2;
+        let closestItem = null;
+        let closestDist = Infinity;
+        items.forEach(it => {
+          const r = it.getBoundingClientRect();
+          const itemCenter = (r.top + r.bottom)/2;
+          const dist = Math.abs(itemCenter - centerY);
+          if (dist < closestDist){
+            closestDist = dist;
+            closestItem = it;
+          }
+        });
+        if (!closestItem) return;
+        const newVal = parseInt(closestItem.dataset.value, 10);
+        if (!isNaN(newVal)){
+          items.forEach(it => it.classList.remove('is-active'));
+          closestItem.classList.add('is-active');
+          applyState(newVal, {silent:false});
+        }
+      }, 80);
+    }
+
+    scrollEl.addEventListener('scroll', handleScroll);
+
+    // стартовое положение — тихо, без активации кнопки
+    selectValue(initialValue, {smooth:false, silent:true});
+  }
+
   function renderBirthdayStep(step){
     const box = elBody(); if (!box) return;
     ensureStyles();
 
-    // подтянуть сохранённую дату, если уже есть
+    // подтянуть сохранённую дату, если есть
     try{
       if (!S.birthdayTouched){
         const saved = localStorage.getItem(BDAY_KEY);
@@ -426,9 +540,17 @@
       }
     }catch(_){}
 
-    const day = S.birthdayDay || 1;
-    const month = S.birthdayMonth || 1;
     const score = S.score || 0;
+
+    const daysHtml = Array.from({length:31}, (_,i)=> {
+      const val = i+1;
+      return `<div class="bday-wheel-item" data-value="${val}">${val}</div>`;
+    }).join('');
+
+    const monthsHtml = MONTHS.map((name,idx)=>{
+      const val = idx+1;
+      return `<div class="bday-wheel-item" data-value="${val}">${name}</div>`;
+    }).join('');
 
     box.innerHTML =
       `<div class="trivia-q trivia-bday">
@@ -438,29 +560,29 @@
          <div class="bday-wheels">
            <div class="bday-wheel">
              <div class="bday-wheel-label">День</div>
-             <div class="bday-wheel-ctrl" data-kind="day">
-               <button type="button" class="bday-wheel-btn" data-role="spin" data-kind="day" data-dir="-1">▲</button>
-               <div class="bday-wheel-value" data-role="day-value">${day}</div>
-               <button type="button" class="bday-wheel-btn" data-role="spin" data-kind="day" data-dir="1">▼</button>
+             <div class="bday-wheel-scroll" data-kind="day">
+               ${daysHtml}
              </div>
+             <div class="bday-wheel-highlight"></div>
            </div>
            <div class="bday-wheel">
              <div class="bday-wheel-label">Месяц</div>
-             <div class="bday-wheel-ctrl" data-kind="month">
-               <button type="button" class="bday-wheel-btn" data-role="spin" data-kind="month" data-dir="-1">▲</button>
-               <div class="bday-wheel-value" data-role="month-value" data-month="${month}">${MONTHS[month-1]}</div>
-               <button type="button" class="bday-wheel-btn" data-role="spin" data-kind="month" data-dir="1">▼</button>
+             <div class="bday-wheel-scroll" data-kind="month">
+               ${monthsHtml}
              </div>
+             <div class="bday-wheel-highlight"></div>
            </div>
          </div>
          <p class="trivia-sub">Дата нужна только для того, чтобы вовремя прилетал нормальный подарок от бара, а не спам.</p>
          <div class="trivia-cta">
-           <button class="btn btn-primary" data-action="trivia-save-bday">Сохранить дату и забрать монеты</button>
+           <button class="btn btn-primary trivia-next" data-action="trivia-save-bday" disabled>Указать дату и забрать монеты</button>
          </div>
        </div>`;
+
+    initBirthdayWheels();
   }
 
-  // ===== Завершение квиза =====
+  // ===== Завершение =====
   function renderFinish(){
     const box = elBody(); if (!box) return;
     const score = S.score || 0;
@@ -473,7 +595,6 @@
   function startQuiz(){
     rootCard()?.classList.add('is-running');
     elStart()?.classList.add('is-hidden');
-    if (S.timer){ clearInterval(S.timer); S.timer = null; }
 
     S.i = 0;
     S.canNext = false;
@@ -481,6 +602,7 @@
     S.earned = new Array(STEPS.length).fill(false);
     S.profile = {};
     S.birthdayTouched = false;
+
     renderStep();
   }
 
@@ -496,7 +618,7 @@
     rootCard()?.classList.remove('is-running');
   }
 
-  // ===== Делегаты событий =====
+  // ===== Слушатель кликов =====
   document.addEventListener('click', (e)=>{
     const body = elBody();
 
@@ -553,39 +675,23 @@
       return;
     }
 
-    // барабаны ДР
-    const spinBtn = e.target.closest?.('[data-role="spin"]');
-    if (spinBtn && step && step.type === 'birthday'){
+    // клик по элементу барабана — плавно докрутить к нему
+    const wheelItem = e.target.closest?.('.bday-wheel-item');
+    if (wheelItem && step && step.type === 'birthday'){
       e.preventDefault();
-      const kind = spinBtn.dataset.kind;
-      const dir = parseInt(spinBtn.dataset.dir || '0', 10) || 0;
-      S.birthdayTouched = true;
-
-      if (kind === 'day'){
-        let d = (S.birthdayDay || 1) + dir;
-        if (d < 1) d = 31;
-        if (d > 31) d = 1;
-        S.birthdayDay = d;
-        const valEl = body.querySelector('[data-role="day-value"]');
-        if (valEl){
-          valEl.textContent = String(d);
-          valEl.classList.add('is-spin');
-          setTimeout(()=>valEl.classList.remove('is-spin'), 120);
-        }
-      }else if (kind === 'month'){
-        let m = (S.birthdayMonth || 1) + dir;
-        if (m < 1) m = 12;
-        if (m > 12) m = 1;
-        S.birthdayMonth = m;
-        const valEl = body.querySelector('[data-role="month-value"]');
-        if (valEl){
-          valEl.textContent = MONTHS[m-1];
-          valEl.dataset.month = String(m);
-          valEl.classList.add('is-spin');
-          setTimeout(()=>valEl.classList.remove('is-spin'), 120);
+      const scrollEl = wheelItem.closest('.bday-wheel-scroll');
+      if (scrollEl){
+        const container = scrollEl;
+        const itemOffset = wheelItem.offsetTop;
+        const containerHeight = container.clientHeight;
+        const itemHeight = wheelItem.offsetHeight;
+        const scrollTop = itemOffset - (containerHeight/2 - itemHeight/2);
+        try{
+          container.scrollTo({ top: scrollTop, behavior:'smooth' });
+        }catch(_){
+          container.scrollTop = scrollTop;
         }
       }
-      haptic('light');
       return;
     }
 
@@ -630,6 +736,7 @@
     mo.observe(document.body, {childList:true, subtree:true});
   }
 
+  // экспорт, если нужно дернуть вручную
   window.mountTrivia = function(){
     ensureStyles();
     renderStartRow();
