@@ -2,8 +2,6 @@
   'use strict';
 
   // ===== Параметры квиза профиля =====
-  // type: 'q' — обычный вопрос с вариантами
-  // type: 'birthday' — финальный экран с выбором даты ДР
   const STEPS = [
     {
       type: 'q',
@@ -140,7 +138,7 @@
       type: 'birthday',
       id: 'birthday_date',
       coins: 0,
-      text: 'Финальный шаг: укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции.'
+      text: 'Ты набрал уже прилично монет в этой викторине вкуса. Укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции.'
     }
   ];
 
@@ -159,7 +157,7 @@
     }
   }
 
-  // ===== Баланс / лента призов (используем твои, иначе фоллбек) =====
+  // ===== Баланс / лента призов =====
   const COIN_KEY = 'beer_coins';
   function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
   function setCoins(v){
@@ -204,12 +202,78 @@
   const elHint  = () => document.getElementById('trivia-start-hint');
   const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
 
-  // ===== Стили для барабанов ДР (минимальные, тёмная тема) =====
+  // ===== Стили для квиза и барабанов =====
   let stylesInjected = false;
   function ensureStyles(){
     if (stylesInjected) return;
     stylesInjected = true;
     const css = `
+      .trivia-q p{
+        margin:8px 0;
+      }
+      .trivia-sub{
+        font-size:12px;
+        opacity:0.7;
+        margin-bottom:6px;
+      }
+      .trivia-progress{
+        width:100%;
+        height:6px;
+        border-radius:999px;
+        overflow:hidden;
+        background:rgba(255,255,255,0.06);
+        margin-bottom:10px;
+      }
+      .trivia-progress-bar{
+        height:100%;
+        width:0%;
+        background:linear-gradient(90deg,#ffb347,#ff7b00);
+        transition:width .25s ease;
+      }
+      .trivia-opts{
+        margin-top:8px;
+      }
+      .trivia-opt{
+        display:flex;
+        align-items:flex-start;
+        gap:8px;
+        padding:8px 10px;
+        border-radius:12px;
+        background:rgba(255,255,255,0.03);
+        border:1px solid rgba(255,255,255,0.06);
+        margin-bottom:8px;
+        cursor:pointer;
+        transition:background .15s ease,border-color .15s ease,transform .12s ease;
+      }
+      .trivia-opt:hover{
+        background:rgba(255,255,255,0.05);
+      }
+      .trivia-opt.is-selected{
+        background:rgba(255,152,0,0.18);
+        border-color:#ffb347;
+        transform:translateY(-1px);
+      }
+      .trivia-opt input{
+        display:none;
+      }
+      .trivia-cta{
+        margin-top:12px;
+      }
+      .trivia-next{
+        width:100%;
+        opacity:0.5;
+        pointer-events:none;
+        background:transparent !important;
+        border:1px solid rgba(255,255,255,0.35);
+        color:#fff;
+      }
+      .trivia-next.is-active{
+        opacity:1;
+        pointer-events:auto;
+        background:#ff9800 !important;
+        border-color:#ff9800;
+        color:#000 !important;
+      }
       .bday-wheels{
         display:flex;
         gap:16px;
@@ -245,6 +309,9 @@
         color:inherit;
         font-size:14px;
       }
+      .bday-wheel-btn:active{
+        background:rgba(255,255,255,0.12);
+      }
       .bday-wheel-value{
         min-width:72px;
         text-align:center;
@@ -253,14 +320,11 @@
         padding:6px 10px;
         border-radius:999px;
         background:rgba(255,255,255,0.08);
+        transition:transform .12s ease,background .12s ease;
       }
-      .trivia-q p{
-        margin:8px 0;
-      }
-      .trivia-sub{
-        font-size:12px;
-        opacity:0.7;
-        margin-bottom:6px;
+      .bday-wheel-value.is-spin{
+        transform:translateY(-3px);
+        background:rgba(255,255,255,0.16);
       }
     `;
     const styleEl = document.createElement('style');
@@ -268,7 +332,7 @@
     document.head.appendChild(styleEl);
   }
 
-  // ===== Рендер стартовой плашки =====
+  // ===== Стартовая плашка =====
   function renderStartRow(){
     const start = elStart(), hint = elHint();
     if (!start) return;
@@ -305,6 +369,8 @@
     const box = elBody();
     if (!box || !step) return;
 
+    ensureStyles();
+
     if (step.type === 'q'){
       renderQuestionStep(step);
     }else if (step.type === 'birthday'){
@@ -316,10 +382,16 @@
     const box = elBody(); if (!box) return;
     const qIndex = getQuestionIndex(S.i);
     const totalQ = TOTAL_QUESTIONS;
+    const answered = Math.max(0, qIndex - 1);
+    const progress = Math.round((answered / totalQ) * 100);
+
     S.canNext = false;
 
     box.innerHTML =
       `<div class="trivia-q">
+         <div class="trivia-progress">
+           <div class="trivia-progress-bar" style="width:${progress}%"></div>
+         </div>
          <div class="trivia-title">Вопрос ${qIndex} из ${totalQ}</div>
          <div class="trivia-sub">Вопрос на ${step.coins} монет</div>
          <p class="trivia-text">${step.text}</p>
@@ -331,7 +403,7 @@
              </label>`).join('')}
          </div>
          <div class="trivia-cta">
-           <button class="btn btn-primary trivia-next is-hidden" data-action="trivia-next" disabled>Далее</button>
+           <button class="btn btn-primary trivia-next" data-action="trivia-next" disabled>Далее</button>
          </div>
        </div>`;
   }
@@ -340,7 +412,7 @@
     const box = elBody(); if (!box) return;
     ensureStyles();
 
-    // подтянуть сохранённую дату, если она уже есть
+    // подтянуть сохранённую дату, если уже есть
     try{
       if (!S.birthdayTouched){
         const saved = localStorage.getItem(BDAY_KEY);
@@ -356,7 +428,7 @@
 
     const day = S.birthdayDay || 1;
     const month = S.birthdayMonth || 1;
-    const score = S.score;
+    const score = S.score || 0;
 
     box.innerHTML =
       `<div class="trivia-q trivia-bday">
@@ -391,10 +463,9 @@
   // ===== Завершение квиза =====
   function renderFinish(){
     const box = elBody(); if (!box) return;
-    const score = S.score;
+    const score = S.score || 0;
     box.innerHTML =
       `<div class="trivia-q">
-         <div class="trivia-title"></div>
          <p>Готово! Мы сохранили твой «паспорт вкуса» и дату. На счёт зачислено <b>${score} монет</b>.</p>
        </div>`;
   }
@@ -410,7 +481,6 @@
     S.earned = new Array(STEPS.length).fill(false);
     S.profile = {};
     S.birthdayTouched = false;
-    // не трогаем birthdayDay/Month — если были заполнены ранее, можно оставить
     renderStep();
   }
 
@@ -430,7 +500,7 @@
   document.addEventListener('click', (e)=>{
     const body = elBody();
 
-    // старт с плашки
+    // старт
     if (e.target.closest?.('[data-action="trivia-start"]')){
       e.preventDefault();
       if (hasCompleted()) return;
@@ -442,7 +512,7 @@
 
     const step = STEPS[S.i];
 
-    // выбор варианта в вопросе
+    // выбор варианта
     const opt = e.target.closest?.('.trivia-opt');
     if (opt && step && step.type === 'q' && body.contains(opt)){
       const value = opt.dataset.val;
@@ -450,22 +520,21 @@
       body.querySelectorAll('.trivia-opt').forEach(el => el.classList.remove('is-selected'));
       opt.classList.add('is-selected');
 
-      // запоминаем ответ в профиле
       if (step.id){
         S.profile[step.id] = value;
       }
 
       const nextBtn = body.querySelector('.trivia-next');
       if (nextBtn){
-        nextBtn.classList.remove('is-hidden');
         nextBtn.disabled = false;
+        nextBtn.classList.add('is-active');
       }
       S.canNext = true;
       haptic('light');
       return;
     }
 
-    // переход к следующему шагу
+    // далее
     if (e.target.closest?.('[data-action="trivia-next"]')){
       e.preventDefault();
       if (!S.canNext) return;
@@ -479,13 +548,12 @@
         S.canNext = false;
         renderStep();
       }else{
-        // теоретически не должно сюда дойти, birthday должен быть последним
         finishQuiz();
       }
       return;
     }
 
-    // крутящиеся барабаны ДР
+    // барабаны ДР
     const spinBtn = e.target.closest?.('[data-role="spin"]');
     if (spinBtn && step && step.type === 'birthday'){
       e.preventDefault();
@@ -499,7 +567,11 @@
         if (d > 31) d = 1;
         S.birthdayDay = d;
         const valEl = body.querySelector('[data-role="day-value"]');
-        if (valEl) valEl.textContent = String(d);
+        if (valEl){
+          valEl.textContent = String(d);
+          valEl.classList.add('is-spin');
+          setTimeout(()=>valEl.classList.remove('is-spin'), 120);
+        }
       }else if (kind === 'month'){
         let m = (S.birthdayMonth || 1) + dir;
         if (m < 1) m = 12;
@@ -509,13 +581,15 @@
         if (valEl){
           valEl.textContent = MONTHS[m-1];
           valEl.dataset.month = String(m);
+          valEl.classList.add('is-spin');
+          setTimeout(()=>valEl.classList.remove('is-spin'), 120);
         }
       }
       haptic('light');
       return;
     }
 
-    // сохранение даты ДР и завершение
+    // сохранение ДР
     if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday'){
       e.preventDefault();
       const day = S.birthdayDay || 1;
@@ -529,7 +603,6 @@
       try{
         const payload = `${String(day).padStart(2,'0')}-${String(month).padStart(2,'0')}`;
         localStorage.setItem(BDAY_KEY, payload);
-        // хук для внешней логики, если захочешь слать в GAS
         try{
           window.onBeerBirthdaySaved?.({ day, month, score: S.score, profile: S.profile });
         }catch(_){}
@@ -544,6 +617,7 @@
   function mountIfReady(){
     const body = elBody(), start = elStart();
     if (body && start){
+      ensureStyles();
       renderStartRow();
       body.innerHTML = '';
       return true;
@@ -551,15 +625,13 @@
     return false;
   }
 
-  // 1) сразу, если уже вставлено
   if (!mountIfReady()){
-    // 2) следим за DOM (шторка подставит темплейт позже)
     const mo = new MutationObserver(()=>{ if (mountIfReady()) mo.disconnect(); });
     mo.observe(document.body, {childList:true, subtree:true});
   }
 
-  // экспорт, если хочешь дёргать при openSheet()
   window.mountTrivia = function(){
+    ensureStyles();
     renderStartRow();
     const b = elBody(); if (b) b.innerHTML = '';
   };
