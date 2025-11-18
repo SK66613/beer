@@ -146,29 +146,30 @@
   const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
   // ===== Telegram / haptic =====
-  const TG = window.Telegram && window.Telegram.WebApp;
-  function haptic(level){
-    try{
-      TG?.HapticFeedback?.impactOccurred(level || 'light');
-    }catch(_){
-      navigator.vibrate?.(10);
-    }
-  }
+const TG = window.Telegram && window.Telegram.WebApp;
+// ===== Хелпер для мини-событий через воркер (фолбэк) =====
+if (!window.callMiniEvent &&
+    typeof window.getTgInit === 'function' &&
+    typeof window.jpost === 'function') {
 
-  // ===== Хелпер для мини-событий через воркер (фолбэк) =====
-  if (!window.callMiniEvent &&
-      typeof window.getTgInit === 'function' &&
-      typeof window.jpost === 'function') {
+  window.callMiniEvent = function(type, data) {
+    const tg_init = window.getTgInit();
+    return window.jpost('/api/mini/event', {
+      tg_init,
+      type,
+      data
+    });
+  };
+}
 
-    window.callMiniEvent = function(type, data) {
-      const tg_init = window.getTgInit();
-      return window.jpost('/api/mini/event', {
-        tg_init,
-        type,
-        data
-      });
-    };
+function haptic(level){
+  try{
+    TG?.HapticFeedback?.impactOccurred(level || 'light');
+  }catch(_){
+    navigator.vibrate?.(10);
   }
+}
+
 
   // ===== Баланс / призы (локальный фолбэк, основной — через GAS) =====
   const COIN_KEY = 'beer_coins';
