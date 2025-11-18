@@ -321,13 +321,24 @@
         border:1px solid rgba(255,255,255,0.3);
         pointer-events:none;
       }
-            .trivia-start__hint{
-        margin-top:6px;
+      /* стартовый экран анкеты в шторке */
+      .trivia-card .trivia-start{
+        display:flex;              /* вместо строчки – колонка */
+        flex-direction:column;
+        align-items:stretch;
+        gap:6px;
+      }
+      .trivia-card .trivia-start .trivia-title{
+        margin-bottom:2px;
+      }
+      .trivia-start__hint{
         font-size:12px;
         opacity:0.75;
       }
       .trivia-start-btn{
-        margin-top:12px;
+        margin-top:8px;
+        width:100%;               /* во всю ширину */
+        display:block;
       }
       .trivia-start-btn.is-done{
         opacity:0.7;
