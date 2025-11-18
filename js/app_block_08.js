@@ -19,19 +19,19 @@
       type: 'q',
       id: 'evening_scene',
       coins: 10,
-      text: 'Если бы твой идеальный вечер с пивом был картинкой — что там происходит?',
+      text: 'А теперь — идеальный вечер. Какой кадр больше похож на твой?',
       options: [
-        { value: 'sofa',    label: 'Диван, сериал и что-то лёгкое в бокале' },
-        { value: 'music',   label: 'Музыка, редкие этикетки, хочется пробовать новое' },
-        { value: 'sports',  label: 'Матч на экране, стол, друзья, шум и эмоции' },
-        { value: 'tasting', label: 'Маленькие дегустационные бокалы, нюхаю и разбираю вкусы' }
+        { value: 'slow',     label: 'Спокойно, пара бокалов, разговор или музыка в фоне' },
+        { value: 'fun',      label: 'Смеяться, общаться, пробовать разное' },
+        { value: 'tasting',  label: 'Прямо дегустация: сравнивать стили, обсуждать, запоминать' },
+        { value: 'background', label: 'Пиво как фон — важнее компания или дело' }
       ]
     },
     {
       type: 'q',
       id: 'beer_character',
-      coins: 20,
-      text: 'Представь, что пиво — это персонаж. Кто ближе всего по духу?',
+      coins: 10,
+      text: 'Если бы пиво было персонажем, какой из этих тебе ближе всего?',
       options: [
         { value: 'light',   label: 'Лёгкий, разговорчивый, с тобой весь вечер, но не давит' },
         { value: 'bitter',  label: 'Резкий, дерзкий, с характером — его либо любят, либо «слишком»' },
@@ -65,49 +65,49 @@
     {
       type: 'q',
       id: 'anti_flavors',
-      coins: 30,
-      text: 'А с чем у тебя точно не дружба в бокале?',
+      coins: 20,
+      text: 'А вот что в пиве тебя скорее отталкивает?',
       options: [
-        { value: 'banana',    label: 'Когда вдруг банан/гвоздика — не моё' },
-        { value: 'coffee',    label: 'Когда пиво как десерт: кофе, шоколад, молочные стауты' },
-        { value: 'acid',      label: 'Когда прям ярко-кислое, как лимонад или кислые конфеты' },
-        { value: 'pine',      label: 'Когда хмель как жёсткая хвоя и горечь до слёз' },
-        { value: 'ok_all',    label: 'Да я со всеми дружу, люблю пробовать разное' }
+        { value: 'too_sour',   label: 'Сильная кислота (прямо “лимон в лицо”)' },
+        { value: 'too_bitter', label: 'Жёсткая горечь, после которой лицо сводит' },
+        { value: 'too_sweet',  label: 'Чересчур сладкие десертные истории' },
+        { value: 'weird',      label: 'Слишком “перегруженные” вкусы (копчёное, острое, странные сочетания)' }
       ]
     },
     {
       type: 'q',
       id: 'snacks',
       coins: 10,
-      text: 'На столе у тебя чаще всего что рядом с бокалом?',
+      text: 'С чем чаще всего берёшь пиво?',
       options: [
-        { value: 'snacks',   label: 'Снэки: орехи, чипсы, сухарики' },
-        { value: 'fastfood', label: 'Пицца, бургеры и подобные радости' },
-        { value: 'meat',     label: 'Мясо/гриль: крылья, рёбра и компания' },
-        { value: 'no_food',  label: 'Обычно без еды, главное — сам бокал' }
+        { value: 'meat',   label: 'Мясо / колбаски / бургеры' },
+        { value: 'snacks', label: 'Чипсы, сухарики, орешки и всё из этой серии' },
+        { value: 'cheese', label: 'Сыры, закуски потоньше' },
+        { value: 'solo',   label: 'Чаще всего вообще без еды' }
       ]
     },
     {
       type: 'q',
       id: 'budget',
-      coins: 20,
-      text: 'Какой сценарий про тебя чаще всего?',
+      coins: 10,
+      text: 'Про деньги. Какой вариант ближе к твоему привычному сценарию?',
       options: [
-        { value: 'quick',   label: 'Забежал на один–два бокала, выдохнул и домой' },
-        { value: 'normal',  label: 'Нормально посидеть: пару позиций и закуска — вечер удался' },
-        { value: 'event',   label: 'Это событие: дегустация, новый релиз, закладываю отдельный бюджет' }
+        { value: 'one_good', label: 'Лучше один-два, но прям «вау, как круто»' },
+        { value: 'balanced', label: 'Хочу баланс: и вкусно, и по деньгам окей' },
+        { value: 'more_for_less', label: 'Главное — посидеть подольше и побольше, но в разумном бюджете' },
+        { value: 'no_matter', label: 'Зависит от дня и настроения, нет жёсткого сценария' }
       ]
     },
     {
       type: 'q',
       id: 'time_of_day',
       coins: 10,
-      text: 'В какой момент дня чаще всего ловишь мысль: «неплохо бы пивка»?',
+      text: 'Когда чаще всего возникает мысль «хочу пива»?',
       options: [
-        { value: 'after_work', label: 'После работы/дел, ближе к вечеру' },
-        { value: 'late',       label: 'Поздно вечером/ночью' },
-        { value: 'weekend',    label: 'Днём в выходные' },
-        { value: 'random',     label: 'Спонтанно — когда совпало настроение или зовут' }
+        { value: 'after_work', label: 'После работы, вечером — расслабиться' },
+        { value: 'weekend',    label: 'В выходные, когда есть время посидеть' },
+        { value: 'event',      label: 'По событиям: матчи, встречи, поездки' },
+        { value: 'random',     label: 'Случайно, без чёткого сценария' }
       ]
     },
     {
@@ -126,7 +126,7 @@
       type: 'q',
       id: 'birthday_optin',
       coins: 40,
-      text: 'У нас есть фишка — поздравлять своих людей не просто «с праздником», а под их вкус. Как тебе идея персональных подарков от бара к дню рождения?',
+      text: 'У нас есть фишка — поздравлять своих людей не просто смской. Как тебе идея персональных подарков от бара к дню рождения?',
       options: [
         { value: 'love',    label: 'Обожаю такие штуки, я за' },
         { value: 'ok',      label: 'Норм, если без спама и навязчивости' },
@@ -142,26 +142,27 @@
     }
   ];
 
-  const TOTAL_QUESTIONS = STEPS.filter(s => s.type === 'q').length;
+  const TG = window.Telegram?.WebApp;
 
-  const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-
-  // ===== Telegram / haptic =====
-  const TG = window.Telegram && window.Telegram.WebApp;
-  function haptic(level){
+  function haptic(type='light'){
     try{
-      TG?.HapticFeedback?.impactOccurred(level || 'light');
-    }catch(_){
-      navigator.vibrate?.(10);
-    }
+      if (!TG || !TG.HapticFeedback) return;
+      if (type==='impact') TG.HapticFeedback.impactOccurred('medium');
+      else if (type==='success') TG.HapticFeedback.notificationOccurred('success');
+      else TG.HapticFeedback.impactOccurred('light');
+    }catch(_){}
   }
 
-  // ===== Баланс / призы =====
-  const COIN_KEY = 'beer_coins';
-  function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
+  function getCoins(){
+    try{
+      if (typeof window.getCoins === 'function') return window.getCoins();
+      return 0;
+    }catch(_){ return 0;}
+  }
   function setCoins(v){
-    localStorage.setItem(COIN_KEY, String(Math.max(0, v|0)));
-    try{ window.syncCoinsUI?.(); }catch(_){}
+    try{
+      if (typeof window.setCoins === 'function') return window.setCoins(v);
+    }catch(_){}
   }
   function addCoins(n){
     if (typeof window.addCoins === 'function') return window.addCoins(n);
@@ -179,7 +180,6 @@
 
   const getLast = () => +(localStorage.getItem(LAST_KEY) || 0);
   const setLast = (ts = Date.now()) => localStorage.setItem(LAST_KEY, String(ts));
-  const hasCompleted = () => getLast() > 0;
 
   // ===== Состояние =====
   const S = {
@@ -190,8 +190,102 @@
     profile: {},
     birthdayDay: 1,
     birthdayMonth: 1,
-    birthdayTouched: false
+    birthdayTouched: false,
+    // флаг прохождения: первично из localStorage, далее — из сервера (profile_quiz.state / finish)
+    completed: getLast() > 0
   };
+
+  const hasCompleted = () => !!S.completed;
+
+  // ===== Работа с сервером (GAS / profile_quiz) =====
+  function fetchProfileQuizStateFromServer(){
+    if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function') return;
+    try{
+      const tg_init = window.getTgInit();
+      window.jpost('/api/mini/event', {
+        tg_init,
+        type: 'profile_quiz.state',
+        data: { quiz_id: 'beer_profile_v1' }
+      })
+      .then((res)=>{
+        if (!res || !res.ok) return;
+        S.completed = res.status === 'completed';
+
+        // подхват даты рождения (если уже есть на сервере)
+        if (res.bday_day != null){
+          const d = Number(res.bday_day);
+          if (d >= 1 && d <= 31) S.birthdayDay = d;
+        }
+        if (res.bday_month != null){
+          const m = Number(res.bday_month);
+          if (m >= 1 && m <= 12) S.birthdayMonth = m;
+        }
+
+        // мягкий локальный кэш
+        if (S.completed){
+          try{ setLast(Date.now()); }catch(_){}
+        }
+
+        // обновляем кнопку "Начать / Квиз пройден"
+        renderStartRow();
+      })
+      .catch((err)=>{
+        console.warn('profile_quiz.state error', err);
+      });
+    }catch(e){
+      console.warn('profile_quiz.state error', e);
+    }
+  }
+
+  function sendProfileQuizFinishToServer(){
+    // если нет воркера / jpost — работаем по старинке (локальные монеты и кэш)
+    if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
+      try{
+        setLast(Date.now());
+        addCoins(S.score);
+      }catch(_){}
+      return;
+    }
+
+    try{
+      const tg_init = window.getTgInit();
+      const payload = {
+        tg_init,
+        type: 'profile_quiz.finish',
+        data: {
+          quiz_id: 'beer_profile_v1',
+          score: S.score,
+          bday_day: S.birthdayDay,
+          bday_month: S.birthdayMonth,
+          profile: S.profile,
+          answers_json: JSON.stringify(S.profile || {})
+        }
+      };
+      window.jpost('/api/mini/event', payload)
+        .then((res)=>{
+          if (!res || !res.ok) return;
+          S.completed = res.status === 'completed';
+
+          if (S.completed){
+            try{ setLast(Date.now()); }catch(_){}
+          }
+
+          // если воркер вернёт fresh_state — обновим глобальный профиль, иначе просто монетки
+          try{
+            if (res.fresh_state && typeof window.applyFreshState === 'function'){
+              window.applyFreshState(res.fresh_state);
+            }else{
+              if (typeof window.syncCoinsUI === 'function') window.syncCoinsUI();
+            }
+          }catch(_){}
+        })
+        .catch((err)=>{
+          console.warn('profile_quiz.finish error', err);
+        });
+    }catch(e){
+      console.warn('profile_quiz.finish error', e);
+    }
+  }
 
   // ===== DOM =====
   const elBody  = () => document.getElementById('trivia-body');
@@ -199,133 +293,244 @@
   const elHint  = () => document.getElementById('trivia-start-hint');
   const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
 
-  // ===== Стили квиза + барабанов =====
+  // ===== Создание html для опций =====
+  function renderOptions(step){
+    if (!step || !Array.isArray(step.options)) return '';
+    return step.options.map(opt => `
+      <button
+        type="button"
+        class="trivia-opt"
+        data-val="${String(opt.value)}">
+        <span class="trivia-opt__label">${opt.label}</span>
+      </button>
+    `).join('');
+  }
+
+  // ===== Шаги =====
+  function currentStep(){
+    return STEPS[S.i] || null;
+  }
+
+  function renderStep(){
+    const body = elBody();
+    if (!body) return;
+    const step = currentStep();
+    if (!step) return;
+
+    S.canNext = false;
+
+    if (step.type === 'birthday'){
+      const card = `
+        <div class="trivia-step">
+          <div class="trivia-q">
+            <div class="trivia-q__title">${step.text}</div>
+          </div>
+          <div class="bday-wheels">
+            <div class="bday-wheel" data-bday-wheel="day">
+              <div class="bday-wheel-mask"></div>
+              <div class="bday-wheel-scroll" data-bday-scroll="day">
+                ${renderDayItems()}
+              </div>
+            </div>
+            <div class="bday-wheel" data-bday-wheel="month">
+              <div class="bday-wheel-mask"></div>
+              <div class="bday-wheel-scroll" data-bday-scroll="month">
+                ${renderMonthItems()}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            class="btn btn-primary trivia-next trivia-next--bday"
+            data-action="trivia-save-bday"
+          >
+            Указать дату и забрать монеты
+          </button>
+        </div>
+      `;
+      body.innerHTML = card;
+      setTimeout(()=>initBdayWheels(), 30);
+      return;
+    }
+
+    const total = STEPS.filter(s => s.type === 'q').length;
+    const passed = Math.min(
+      S.earned.filter(Boolean).length,
+      total
+    );
+
+    const progress = total>0 ? Math.round(passed / total * 100) : 0;
+
+    const html = `
+      <div class="trivia-step">
+        <div class="trivia-progress">
+          <div class="trivia-progress__bar">
+            <div class="trivia-progress__fill" style="width:${progress}%;"></div>
+          </div>
+        </div>
+        <div class="trivia-q">
+          <div class="trivia-q__title">${step.text}</div>
+        </div>
+        <div class="trivia-options">
+          ${renderOptions(step)}
+        </div>
+        <button
+          type="button"
+          class="btn btn-primary trivia-next"
+          data-action="trivia-next"
+          disabled
+        >
+          Далее
+        </button>
+      </div>
+    `;
+    body.innerHTML = html;
+  }
+
+  function renderDayItems(){
+    const items = [];
+    for (let d=1; d<=31; d++){
+      items.push(`
+        <div class="bday-wheel-item" data-day="${d}">
+          ${String(d).padStart(2,'0')}
+        </div>
+      `);
+    }
+    return items.join('');
+  }
+
+  function renderMonthItems(){
+    const months = [
+      '01','02','03','04','05','06',
+      '07','08','09','10','11','12'
+    ];
+    return months.map((m,idx)=>`
+      <div class="bday-wheel-item" data-month="${idx+1}">
+        ${m}
+      </div>
+    `).join('');
+  }
+
+  function initBdayWheels(){
+    const dayScroll   = document.querySelector('[data-bday-scroll="day"]');
+    const monthScroll = document.querySelector('[data-bday-scroll="month"]');
+
+    if (dayScroll){
+      const items = Array.from(dayScroll.querySelectorAll('.bday-wheel-item'));
+      const itemH = items[0]?.offsetHeight || 24;
+      const targetIndex = Math.max(0, Math.min(30, (S.birthdayDay-1)));
+      const offset = itemH * targetIndex;
+      dayScroll.scrollTop = offset;
+      bindWheelScroll(dayScroll, 'day', items);
+    }
+
+    if (monthScroll){
+      const items = Array.from(monthScroll.querySelectorAll('.bday-wheel-item'));
+      const itemH = items[0]?.offsetHeight || 24;
+      const targetIndex = Math.max(0, Math.min(11, (S.birthdayMonth-1)));
+      const offset = itemH * targetIndex;
+      monthScroll.scrollTop = offset;
+      bindWheelScroll(monthScroll, 'month', items);
+    }
+
+    const btn = document.querySelector('[data-action="trivia-save-bday"]');
+    if (btn){
+      btn.disabled = false;
+      btn.classList.add('is-active');
+    }
+  }
+
+  function bindWheelScroll(scrollEl, type, items){
+    let scrollingTimeout = null;
+    const itemH = items[0]?.offsetHeight || 24;
+
+    function onScroll(){
+      if (scrollingTimeout) window.clearTimeout(scrollingTimeout);
+      scrollingTimeout = window.setTimeout(()=>{
+        const st = scrollEl.scrollTop;
+        const index = Math.round(st / itemH);
+        const clampedIndex = Math.max(0, Math.min(items.length-1, index));
+        const target = clampedIndex * itemH;
+
+        try{
+          scrollEl.scrollTo({ top: target, behavior:'smooth' });
+        }catch(_){
+          scrollEl.scrollTop = target;
+        }
+
+        const el = items[clampedIndex];
+        if (!el) return;
+        if (type === 'day'){
+          const d = Number(el.dataset.day||'1');
+          S.birthdayDay = d;
+        } else if (type === 'month'){
+          const m = Number(el.dataset.month||'1');
+          S.birthdayMonth = m;
+        }
+
+        S.birthdayTouched = true;
+        haptic('light');
+      }, 80);
+    }
+
+    scrollEl.addEventListener('scroll', onScroll, {passive:true});
+  }
+
+  function renderStartRow(){
+    const start = elStart();
+    const hint  = elHint();
+    const btn   = start?.querySelector('[data-action="trivia-start"]');
+    if (!start || !btn) return;
+
+    if (hasCompleted()){
+      if (hint){
+        hint.textContent = 'Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌';
+      }
+      btn.disabled = true;
+      btn.classList.add('is-done');
+      btn.textContent = 'Квиз пройден';
+    } else {
+      if (hint){
+        hint.textContent = '';
+      }
+      btn.disabled = false;
+      btn.classList.remove('is-done');
+      btn.textContent = 'Начать';
+    }
+  }
+
+  function renderFinish(){
+    const body = elBody();
+    if (!body) return;
+    const total = S.score;
+    body.innerHTML = `
+      <div class="trivia-step">
+        <div class="trivia-final">
+          <div class="trivia-final__title">Готово! Мы сохранили твой вкус 😎</div>
+          <div class="trivia-final__coins">+${total} монет за честные ответы</div>
+          <div class="trivia-final__text">
+            Теперь можем звать на релизы и акции, которые ближе именно тебе — без спама и «мимо вкуса».
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  // ===== Стили =====
   let stylesInjected = false;
   function ensureStyles(){
     if (stylesInjected) return;
     stylesInjected = true;
-    const css = `
-      .trivia-q p{
-        margin:8px 0;
-      }
-      .trivia-sub{
-        font-size:12px;
-        opacity:0.7;
-        margin-bottom:6px;
-      }
-      .trivia-progress{
-        width:100%;
-        height:6px;
-        border-radius:999px;
-        overflow:hidden;
-        background:rgba(255,255,255,0.06);
-        margin-bottom:10px;
-      }
-      .trivia-progress-bar{
-        height:100%;
-        width:0%;
-        background:linear-gradient(90deg,#ffb347,#ff7b00);
-        transition:width .25s ease;
-      }
-      .trivia-opts{
-        margin-top:8px;
-      }
-      .trivia-opt{
-        display:flex;
-        align-items:flex-start;
-        gap:8px;
-        padding:8px 10px;
-        border-radius:12px;
-        background:rgba(255,255,255,0.03);
-        border:1px solid rgba(255,255,255,0.06);
-        margin-bottom:8px;
-        cursor:pointer;
-        transition:background .15s ease,border-color .15s ease,transform .12s ease;
-      }
-      .trivia-opt:hover{
-        background:rgba(255,255,255,0.05);
-      }
-      .trivia-opt.is-selected{
-        background:rgba(255,152,0,0.18);
-        border-color:#ffb347;
-        transform:translateY(-1px);
-      }
-      .trivia-opt input{
-        display:none;
-      }
-      .trivia-cta{
-        margin-top:12px;
-      }
-      .trivia-next{
-        width:100%;
-        opacity:0.5;
-        pointer-events:none;
-        background:transparent !important;
-        border:1px solid rgba(255,255,255,0.35);
-        color:#fff;
-      }
-      .trivia-next.is-active{
-        opacity:1;
-        pointer-events:auto;
-        background:#ff9800 !important;
-        border-color:#ff9800;
-        color:#000 !important;
-      }
-      .bday-wheels{
-        display:flex;
-        gap:16px;
-        justify-content:center;
-        margin:16px 0 8px;
-      }
-      .bday-wheel{
-        position:relative;
+    const style = document.createElement('style');
+    style.innerHTML = `
+      .trivia-card{
         display:flex;
         flex-direction:column;
-        align-items:center;
-        min-width:110px;
+        gap:12px;
       }
-      .bday-wheel-scroll{
-        width:100%;
-        max-height:120px;
-        overflow-y:auto;
-        padding:20px 0;
-        scrollbar-width:none;
-        -ms-overflow-style:none;
-      }
-      .bday-wheel-scroll::-webkit-scrollbar{
-        display:none;
-      }
-      .bday-wheel-item{
-        height:28px;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        font-size:14px;
-        opacity:0.55;
-        transition:opacity .12s ease, transform .12s ease;
-      }
-      .bday-wheel-item.is-active{
-        font-size:18px;
-        font-weight:600;
-        opacity:1;
-        transform:scale(1.0);
-      }
-      .bday-wheel-highlight{
-        position:absolute;
-        left:6px;
-        right:6px;
-        top:50%;
-        height:32px;
-        transform:translateY(-50%);
-        border-radius:999px;
-        border:1px solid rgba(255,255,255,0.3);
-        pointer-events:none;
-      }
-      /* стартовый экран анкеты в шторке */
-      .trivia-card .trivia-start{
+      .trivia-start{
         display:flex;
         flex-direction:column;
-        align-items:stretch;
         gap:10px;
       }
       .trivia-start-inner{
@@ -349,13 +554,18 @@
       .trivia-start-copy{
         flex:1 1 auto;
       }
+      .trivia-title{
+        font-size:15px;
+        font-weight:600;
+        line-height:1.35;
+      }
       .trivia-start__hint{
         margin-top:4px;
         font-size:12px;
         opacity:0.75;
       }
       .trivia-start-btn{
-        margin-top:4px;
+        margin-top:8px;
         width:100%;
         display:block;
       }
@@ -367,309 +577,168 @@
         color:#aaaaaa !important;
       }
 
+      .trivia-step{
+        display:flex;
+        flex-direction:column;
+        gap:12px;
+      }
+      .trivia-progress{
+        margin-bottom:4px;
+      }
+      .trivia-progress__bar{
+        position:relative;
+        width:100%;
+        height:6px;
+        border-radius:999px;
+        background:rgba(255,255,255,0.08);
+        overflow:hidden;
+      }
+      .trivia-progress__fill{
+        position:absolute;
+        left:0;
+        top:0;
+        bottom:0;
+        width:0;
+        border-radius:999px;
+        background:linear-gradient(90deg,#ff9800,#ffc107);
+        transition:width .25s ease-out;
+      }
+      .trivia-q__title{
+        font-size:14px;
+        font-weight:500;
+        line-height:1.35;
+      }
+      .trivia-options{
+        display:flex;
+        flex-direction:column;
+        gap:8px;
+        margin-top:8px;
+      }
+      .trivia-opt{
+        position:relative;
+        width:100%;
+        text-align:left;
+        padding:10px 12px;
+        border-radius:999px;
+        border:1px solid rgba(255,255,255,0.16);
+        background:rgba(0,0,0,0.25);
+        color:#fff;
+        font-size:13px;
+        line-height:1.3;
+        cursor:pointer;
+        transition:background .15s ease-out,border-color .15s ease-out,transform .08s ease-out;
+      }
+      .trivia-opt__label{
+        display:block;
+        pointer-events:none;
+      }
+      .trivia-opt:active{
+        transform:scale(.98);
+      }
+      .trivia-opt.is-selected{
+        border-color:#ff9800;
+        background:rgba(255,152,0,0.12);
+      }
+      .trivia-next{
+        margin-top:10px;
+        width:100%;
+      }
+      .trivia-next[disabled]{
+        opacity:0.5;
+        pointer-events:none;
+      }
+      .trivia-next.is-active{
+        opacity:1;
+        pointer-events:auto;
+        background:#ff9800 !important;
+        border-color:#ff9800;
+        color:#000 !important;
+      }
+      .bday-wheels{
+        display:flex;
+        gap:16px;
+        justify-content:center;
+        margin:16px 0 8px;
+      }
+      .bday-wheel{
+        position:relative;
+        width:80px;
+        height:140px;
+        overflow:hidden;
+      }
+      .bday-wheel-mask{
+        position:absolute;
+        inset:0;
+        background:linear-gradient(to bottom,rgba(0,0,0,0.9) 0%,rgba(0,0,0,0) 25%,rgba(0,0,0,0) 75%,rgba(0,0,0,0.9) 100%);
+        pointer-events:none;
+        z-index:2;
+      }
+      .bday-wheel-scroll{
+        position:absolute;
+        inset:0;
+        overflow-y:auto;
+        scrollbar-width:none;
+      }
+      .bday-wheel-scroll::-webkit-scrollbar{
+        display:none;
+      }
+      .bday-wheel-item{
+        height:28px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        font-size:16px;
+        font-weight:600;
+      }
+      .trivia-final{
+        display:flex;
+        flex-direction:column;
+        gap:6px;
+      }
+      .trivia-final__title{
+        font-size:15px;
+        font-weight:600;
+      }
+      .trivia-final__coins{
+        font-size:14px;
+        font-weight:500;
+        color:#ffeb3b;
+      }
+      .trivia-final__text{
+        font-size:12px;
+        opacity:0.8;
+      }
+
+      @media (min-width:640px){
+        .trivia-card{
+          max-width:420px;
+        }
+      }
     `;
-    const styleEl = document.createElement('style');
-    styleEl.textContent = css;
-    document.head.appendChild(styleEl);
+    document.head.appendChild(style);
   }
 
-  // ===== Стартовая плашка =====
-    function renderStartRow(){
-    const start = elStart(), hint = elHint();
-    if (!start) return;
+  // ===== Отрисовка старта =====
+  function initStartCard(){
+    const tpl = document.getElementById('tpl-trivia');
+    if (!tpl) return;
+    const host = tpl.content?.cloneNode(true) || null;
+    if (!host) return;
+    const wrap = host.querySelector('.trivia-card');
+    if (!wrap) return;
 
-    start.classList.remove('is-hidden');
-    const btn = start.querySelector('[data-action="trivia-start"]');
-    if (!btn) return;
-
-    if (hasCompleted()){
-      // Квиз уже пройден
-      btn.disabled = true;
-      btn.classList.remove('is-active');
-      btn.classList.add('is-done');
-      btn.textContent = 'Квиз пройден';
-
-      if (hint){
-        hint.style.display = 'block';
-        hint.textContent = 'Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌';
-      }
-    } else {
-      // Квиз ещё не проходили
-      btn.disabled = false;
-      btn.classList.remove('is-done');
-      btn.classList.add('is-active'); // делаем кнопку оранжевой, как "Далее"
-      btn.textContent = 'Начать';
-
-      if (hint){
-        hint.style.display = 'none';
-        hint.textContent = '';
-      }
-    }
-  }
-
-  // ===== Прогресс: номер вопроса среди type="q" =====
-  function getQuestionIndex(stepIndex){
-    let idx = 0;
-    for (let i = 0; i <= stepIndex; i++){
-      if (STEPS[i].type === 'q') idx++;
-    }
-    return idx;
-  }
-
-  // ===== Рендер шага =====
-  function renderStep(){
-    const step = STEPS[S.i];
-    const box = elBody();
-    if (!box || !step) return;
-    ensureStyles();
-
-    if (step.type === 'q'){
-      renderQuestionStep(step);
-    }else if (step.type === 'birthday'){
-      renderBirthdayStep(step);
-    }
-  }
-
-  function renderQuestionStep(step){
-    const box = elBody(); if (!box) return;
-    const qIndex = getQuestionIndex(S.i);
-    const totalQ = TOTAL_QUESTIONS;
-    const answered = Math.max(0, qIndex - 1);
-    const progress = Math.round((answered / totalQ) * 100);
-
-    S.canNext = false;
-
-    box.innerHTML =
-      `<div class="trivia-q">
-         <div class="trivia-progress">
-           <div class="trivia-progress-bar" style="width:${progress}%"></div>
-         </div>
-         <div class="trivia-sub">Вопрос на ${step.coins} монет</div>
-         <p class="trivia-text">${step.text}</p>
-         <div class="trivia-opts">
-           ${step.options.map(opt => `
-             <label class="trivia-opt" data-val="${opt.value}">
-               <input type="radio" name="ans" value="${opt.value}">
-               <span>${opt.label}</span>
-             </label>`).join('')}
-         </div>
-         <div class="trivia-cta">
-           <button class="btn btn-primary trivia-next" data-action="trivia-next" disabled>Далее</button>
-         </div>
-       </div>`;
-  }
-
-  // ===== Кнопка финала =====
-  function enableBirthdayButton(){
-    const body = elBody(); if (!body) return;
-    const btn = body.querySelector('[data-action="trivia-save-bday"]');
-    if (!btn) return;
-    btn.disabled = false;
-    btn.classList.add('is-active');
-  }
-
-  // ===== Барабаны ДР =====
-  function initBirthdayWheels(){
-    const body = elBody(); if (!body) return;
-    const wheels = body.querySelectorAll('.bday-wheel-scroll');
-    wheels.forEach(scrollEl => {
-      const kind = scrollEl.dataset.kind;
-      setupWheel(scrollEl, kind);
-    });
-  }
-
-  function setupWheel(scrollEl, kind){
-    const items = Array.from(scrollEl.querySelectorAll('.bday-wheel-item'));
-    if (!items.length) return;
-
-    let lastVal = null;
-    let stopTimer = null;
-
-    function setState(newVal, opts){
-      const silent = opts && opts.silent;
-      newVal = Number(newVal);
-
-      if (kind === 'day'){
-        if (newVal === S.birthdayDay){
-          if (!silent){
-            S.birthdayTouched = true;
-            enableBirthdayButton();
-          }
-          return;
-        }
-        S.birthdayDay = newVal;
-      }else{
-        if (newVal === S.birthdayMonth){
-          if (!silent){
-            S.birthdayTouched = true;
-            enableBirthdayButton();
-          }
-          return;
-        }
-        S.birthdayMonth = newVal;
-      }
-
-      if (!silent){
-        S.birthdayTouched = true;
-        enableBirthdayButton();
-      }
+    const iconEl = wrap.querySelector('.trivia-start-icon img');
+    if (iconEl && !iconEl.src){
+      iconEl.src = 'img/casino-chips.png';
     }
 
-    function centerOn(val, opts){
-      const silent = opts && opts.silent;
-      const smooth = opts && opts.smooth;
-
-      let targetItem = null;
-      items.forEach(it => {
-        const v = parseInt(it.dataset.value, 10);
-        if (v === val){
-          targetItem = it;
-          it.classList.add('is-active');
-        }else{
-          it.classList.remove('is-active');
-        }
-      });
-      if (!targetItem) return;
-
-      const container = scrollEl;
-      const itemOffset = targetItem.offsetTop;
-      const containerHeight = container.clientHeight;
-      const itemHeight = targetItem.offsetHeight;
-      const scrollTop = itemOffset - (containerHeight/2 - itemHeight/2);
-
-      try{
-        container.scrollTo({ top: scrollTop, behavior: smooth ? 'smooth' : 'auto' });
-      }catch(_){
-        container.scrollTop = scrollTop;
-      }
-
-      lastVal = val;
-      setState(val, {silent});
-    }
-
-    function updateFromScroll(isEnd){
-      const rect = scrollEl.getBoundingClientRect();
-      const centerY = rect.top + rect.height/2;
-      let closestItem = null;
-      let closestDist = Infinity;
-
-      items.forEach(it => {
-        const r = it.getBoundingClientRect();
-        const itemCenter = (r.top + r.bottom)/2;
-        const dist = Math.abs(itemCenter - centerY);
-        if (dist < closestDist){
-          closestDist = dist;
-          closestItem = it;
-        }
-      });
-
-      if (!closestItem) return;
-      const v = parseInt(closestItem.dataset.value, 10);
-      if (!v) return;
-
-      if (!isEnd){
-        if (v !== lastVal){
-          items.forEach(it => it.classList.toggle('is-active', it === closestItem));
-          lastVal = v;
-          setState(v, {silent:false});
-          haptic('light'); // лёгкий при смене значения
-        }
-      }else{
-        // финальная фиксация
-        centerOn(v, {silent:true, smooth:true});
-        haptic('medium'); // пожёстче, когда зафиксировалось
-      }
-    }
-
-    scrollEl.addEventListener('scroll', ()=>{
-      if (!items.length) return;
-      updateFromScroll(false);
-      if (stopTimer) clearTimeout(stopTimer);
-      stopTimer = setTimeout(()=>updateFromScroll(true), 130);
-    });
-
-    // стартовое значение (без хаптика и без активации кнопки)
-    let initialVal = (kind === 'day' ? (S.birthdayDay || 1) : (S.birthdayMonth || 1));
-    if (kind === 'day'){
-      if (initialVal < 1 || initialVal > 31) initialVal = 1;
-    }else{
-      if (initialVal < 1 || initialVal > 12) initialVal = 1;
-    }
-    centerOn(initialVal, {silent:true, smooth:false});
+    const target = document.querySelector('[data-block="profile-trivia"]');
+    if (!target) return;
+    target.innerHTML = '';
+    target.appendChild(host);
   }
 
-  function renderBirthdayStep(step){
-    const box = elBody(); if (!box) return;
-    ensureStyles();
-
-    // подтягиваем сохранённую дату, если есть
-    try{
-      if (!S.birthdayTouched){
-        const saved = localStorage.getItem(BDAY_KEY);
-        if (saved){
-          const parts = saved.split('-');
-          const d = parseInt(parts[0], 10);
-          const m = parseInt(parts[1], 10);
-          if (d >= 1 && d <= 31) S.birthdayDay = d;
-          if (m >= 1 && m <= 12) S.birthdayMonth = m;
-        }
-      }
-    }catch(_){}
-
-    const score = S.score || 0;
-
-    const daysHtml = Array.from({length:31}, (_,i)=> {
-      const val = i+1;
-      return `<div class="bday-wheel-item" data-value="${val}">${val}</div>`;
-    }).join('');
-
-    const monthsHtml = MONTHS.map((name,idx)=>{
-      const val = idx+1;
-      return `<div class="bday-wheel-item" data-value="${val}">${name}</div>`;
-    }).join('');
-
-    box.innerHTML =
-      `<div class="trivia-q trivia-bday">
-         <div class="trivia-title">Финальный шаг</div>
-         <p class="trivia-text">Ты набрал <b>${score} монет</b> в этой викторине вкуса.</p>
-         <p class="trivia-text">${step.text}</p>
-         <div class="bday-wheels">
-           <div class="bday-wheel">
-             <div class="bday-wheel-scroll" data-kind="day">
-               ${daysHtml}
-             </div>
-             <div class="bday-wheel-highlight"></div>
-           </div>
-           <div class="bday-wheel">
-             <div class="bday-wheel-scroll" data-kind="month">
-               ${monthsHtml}
-             </div>
-             <div class="bday-wheel-highlight"></div>
-           </div>
-         </div>
-         <p class="trivia-sub">Дата нужна только для того, чтобы вовремя прилетал нормальный подарок от бара, а не спам.</p>
-         <div class="trivia-cta">
-           <button class="btn btn-primary trivia-next" data-action="trivia-save-bday" disabled>Указать дату и забрать монеты</button>
-         </div>
-       </div>`;
-
-    initBirthdayWheels();
-  }
-
-  // ===== Завершение =====
-  function renderFinish(){
-    const box = elBody(); if (!box) return;
-    const score = S.score || 0;
-    box.innerHTML =
-      `<div class="trivia-q">
-         <p>Готово! Мы сохранили твой «паспорт вкуса» и дату. На счёт зачислено <b>${score} монет</b>.</p>
-       </div>`;
-  }
-
-  function startQuiz(){
-    rootCard()?.classList.add('is-running');
-    elStart()?.classList.add('is-hidden');
-
+  function resetState(){
     S.i = 0;
     S.canNext = false;
     S.score = 0;
@@ -677,24 +746,48 @@
     S.profile = {};
     S.birthdayTouched = false;
 
+    try{
+      const raw = localStorage.getItem(BDAY_KEY);
+      if (raw && /^\d{2}-\d{2}$/.test(raw)){
+        const [dd,mm] = raw.split('-');
+        S.birthdayDay = Number(dd||'1') || 1;
+        S.birthdayMonth = Number(mm||'1') || 1;
+      }
+    }catch(_){}
+  }
+
+  // ===== Старт / Квиз =====
+  function startQuiz(){
+    const body = elBody();
+    const start = elStart();
+    if (!body || !start) return;
+    resetState();
+    start.classList.add('is-hidden');
+    rootCard()?.classList.add('is-running');
     renderStep();
+    haptic('impact');
   }
 
   function finishQuiz(){
-    addCoins(S.score);
     logPrize(`+${S.score}🪙 за викторину вкуса`);
-    setLast();
-    haptic('light');
 
+    // оптимистично считаем, что квиз пройден
+    S.completed = true;
+
+    haptic('light');
     renderFinish();
+    rootCard()?.classList.remove('is-running');
+
+    // отправляем результат на бэкенд (GAS через воркер)
+    sendProfileQuizFinishToServer();
 
     setTimeout(renderStartRow, 1400);
-    rootCard()?.classList.remove('is-running');
   }
 
   // ===== Слушатель кликов =====
   document.addEventListener('click', (e)=>{
     const body = elBody();
+    const step = currentStep();
 
     // старт
     if (e.target.closest?.('[data-action="trivia-start"]')){
@@ -705,8 +798,6 @@
     }
 
     if (!body || !body.contains(e.target)) return;
-
-    const step = STEPS[S.i];
 
     // выбор варианта
     const opt = e.target.closest?.('.trivia-opt');
@@ -800,6 +891,10 @@
       ensureStyles();
       renderStartRow();
       body.innerHTML = '';
+
+      // при авто-монтаже тоже попробуем подтянуть состояние квиза с сервера
+      fetchProfileQuizStateFromServer();
+
       return true;
     }
     return false;
@@ -834,6 +929,10 @@
     //  - если квиз не проходили → жёлтая "Начать"
     //  - если уже проходили → "Квиз пройден" и неактивна
     renderStartRow();
+
+    // дополнительно синхронизируемся с сервером (GAS через воркер),
+    // чтобы узнать, проходил ли пользователь анкету и есть ли дата ДР
+    fetchProfileQuizStateFromServer();
   };
 
 })();
