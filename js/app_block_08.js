@@ -155,6 +155,21 @@
     }
   }
 
+  // ===== Хелпер для мини-событий через воркер (фолбэк) =====
+  if (!window.callMiniEvent &&
+      typeof window.getTgInit === 'function' &&
+      typeof window.jpost === 'function') {
+
+    window.callMiniEvent = function(type, data) {
+      const tg_init = window.getTgInit();
+      return window.jpost('/api/mini/event', {
+        tg_init,
+        type,
+        data
+      });
+    };
+  }
+
   // ===== Баланс / призы (локальный фолбэк, основной — через GAS) =====
   const COIN_KEY = 'beer_coins';
   function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
