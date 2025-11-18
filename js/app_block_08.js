@@ -321,6 +321,21 @@
         border:1px solid rgba(255,255,255,0.3);
         pointer-events:none;
       }
+            .trivia-start__hint{
+        margin-top:6px;
+        font-size:12px;
+        opacity:0.75;
+      }
+      .trivia-start-btn{
+        margin-top:12px;
+      }
+      .trivia-start-btn.is-done{
+        opacity:0.7;
+        pointer-events:none;
+        background:transparent !important;
+        border:1px solid rgba(255,255,255,0.35);
+        color:#aaaaaa !important;
+      }
     `;
     const styleEl = document.createElement('style');
     styleEl.textContent = css;
