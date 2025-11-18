@@ -343,20 +343,32 @@
   }
 
   // ===== Стартовая плашка =====
-  function renderStartRow(){
+    function renderStartRow(){
     const start = elStart(), hint = elHint();
     if (!start) return;
+
     start.classList.remove('is-hidden');
     const btn = start.querySelector('[data-action="trivia-start"]');
+    if (!btn) return;
 
     if (hasCompleted()){
-      if (btn) btn.disabled = true;
+      // Квиз уже пройден
+      btn.disabled = true;
+      btn.classList.remove('is-active');
+      btn.classList.add('is-done');
+      btn.textContent = 'Квиз пройден';
+
       if (hint){
-        hint.style.display = 'inline';
+        hint.style.display = 'block';
         hint.textContent = 'Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌';
       }
-    }else{
-      if (btn) btn.disabled = false;
+    } else {
+      // Квиз ещё не проходили
+      btn.disabled = false;
+      btn.classList.remove('is-done');
+      btn.classList.add('is-active'); // делаем кнопку оранжевой, как "Далее"
+      btn.textContent = 'Начать';
+
       if (hint){
         hint.style.display = 'none';
         hint.textContent = '';
