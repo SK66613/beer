@@ -384,16 +384,29 @@
 
   // ===== Работа с GAS / воркером: profile_quiz.state / finish =====
   function fetchProfileQuizStateFromServer(){
-    if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function') return;
-    try{
-      const tg_init = window.getTgInit();
-      window.jpost('/api/mini/event', {
-        tg_init,
-        type: 'profile_quiz.state',
-        data: { quiz_id: 'beer_profile_v1' }
-      })
+  if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function') {
+    dbgTag?.('quiz.state', 'нет getTgInit или jpost');
+    return;
+  }
+  try{
+    const tg_init = window.getTgInit();
+
+    const payload = {
+      tg_init,
+      type: 'profile_quiz.state',
+      data: { quiz_id: 'beer_profile_v1' }
+    };
+
+    dbgTag?.('quiz.state →', payload);
+
+    window.jpost('/api/mini/event', payload)
       .then((res)=>{
-        if (!res || !res.ok) return;
+        dbgTag?.('quiz.state ←', res);
+
+        if (!res || !res.ok) {
+          dbgTag?.('quiz.state BAD', res);
+          return;
+        }
 
         // статус прохождения
         S.completed = res.status === 'completed';
@@ -408,72 +421,86 @@
           if (m >= 1 && m <= 12) S.birthdayMonth = m;
         }
 
-        // мягкий локальный кэш
         if (S.completed){
           try{ setLast(Date.now()); }catch(_){}
         }
 
-        // перерисовываем кнопку "Начать / Квиз пройден"
         renderStartRow();
       })
       .catch((err)=>{
         console.warn('profile_quiz.state error', err);
+        dbgTag?.('quiz.state ERROR', String(err));
       });
-    }catch(e){
-      console.warn('profile_quiz.state error', e);
-    }
+  }catch(e){
+    console.warn('profile_quiz.state error', e);
+    dbgTag?.('quiz.state EXCEPTION', String(e));
   }
+}
 
-  function sendProfileQuizFinishToServer(){
-    // если нет воркера / jpost — работаем по старинке (локальные монеты и кэш)
-    if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
-      try{
-        setLast(Date.now());
-        addCoins(S.score);
-      }catch(_){}
-      return;
-    }
 
+function sendProfileQuizFinishToServer(){
+  if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
+    dbgTag?.('quiz.finish', 'нет getTgInit или jpost — работаем локально');
     try{
-      const tg_init = window.getTgInit();
-      const payload = {
-        tg_init,
-        type: 'profile_quiz.finish',
-        data: {
-          quiz_id: 'beer_profile_v1',
-          score: S.score,
-          bday_day: S.birthdayDay,
-          bday_month: S.birthdayMonth,
-          profile: S.profile,
-          answers_json: JSON.stringify(S.profile || {})
-        }
-      };
-      window.jpost('/api/mini/event', payload)
-        .then((res)=>{
-          if (!res || !res.ok) return;
-
-          S.completed = res.status === 'completed';
-
-          if (S.completed){
-            try{ setLast(Date.now()); }catch(_){}
-          }
-
-          // обновляем монеты / профиль, если пришёл fresh_state
-          try{
-            if (res.fresh_state && typeof window.applyFreshState === 'function'){
-              window.applyFreshState(res.fresh_state);
-            }else{
-              window.syncCoinsUI?.();
-            }
-          }catch(_){}
-        })
-        .catch((err)=>{
-          console.warn('profile_quiz.finish error', err);
-        });
-    }catch(e){
-      console.warn('profile_quiz.finish error', e);
-    }
+      setLast(Date.now());
+      addCoins(S.score);
+    }catch(_){}
+    return;
   }
+
+  try{
+    const tg_init = window.getTgInit();
+    const payload = {
+      tg_init,
+      type: 'profile_quiz.finish',
+      data: {
+        quiz_id: 'beer_profile_v1',
+        score: S.score,
+        bday_day: S.birthdayDay,
+        bday_month: S.birthdayMonth,
+        profile: S.profile,
+        answers_json: JSON.stringify(S.profile || {})
+      }
+    };
+
+    dbgTag?.('quiz.finish →', payload);
+
+    window.jpost('/api/mini/event', payload)
+      .then((res)=>{
+        dbgTag?.('quiz.finish ←', res);
+
+        if (!res || !res.ok) {
+          dbgTag?.('quiz.finish BAD', res);
+          return;
+        }
+
+        S.completed = res.status === 'completed';
+
+        if (S.completed){
+          try{ setLast(Date.now()); }catch(_){}
+        }
+
+        try{
+          if (res.fresh_state && typeof window.applyFreshState === 'function'){
+            window.applyFreshState(res.fresh_state);
+          } else {
+            window.syncCoinsUI?.();
+          }
+        }catch(err){
+          console.warn('applyFreshState error', err);
+          dbgTag?.('quiz.finish applyFreshState ERROR', String(err));
+        }
+      })
+      .catch((err)=>{
+        console.warn('profile_quiz.finish error', err);
+        dbgTag?.('quiz.finish ERROR', String(err));
+      });
+  }catch(e){
+    console.warn('profile_quiz.finish error', e);
+    dbgTag?.('quiz.finish EXCEPTION', String(e));
+  }
+}
+
 
   // ===== Стартовая плашка =====
   function renderStartRow(){
