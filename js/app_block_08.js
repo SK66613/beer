@@ -384,169 +384,168 @@
 
   // ===== Работа с GAS / воркером: profile_quiz.state / finish =====
   function fetchProfileQuizStateFromServer(){
-  // 1) Основной путь — через общий хелпер, как колесо / штампы
-  if (typeof window.callMiniEvent === 'function'){
-    window.callMiniEvent('profile_quiz.state', { quiz_id: 'beer_profile_v1' })
-      .then(function(res){
-        console.log('[quiz.state] response', res);
-        if (!res || !res.ok) return;
+    // 1) Основной путь — через общий хелпер, как колесо / штампы
+    if (typeof window.callMiniEvent === 'function'){
+      window.callMiniEvent('profile_quiz.state', { quiz_id: QUIZ_ID })
+        .then(function(res){
+          console.log('[quiz.state] response', res);
+          if (!res || !res.ok) return;
 
-        S.completed = res.status === 'completed';
+          S.completed = res.status === 'completed';
 
-        if (res.bday_day != null){
-          var d = Number(res.bday_day);
-          if (d >= 1 && d <= 31) S.birthdayDay = d;
-        }
-        if (res.bday_month != null){
-          var m = Number(res.bday_month);
-          if (m >= 1 && m <= 12) S.birthdayMonth = m;
-        }
-
-        if (S.completed){
-          try { setLast(Date.now()); } catch(_) {}
-        }
-
-        renderStartRow();
-      })
-      .catch(function(err){
-        console.warn('profile_quiz.state error', err);
-      });
-
-    return;
-  }
-
-  // 2) Фолбэк — старый вариант через getTgInit/jpost (на будущее, если откроешь страницу без воркера)
-  if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
-    console.log('[quiz.state] нет callMiniEvent и getTgInit/jpost — работаем без сервера');
-    return;
-  }
-
-  try{
-    var tg_init = window.getTgInit();
-    window.jpost('/api/mini/event', {
-      tg_init: tg_init,
-      type: 'profile_quiz.state',
-      data: { quiz_id: 'beer_profile_v1' }
-    })
-    .then(function(res){
-      console.log('[quiz.state] response (legacy)', res);
-      if (!res || !res.ok) return;
-
-      S.completed = res.status === 'completed';
-
-      if (res.bday_day != null){
-        var d2 = Number(res.bday_day);
-        if (d2 >= 1 && d2 <= 31) S.birthdayDay = d2;
-      }
-      if (res.bday_month != null){
-        var m2 = Number(res.bday_month);
-        if (m2 >= 1 && m2 <= 12) S.birthdayMonth = m2;
-      }
-
-      if (S.completed){
-        try { setLast(Date.now()); } catch(_) {}
-      }
-
-      renderStartRow();
-    })
-    .catch(function(err){
-      console.warn('profile_quiz.state legacy error', err);
-    });
-  }catch(e){
-    console.warn('profile_quiz.state legacy error', e);
-  }
-}
-
-
-function sendProfileQuizFinishToServer(){
-  var data = {
-    quiz_id: 'beer_profile_v1',
-    score: S.score,
-    bday_day: S.birthdayDay,
-    bday_month: S.birthdayMonth,
-    profile: S.profile,
-    answers_json: JSON.stringify(S.profile || {})
-  };
-
-  // 1) Основной путь — через callMiniEvent (как колесо)
-  if (typeof window.callMiniEvent === 'function'){
-    console.log('[quiz.finish] via callMiniEvent', data);
-    window.callMiniEvent('profile_quiz.finish', data)
-      .then(function(res){
-        console.log('[quiz.finish] response', res);
-        if (!res || !res.ok) return;
-
-        S.completed = res.status === 'completed';
-
-        if (S.completed){
-          try { setLast(Date.now()); } catch(_) {}
-        }
-
-        try{
-          if (res.fresh_state && typeof window.applyFreshState === 'function'){
-            window.applyFreshState(res.fresh_state);
-          }else if (typeof window.syncCoinsUI === 'function'){
-            window.syncCoinsUI();
+          if (res.bday_day != null){
+            var d = Number(res.bday_day);
+            if (d >= 1 && d <= 31) S.birthdayDay = d;
           }
-        }catch(e){
-          console.warn('quiz.finish applyFreshState error', e);
-        }
-      })
-      .catch(function(err){
-        console.warn('profile_quiz.finish error', err);
-      });
+          if (res.bday_month != null){
+            var m = Number(res.bday_month);
+            if (m >= 1 && m <= 12) S.birthdayMonth = m;
+          }
 
-    return;
-  }
+          if (S.completed){
+            try { setLast(Date.now()); } catch(_) {}
+          }
 
-  // 2) Фолбэк — старый путь через getTgInit/jpost, если вдруг нет callMiniEvent
-  if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
-    console.log('[quiz.finish] нет callMiniEvent и getTgInit/jpost — работаем локально');
+          renderStartRow();
+        })
+        .catch(function(err){
+          console.warn('profile_quiz.state error', err);
+        });
+
+      return;
+    }
+
+    // 2) Фолбэк — старый вариант через getTgInit/jpost (на будущее, если откроешь страницу без воркера)
+    if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
+      console.log('[quiz.state] нет callMiniEvent и getTgInit/jpost — работаем без сервера');
+      return;
+    }
+
     try{
-      setLast(Date.now());
-      addCoins(S.score);
-    }catch(_){}
-    return;
+      var tg_init = window.getTgInit();
+      window.jpost('/api/mini/event', {
+        tg_init: tg_init,
+        type: 'profile_quiz.state',
+        data: { quiz_id: QUIZ_ID }
+      })
+        .then(function(res){
+          console.log('[quiz.state] response (legacy)', res);
+          if (!res || !res.ok) return;
+
+          S.completed = res.status === 'completed';
+
+          if (res.bday_day != null){
+            var d2 = Number(res.bday_day);
+            if (d2 >= 1 && d2 <= 31) S.birthdayDay = d2;
+          }
+          if (res.bday_month != null){
+            var m2 = Number(res.bday_month);
+            if (m2 >= 1 && m2 <= 12) S.birthdayMonth = m2;
+          }
+
+          if (S.completed){
+            try { setLast(Date.now()); } catch(_) {}
+          }
+
+          renderStartRow();
+        })
+        .catch(function(err){
+          console.warn('profile_quiz.state legacy error', err);
+        });
+    }catch(e){
+      console.warn('profile_quiz.state legacy error', e);
+    }
   }
 
-  try{
-    var tg_init = window.getTgInit();
-    var payload = {
-      tg_init: tg_init,
-      type: 'profile_quiz.finish',
-      data: data
+  function sendProfileQuizFinishToServer(){
+    var data = {
+      quiz_id: QUIZ_ID,
+      score: S.score,
+      bday_day: S.birthdayDay,
+      bday_month: S.birthdayMonth,
+      profile: S.profile,
+      answers_json: JSON.stringify(S.profile || {})
     };
 
-    console.log('[quiz.finish] legacy payload', payload);
+    // 1) Основной путь — через callMiniEvent (как колесо)
+    if (typeof window.callMiniEvent === 'function'){
+      console.log('[quiz.finish] via callMiniEvent', data);
+      window.callMiniEvent('profile_quiz.finish', data)
+        .then(function(res){
+          console.log('[quiz.finish] response', res);
+          if (!res || !res.ok) return;
 
-    window.jpost('/api/mini/event', payload)
-      .then(function(res){
-        console.log('[quiz.finish] legacy response', res);
-        if (!res || !res.ok) return;
+          S.completed = res.status === 'completed';
 
-        S.completed = res.status === 'completed';
-
-        if (S.completed){
-          try { setLast(Date.now()); } catch(_) {}
-        }
-
-        try{
-          if (res.fresh_state && typeof window.applyFreshState === 'function'){
-            window.applyFreshState(res.fresh_state);
-          }else if (typeof window.syncCoinsUI === 'function'){
-            window.syncCoinsUI();
+          if (S.completed){
+            try { setLast(Date.now()); } catch(_) {}
           }
-        }catch(e){
-          console.warn('quiz.finish legacy applyFreshState error', e);
-        }
-      })
-      .catch(function(err){
-        console.warn('profile_quiz.finish legacy error', err);
-      });
-  }catch(e){
-    console.warn('profile_quiz.finish legacy error', e);
+
+          try{
+            if (res.fresh_state && typeof window.applyFreshState === 'function'){
+              window.applyFreshState(res.fresh_state);
+            }else if (typeof window.syncCoinsUI === 'function'){
+              window.syncCoinsUI();
+            }
+          }catch(e){
+            console.warn('quiz.finish applyFreshState error', e);
+          }
+        })
+        .catch(function(err){
+          console.warn('profile_quiz.finish error', err);
+        });
+
+      return;
+    }
+
+    // 2) Фолбэк — старый путь через getTgInit/jpost, если вдруг нет callMiniEvent
+    if (typeof window.getTgInit !== 'function' || typeof window.jpost !== 'function'){
+      console.log('[quiz.finish] нет callMiniEvent и getTgInit/jpost — работаем локально');
+      try{
+        setLast(Date.now());
+        addCoins(S.score);
+      }catch(_){}
+      return;
+    }
+
+    try{
+      var tg_init = window.getTgInit();
+      var payload = {
+        tg_init: tg_init,
+        type: 'profile_quiz.finish',
+        data: data
+      };
+
+      console.log('[quiz.finish] legacy payload', payload);
+
+      window.jpost('/api/mini/event', payload)
+        .then(function(res){
+          console.log('[quiz.finish] legacy response', res);
+          if (!res || !res.ok) return;
+
+          S.completed = res.status === 'completed';
+
+          if (S.completed){
+            try { setLast(Date.now()); } catch(_) {}
+          }
+
+          try{
+            if (res.fresh_state && typeof window.applyFreshState === 'function'){
+              window.applyFreshState(res.fresh_state);
+            }else if (typeof window.syncCoinsUI === 'function'){
+              window.syncCoinsUI();
+            }
+          }catch(e){
+            console.warn('quiz.finish legacy applyFreshState error', e);
+          }
+        })
+        .catch(function(err){
+          console.warn('profile_quiz.finish legacy error', err);
+        });
+    }catch(e){
+      console.warn('profile_quiz.finish legacy error', e);
+    }
   }
-}
 
 
 
