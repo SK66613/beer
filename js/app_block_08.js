@@ -323,21 +323,40 @@
       }
       /* стартовый экран анкеты в шторке */
       .trivia-card .trivia-start{
-        display:flex;              /* вместо строчки – колонка */
+        display:flex;
         flex-direction:column;
         align-items:stretch;
-        gap:6px;
+        gap:10px;
       }
-      .trivia-card .trivia-start .trivia-title{
-        margin-bottom:2px;
+      .trivia-start-inner{
+        display:flex;
+        gap:12px;
+        align-items:flex-start;
+      }
+      .trivia-start-icon{
+        flex:0 0 auto;
+        width:40px;
+        height:40px;
+        border-radius:999px;
+        overflow:hidden;
+      }
+      .trivia-start-icon img{
+        display:block;
+        width:100%;
+        height:100%;
+        object-fit:contain;
+      }
+      .trivia-start-copy{
+        flex:1 1 auto;
       }
       .trivia-start__hint{
+        margin-top:4px;
         font-size:12px;
         opacity:0.75;
       }
       .trivia-start-btn{
-        margin-top:8px;
-        width:100%;               /* во всю ширину */
+        margin-top:4px;
+        width:100%;
         display:block;
       }
       .trivia-start-btn.is-done{
@@ -347,6 +366,7 @@
         border:1px solid rgba(255,255,255,0.35);
         color:#aaaaaa !important;
       }
+
     `;
     const styleEl = document.createElement('style');
     styleEl.textContent = css;
