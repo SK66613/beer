@@ -171,12 +171,14 @@
     try{ window.logReward?.({source:'profile_quiz', prize:txt}); }catch(_){}
   }
 
-  // ===== Ключи прохождения =====
+    // ===== Ключи прохождения =====
   const UID = TG?.initDataUnsafe?.user?.id || 'anon';
   const QUIZ_ID = 'beer_profile_quiz_v1';
   const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
   const BDAY_KEY = `${QUIZ_ID}_bday_${UID}`;
 
+  // сейчас getLast / setLast используются только как мягкий кэш,
+  // но НЕ решают, пускать ли в квиз (это делает только S.completed из GAS)
   const getLast = () => +(localStorage.getItem(LAST_KEY) || 0);
   const setLast = (ts = Date.now()) => localStorage.setItem(LAST_KEY, String(ts));
 
@@ -190,11 +192,15 @@
     birthdayDay: 1,
     birthdayMonth: 1,
     birthdayTouched: false,
-    // первичное значение — из localStorage, дальше обновляем с сервера
-    completed: getLast() > 0
+    // теперь по умолчанию считаем, что квиз НЕ пройден,
+    // и дальше этот флаг меняем только на основе ответа GAS
+    completed: false
   };
 
+  // решаем, пройден ли квиз, только по флагу в состоянии,
+  // который ставится из profile_quiz.state / profile_quiz.finish
   const hasCompleted = () => !!S.completed;
+
 
   // ===== DOM =====
   const elBody  = () => document.getElementById('trivia-body');
