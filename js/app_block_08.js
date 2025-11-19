@@ -599,38 +599,37 @@
 
   // ===== Слушатель кликов =====
 document.addEventListener('click', async (e) => {
-  // Нужен для всех веток ниже
-  const body = elBody();
+  // Берём контейнер прямо в начале (и обновляем при каждом клике)
+  const body = document.getElementById('trivia-body');
 
   // --- Старт квиза
   if (e.target.closest?.('[data-action="trivia-start"]')) {
     e.preventDefault();
 
-    // Показать "Проверяем статус…"
+    // 1) сразу показываем "Проверяем статус…"
     S.pending = true;
     renderStartRow();
 
-    // Принудительно обновить состояние из бэка/таблицы
+    // 2) жёстко обновляем состояние с бэка/таблицы
     try { await fetchProfileQuizStateFromServer(true); } catch(_) {}
 
-    // Если после обновления уже пройдено — просто показать "Квиз пройден"
+    // 3) если уже пройдено — просто рисуем плашку "Квиз пройден" и выходим
     if (hasCompleted()) {
-      // fetchProfileQuizStateFromServer уже снял pending и дернул renderStartRow()
-      renderStartRow();
+      renderStartRow(); // fetch... уже снял pending
       return;
     }
 
-    // Иначе — реально стартуем
+    // 4) иначе запускаем вопросы
     startQuiz();
     return;
   }
 
-  // Дальше обрабатываем клики только внутри тела квиза
+  // Ниже — клики только внутри тела квиза
   if (!body || !body.contains(e.target)) return;
 
   const step = STEPS[S.i];
 
-  // Выбор варианта ответа
+  // --- Выбор варианта ответа
   const opt = e.target.closest?.('.trivia-opt');
   if (opt && step && step.type === 'q') {
     const value = opt.dataset.val;
@@ -645,7 +644,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // Далее
+  // --- Далее
   if (e.target.closest?.('[data-action="trivia-next"]')) {
     e.preventDefault();
     if (!S.canNext) return;
@@ -659,12 +658,12 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // Сохранить ДР
+  // --- Сохранение ДР
   if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday') {
     e.preventDefault();
     const d = S.birthdayDay || 1;
     const m = S.birthdayMonth || 1;
-    if (!(d >= 1 && d <= 31 && m >= 1 && m <= 12)) {
+    if (!(d>=1 && d<=31 && m>=1 && m<=12)) {
       alert('Укажи реальную дату — день от 1 до 31 и месяц 😉');
       return;
     }
@@ -677,6 +676,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 });
+
 
 
   // ===== Монтаж при появлении в шторке =====
