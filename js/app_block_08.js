@@ -1,7 +1,7 @@
 (function(){
   'use strict';
 
-  // ===== Параметры квиза профиля (оставил как у тебя) =====
+  // ===== Параметры квиза профиля =====
   const STEPS = [
     {
       type: 'q',
@@ -148,14 +148,11 @@
   // ===== Telegram / haptic =====
   const TG = window.Telegram && window.Telegram.WebApp;
   function haptic(level){
-    try{
-      TG?.HapticFeedback?.impactOccurred(level || 'light');
-    }catch(_){
-      navigator.vibrate?.(10);
-    }
+    try{ TG?.HapticFeedback?.impactOccurred(level || 'light'); }
+    catch(_){ navigator.vibrate?.(10); }
   }
 
-  // ===== Баланс / призы (как было) =====
+  // ===== Баланс / призы (локальный фолбэк, основной — через воркер/GAS) =====
   const COIN_KEY = 'beer_coins';
   function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
   function setCoins(v){
@@ -170,7 +167,7 @@
     try{ window.logReward?.({source:'profile_quiz', prize:txt}); }catch(_){}
   }
 
-  // ===== Ключи прохождения / кэш =====
+  // ===== Ключи прохождения =====
   const UID = TG?.initDataUnsafe?.user?.id || 'anon';
   const QUIZ_ID = 'beer_profile_quiz_v1';
   const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
@@ -191,7 +188,7 @@
     completed: false
   };
 
-  // Устойчивый флаг прохождения (как «сохранённая шторка»)
+  // ===== «Память шторки»: как у Паспорта (устойчиво) =====
   const hasCompleted = () => !!S.completed || !!getLast();
 
   // ===== DOM =====
@@ -200,7 +197,7 @@
   const elHint  = () => document.getElementById('trivia-start-hint');
   const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
 
-  // ===== Стили квиза + барабанов (твои — без изменений) =====
+  // ===== Стили (оставлены как в твоём файле) =====
   let stylesInjected = false;
   function ensureStyles(){
     if (stylesInjected) return;
@@ -251,9 +248,8 @@
     };
 
     if (typeof window.api !== 'function') {
-      console.warn('[quiz.finish] нет window.api, работаем локально');
-      setLast(Date.now());
-      addCoins(S.score);
+      console.warn('[quiz.finish] нет window.api, локальный режим');
+      setLast(); addCoins(S.score);
       return;
     }
 
@@ -262,8 +258,11 @@
       console.log('[quiz.finish] response', res);
 
       if (res && res.ok) {
-        S.completed = true;           // не даём серверу «сбить» локальную отметку
-        setLast(Date.now());
+        // не даём серверу «сбить» локальную отметку
+        const remoteCompleted = res.status === 'completed' || res.completed === true || res.done === true;
+        if (remoteCompleted) S.completed = true;
+        setLast();
+
         if (res.fresh_state && window.applyServerState) {
           window.applyServerState(res.fresh_state);
         } else if (window.syncCoinsUI) {
@@ -287,11 +286,12 @@
       console.log('[quiz.state] response', res);
 
       if (res && res.ok) {
-        const remoteDone =
+        // устойчиво: фиксируем completion ТОЛЬКО в сторону true
+        const remoteCompleted =
           res.status === 'completed' || res.completed === true || res.done === true ||
           res.bday_day != null || res.bday_month != null;
 
-        if (remoteDone) { S.completed = true; setLast(Date.now()); }
+        if (remoteCompleted) { S.completed = true; setLast(); }
 
         S.birthdayDay   = Number(res.bday_day || S.birthdayDay || 1) || 1;
         S.birthdayMonth = Number(res.bday_month || S.birthdayMonth || 1) || 1;
@@ -303,7 +303,7 @@
     renderStartRow();
   }
 
-  // ===== Стартовая плашка (кнопка «Начать») =====
+  // ===== Стартовая плашка =====
   function renderStartRow(){
     const start = elStart(), hint = elHint();
     if (!start) return;
@@ -317,22 +317,20 @@
       btn.classList.remove('is-active');
       btn.classList.add('is-done');
       btn.textContent = 'Квиз пройден';
-      if (hint){ hint.style.display = 'block'; hint.textContent = 'Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌'; }
+      if (hint){ hint.style.display='block'; hint.textContent='Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌'; }
     } else {
       btn.disabled = false;
       btn.classList.remove('is-done');
       btn.classList.add('is-active');
       btn.textContent = 'Начать';
-      if (hint){ hint.style.display = 'none'; hint.textContent = ''; }
+      if (hint){ hint.style.display='none'; hint.textContent=''; }
     }
   }
 
-  // ===== Прогресс =====
+  // ===== Прогресс (номер среди вопросов type="q") =====
   function getQuestionIndex(stepIndex){
     let idx = 0;
-    for (let i = 0; i <= stepIndex; i++){
-      if (STEPS[i].type === 'q') idx++;
-    }
+    for (let i = 0; i <= stepIndex; i++) if (STEPS[i].type === 'q') idx++;
     return idx;
   }
 
@@ -343,11 +341,8 @@
     if (!box || !step) return;
     ensureStyles();
 
-    if (step.type === 'q'){
-      renderQuestionStep(step);
-    }else if (step.type === 'birthday'){
-      renderBirthdayStep(step);
-    }
+    if (step.type === 'q')       renderQuestionStep(step);
+    else if (step.type==='birthday') renderBirthdayStep(step);
   }
 
   function renderQuestionStep(step){
@@ -377,60 +372,70 @@
        </div>`;
   }
 
-  // ===== Барабаны ДР: круговая прокрутка =====
-  function buildLoopedItems(total, itemBuilder){
-    const LOOPS = 7; // достаточный запас, чтобы «замыкать» скролл
+  // ===== Кнопка финала (активация после скролла барабанов) =====
+  function enableBirthdayButton(){
+    const body = elBody(); if (!body) return;
+    const btn = body.querySelector('[data-action="trivia-save-bday"]');
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.add('is-active');
+  }
+
+  // ===== Вспомогательная генерация: много «колец» для бесконечного скролла =====
+  function buildLoopedItems(count, render){
+    const LOOPS = 7; // нечётное, чтобы был «центр»
     let html = '';
-    for (let k=0; k<LOOPS; k++){
-      for (let v=1; v<=total; v++){
-        html += itemBuilder(v);
+    for (let k=0;k<LOOPS;k++){
+      for (let v=1; v<=count; v++){
+        html += render(v);
       }
     }
     return { html, LOOPS };
   }
 
+  // ===== Инициализация барабанов (бесконечный скролл + центровка) =====
   function initBirthdayWheelsLooped(){
     const body = elBody(); if (!body) return;
 
     const wheels = body.querySelectorAll('.bday-wheel-scroll');
-    wheels.forEach(scrollEl => {
-      const kind = scrollEl.dataset.kind;           // 'day' | 'month'
-      const total = (kind === 'day') ? 31 : 12;
-
-      // высота одного «кольца» (первый круг)
+    wheels.forEach(scrollEl=>{
+      const kind  = scrollEl.dataset.kind;                // 'day' | 'month'
+      const total = (kind==='day') ? 31 : 12;
       const items = Array.from(scrollEl.querySelectorAll('.bday-wheel-item'));
       if (!items.length) return;
 
+      // высота одного «кольца»
       const firstIdx = 0;
-      const lastIdxOfFirstRing = total - 1;
-      const ringHeight = items[lastIdxOfFirstRing].offsetTop + items[lastIdxOfFirstRing].offsetHeight - items[firstIdx].offsetTop;
-
-      // ставим начальную позицию в среднее кольцо под нужное значение
-      const current = (kind === 'day' ? (S.birthdayDay||1) : (S.birthdayMonth||1));
+      const lastIdxFirstRing = total - 1;
+      const ringHeight = items[lastIdxFirstRing].offsetTop + items[lastIdxFirstRing].offsetHeight - items[firstIdx].offsetTop;
       const LOOPS = Math.round(items.length / total);
-      const middleRingStartIndex = Math.floor(LOOPS/2) * total;
-      const targetIndex = middleRingStartIndex + (Math.max(1, Math.min(total, current)) - 1);
-      scrollEl.scrollTop = items[targetIndex].offsetTop - (scrollEl.clientHeight/2 - items[targetIndex].offsetHeight/2);
+
+      // стартовое значение
+      let cur = (kind==='day' ? (S.birthdayDay||1) : (S.birthdayMonth||1));
+      if (kind==='day')  { if (cur<1 || cur>31) cur = 1; }
+      else               { if (cur<1 || cur>12) cur = 1; }
+
+      // позиционируем в среднее кольцо
+      const midStartIndex = Math.floor(LOOPS/2) * total;
+      const targetIndex   = midStartIndex + (cur - 1);
+      const targetItem    = items[targetIndex];
+      const centerTop     = targetItem.offsetTop - (scrollEl.clientHeight/2 - targetItem.offsetHeight/2);
+      scrollEl.scrollTop  = centerTop;
 
       let stopTimer = null;
-      let lastVal = current;
+      let lastVal = cur;
 
       function valueByCenter(){
         const rect = scrollEl.getBoundingClientRect();
-        const cy = rect.top + rect.height/2;
+        const cy   = rect.top + rect.height/2;
         let best = null, bestDist = Infinity, bestVal = null;
-
         for (const it of items){
-          const r = it.getBoundingClientRect();
+          const r  = it.getBoundingClientRect();
           const ic = (r.top + r.bottom)/2;
-          const d = Math.abs(ic - cy);
-          if (d < bestDist){
-            bestDist = d;
-            best = it;
-            bestVal = Number(it.dataset.value)||null;
-          }
+          const d  = Math.abs(ic - cy);
+          if (d < bestDist){ bestDist = d; best = it; bestVal = Number(it.dataset.value)||null; }
         }
-        return {node:best, val:bestVal};
+        return { node: best, val: bestVal };
       }
 
       function applyActive(node){
@@ -438,51 +443,48 @@
       }
 
       function setModel(val, silent){
-        if (kind === 'day'){
-          if (val!==S.birthdayDay){ S.birthdayDay = val; if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); } }
-          else if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); }
+        if (kind==='day'){
+          if (val!==S.birthdayDay){ S.birthdayDay = val; if(!silent){ S.birthdayTouched = true; enableBirthdayButton(); } }
+          else if(!silent){ S.birthdayTouched = true; enableBirthdayButton(); }
         }else{
-          if (val!==S.birthdayMonth){ S.birthdayMonth = val; if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); } }
-          else if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); }
+          if (val!==S.birthdayMonth){ S.birthdayMonth = val; if(!silent){ S.birthdayTouched = true; enableBirthdayButton(); } }
+          else if(!silent){ S.birthdayTouched = true; enableBirthdayButton(); }
         }
       }
 
       function wrapIfNeeded(){
-        // если уходим в крайние кольца — переносим в середину, сохраняя визуально тот же элемент
-        const top = scrollEl.scrollTop;
-        const maxTop = scrollEl.scrollHeight - scrollEl.clientHeight;
-
+        const top   = scrollEl.scrollTop;
+        const maxTop= scrollEl.scrollHeight - scrollEl.clientHeight;
         if (top < ringHeight){
           scrollEl.scrollTop = top + ringHeight*(LOOPS-2);
-        }else if (top > maxTop - ringHeight){
+        } else if (top > maxTop - ringHeight){
           scrollEl.scrollTop = top - ringHeight*(LOOPS-2);
         }
       }
 
       function onScroll(isEnd){
         wrapIfNeeded();
-
         const {node, val} = valueByCenter();
         if (!node || !val) return;
 
         if (!isEnd){
-          if (val !== lastVal){
+          if (val!==lastVal){
             lastVal = val;
             applyActive(node);
             setModel(val, false);
             haptic('light');
           }
         }else{
-          // финальная фиксация в центр
-          const targetTop = node.offsetTop - (scrollEl.clientHeight/2 - node.offsetHeight/2);
-          scrollEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+          // фиксация по центру
+          const top = node.offsetTop - (scrollEl.clientHeight/2 - node.offsetHeight/2);
+          scrollEl.scrollTo({ top, behavior:'smooth' });
           applyActive(node);
           setModel(val, true);
           haptic('medium');
         }
       }
 
-      // начальная подсветка
+      // начальная активная строка
       const first = valueByCenter();
       if (first.node){ applyActive(first.node); }
 
@@ -492,48 +494,39 @@
         stopTimer = setTimeout(()=>onScroll(true), 130);
       });
 
-      // клик по значению — плавно центрируем
+      // клик по строке — центрируем
       scrollEl.addEventListener('click', (e)=>{
         const row = e.target.closest('.bday-wheel-item');
         if (!row) return;
-        const targetTop = row.offsetTop - (scrollEl.clientHeight/2 - row.offsetHeight/2);
-        scrollEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+        const top = row.offsetTop - (scrollEl.clientHeight/2 - row.offsetHeight/2);
+        scrollEl.scrollTo({ top, behavior:'smooth' });
       });
     });
   }
 
-  // включение кнопки «Сохранить дату»
-  function enableBirthdayButton(){
-    const body = elBody(); if (!body) return;
-    const btn = body.querySelector('[data-action="trivia-save-bday"]');
-    if (!btn) return;
-    btn.disabled = false;
-    btn.classList.add('is-active');
-  }
-
+  // ===== Рендер шага ДР (с бесконечными барабанами) =====
   function renderBirthdayStep(step){
     const box = elBody(); if (!box) return;
     ensureStyles();
 
-    // подтянем локально сохранённую дату
+    // локальный фолбэк сохранённой даты
     try{
       if (!S.birthdayTouched){
         const saved = localStorage.getItem(BDAY_KEY);
         if (saved){
-          const [dS, mS] = saved.split('-');
-          const d = parseInt(dS, 10);
-          const m = parseInt(mS, 10);
-          if (d >= 1 && d <= 31) S.birthdayDay = d;
-          if (m >= 1 && m <= 12) S.birthdayMonth = m;
+          const [dS,mS] = saved.split('-');
+          const d = parseInt(dS,10), m = parseInt(mS,10);
+          if (d>=1 && d<=31) S.birthdayDay = d;
+          if (m>=1 && m<=12) S.birthdayMonth = m;
         }
       }
     }catch(_){}
 
     const score = S.score || 0;
 
-    // !!! Главное изменение: генерим ДУБЛИРУЮЩИЕСЯ списки (круговая лента)
-    const days = buildLoopedItems(31, (v)=>`<div class="bday-wheel-item" data-value="${v}">${v}</div>`);
-    const months = buildLoopedItems(12, (v)=>`<div class="bday-wheel-item" data-value="${v}">${MONTHS[v-1]}</div>`);
+    // генерим МНОГО колец (бесконечный скролл)
+    const days   = buildLoopedItems(31, v => `<div class="bday-wheel-item" data-value="${v}">${v}</div>`);
+    const months = buildLoopedItems(12, v => `<div class="bday-wheel-item" data-value="${v}">${MONTHS[v-1]}</div>`);
 
     box.innerHTML =
       `<div class="trivia-q trivia-bday">
@@ -576,30 +569,20 @@
   function startQuiz(){
     rootCard()?.classList.add('is-running');
     elStart()?.classList.add('is-hidden');
-
-    S.i = 0;
-    S.canNext = false;
-    S.score = 0;
+    S.i=0; S.canNext=false; S.score=0;
     S.earned = new Array(STEPS.length).fill(false);
-    S.profile = {};
-    S.birthdayTouched = false;
-
+    S.profile={}; S.birthdayTouched=false;
     renderStep();
   }
 
   function finishQuiz(){
     logPrize(`+${S.score}🪙 за викторину вкуса`);
-
-    S.completed = true;
-    setLast(Date.now());          // ← фиксируем локально сразу (устойчиво, как «память шторки»)
-
+    S.completed = true;            // локально фиксируем сразу
+    setLast();                     // «память шторки» как у Паспорта
     haptic('light');
     renderFinish();
     rootCard()?.classList.remove('is-running');
-
-    // шлём результат
     sendProfileQuizFinishToServer();
-
     setTimeout(renderStartRow, 1400);
   }
 
@@ -616,7 +599,6 @@
     }
 
     if (!body || !body.contains(e.target)) return;
-
     const step = STEPS[S.i];
 
     // выбор варианта
@@ -625,11 +607,10 @@
       const value = opt.dataset.val;
       body.querySelectorAll('.trivia-opt').forEach(el => el.classList.remove('is-selected'));
       opt.classList.add('is-selected');
-
-      if (step.id){ S.profile[step.id] = value; }
+      if (step.id) S.profile[step.id] = value;
 
       const nextBtn = body.querySelector('.trivia-next');
-      if (nextBtn){ nextBtn.disabled = false; nextBtn.classList.add('is-active'); }
+      if (nextBtn){ nextBtn.disabled=false; nextBtn.classList.add('is-active'); }
       S.canNext = true;
       haptic('light');
       return;
@@ -644,31 +625,22 @@
         S.score += curStep.coins || 0;
         S.earned[S.i] = true;
       }
-      if (S.i < STEPS.length - 1){
-        S.i++;
-        S.canNext = false;
-        renderStep();
-      }else{
-        finishQuiz();
-      }
+      if (S.i < STEPS.length - 1){ S.i++; S.canNext=false; renderStep(); }
+      else { finishQuiz(); }
       return;
     }
 
     // сохранение ДР
     if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday'){
       e.preventDefault();
-      const day = S.birthdayDay || 1;
-      const month = S.birthdayMonth || 1;
-
-      if (!(day >= 1 && day <= 31 && month >= 1 && month <= 12)){
-        alert('Укажи реальную дату — день от 1 до 31 и месяц 😉');
-        return;
-      }
+      const d = S.birthdayDay || 1;
+      const m = S.birthdayMonth || 1;
+      if (!(d>=1 && d<=31 && m>=1 && m<=12)){ alert('Укажи реальную дату — день от 1 до 31 и месяц 😉'); return; }
 
       try{
-        const payload = `${String(day).padStart(2,'0')}-${String(month).padStart(2,'0')}`;
+        const payload = `${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
         localStorage.setItem(BDAY_KEY, payload);
-        try{ window.onBeerBirthdaySaved?.({ day, month, score: S.score, profile: S.profile }); }catch(_){}
+        try{ window.onBeerBirthdaySaved?.({ day:d, month:m, score:S.score, profile:S.profile }); }catch(_){}
       }catch(_){}
 
       finishQuiz();
@@ -683,33 +655,30 @@
       ensureStyles();
       renderStartRow();
       body.innerHTML = '';
-      fetchProfileQuizStateFromServer(); // ← тянем статус с бэка
+      fetchProfileQuizStateFromServer(); // подтянуть статус/дату
       return true;
     }
     return false;
   }
-
   if (!mountIfReady()){
     const mo = new MutationObserver(()=>{ if (mountIfReady()) mo.disconnect(); });
     mo.observe(document.body, {childList:true, subtree:true});
   }
 
-  // экспорт — можно вызывать при открытии шторки
+  // экспорт для явного вызова
   window.mountTrivia = function(){
     ensureStyles();
     const body = elBody(); if (body) body.innerHTML = '';
     const start = elStart(); if (start) start.classList.remove('is-hidden');
-
-    // сброс временного (но не сбиваем признак completed/LAST_KEY)
-    S.i = 0; S.canNext = false; S.score = 0;
+    // сброс временного (без сброса completion!)
+    S.i=0; S.canNext=false; S.score=0;
     S.earned = new Array(STEPS.length).fill(false);
-    S.profile = {}; S.birthdayTouched = false;
-
+    S.profile={}; S.birthdayTouched=false;
     renderStartRow();
     fetchProfileQuizStateFromServer();
   };
 
-  // ===== По аналогии с «Паспортом»: обёртка openSheet =====
+  // ===== Хук шторки (как у Паспорта): доклеиваем поведение для "Викторина" =====
   const _openSheet = window.openSheet;
   window.openSheet = function(opts){
     _openSheet && _openSheet(opts);
