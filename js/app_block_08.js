@@ -598,15 +598,29 @@
   }
 
   // ===== Слушатель кликов =====
-  document.addEventListener('click', (e)=>{
-    const body = elBody();
+document.addEventListener('click', async (e) => {
+  // старт
+  if (e.target.closest?.('[data-action="trivia-start"]')){
+    e.preventDefault();
 
-    if (e.target.closest?.('[data-action="trivia-start"]')){
-      e.preventDefault();
-      if (hasCompleted()) return;
-      startQuiz();
+    // 1) сразу покажем «Проверяем статус…»
+    S.pending = true;
+    renderStartRow();
+
+    // 2) принудительно обновим состояние из таблицы/бэка
+    try { await fetchProfileQuizStateFromServer(true); } catch(_) {}
+
+    // 3) если после обновления уже пройдено — просто перерисуем плашку «Квиз пройден»
+    if (hasCompleted()){
+      S.pending = false;
+      renderStartRow();
       return;
     }
+
+    // 4) иначе запускаем вопросы
+    startQuiz();
+    return;
+  }
 
     if (!body || !body.contains(e.target)) return;
     const step = STEPS[S.i];
