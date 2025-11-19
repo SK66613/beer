@@ -1,359 +1,722 @@
-// ===== PROFILE QUIZ (via window.api) =====
-(function () {
+(function(){
   'use strict';
 
-  // ---- IDs / cache ----
-  const QUIZ_ID  = 'beer_profile_quiz_v1';
-  const UID      = (window.Telegram?.WebApp?.initDataUnsafe?.user?.id) || 'anon';
-  const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
-  const BDAY_KEY = `${QUIZ_ID}_bday_${UID}`;
-
-  // ---- steps (сокращённо: 4 Q + ДР) ----
+  // ===== Параметры квиза профиля (оставил как у тебя) =====
   const STEPS = [
-    { id:'scene',  text:'Представь кадр из фильма: ты заходишь в бар. Какая сцена про тебя?', coins:10,
-      options:[
-        {value:'solo',label:'Один заходит и выдыхает у стойки'},
-        {value:'small_team',label:'Пара друзей: «ну что, как неделя?»'},
-        {value:'party',label:'Шумная компания, шутки бармену'},
-        {value:'cowork',label:'С ноутом — офис на вечер'}
+    {
+      type: 'q',
+      id: 'scene',
+      coins: 10,
+      text: 'Представь кадр из фильма: ты заходишь в бар. Какая сцена про тебя?',
+      options: [
+        { value: 'solo',       label: 'Один заходит, садится у стойки и просто выдыхает' },
+        { value: 'small_team', label: 'Пара друзей вваливается с фразой «ну что, как неделя?»' },
+        { value: 'party',      label: 'Шумная компания, смех, шутки бармену с порога' },
+        { value: 'cowork',     label: 'Человек с ноутом ищет уголок: «это мой офис на вечер»' }
       ]
     },
-    { id:'company', text:'С кем чаще всего заходишь?', coins:10,
-      options:[
-        {value:'solo',label:'Часто один'},
-        {value:'duo',label:'С одним-двумя'},
-        {value:'squad',label:'С компанией'},
-        {value:'mix',label:'Как пойдёт'}
+    {
+      type: 'q',
+      id: 'evening_scene',
+      coins: 10,
+      text: 'Если бы твой идеальный вечер с пивом был картинкой — что там происходит?',
+      options: [
+        { value: 'sofa',    label: 'Диван, сериал и что-то лёгкое в бокале' },
+        { value: 'music',   label: 'Музыка, редкие этикетки, хочется пробовать новое' },
+        { value: 'sports',  label: 'Матч на экране, стол, друзья, шум и эмоции' },
+        { value: 'tasting', label: 'Маленькие дегустационные бокалы, нюхаю и разбираю вкусы' }
       ]
     },
-    { id:'first_order', text:'Что заказываешь первым делом?', coins:15,
-      options:[
-        {value:'beer',label:'Сразу пиво'},
-        {value:'check',label:'Спрашиваю, что сегодня интересного'},
-        {value:'taster',label:'Пробую пару вариантов'},
-        {value:'other',label:'Иногда сидр/коктейль'}
+    {
+      type: 'q',
+      id: 'beer_character',
+      coins: 20,
+      text: 'Представь, что пиво — это персонаж. Кто ближе всего по духу?',
+      options: [
+        { value: 'light',   label: 'Лёгкий, разговорчивый, с тобой весь вечер, но не давит' },
+        { value: 'bitter',  label: 'Резкий, дерзкий, с характером — его либо любят, либо «слишком»' },
+        { value: 'dessert', label: 'Тёплый, плотный, немного сладкий, десертный друг' },
+        { value: 'sour',    label: 'Странный, кисленький, яркий — с ним точно не скучно' }
       ]
     },
-    { id:'role', text:'Какую роль берёшь за столом?', coins:15,
-      options:[
-        {value:'story',label:'Рассказчик'},
-        {value:'listener',label:'Слушатель'},
-        {value:'leader',label:'Организатор'},
-        {value:'observer',label:'Наблюдатель'}
+    {
+      type: 'q',
+      id: 'experiments',
+      coins: 20,
+      text: 'Бар предлагает совершенно новый странный стиль. Как ты реагируешь?',
+      options: [
+        { value: 'max',   label: '«Давай два! Я за этим и пришёл»' },
+        { value: 'mid',   label: '«Окей, разок можно, но хочу знать, что взять “на всякий”»' },
+        { value: 'low',   label: '«Я за надёжность. Лучше то, что уже знаю»' }
       ]
     },
-    { id:'birthday', type:'birthday', text:'Укажи день и месяц рождения — чтобы прилетали персональные подарки 🎁', coins:50 }
+    {
+      type: 'q',
+      id: 'focus',
+      coins: 20,
+      text: 'В идеальном бокале что для тебя критично важно?',
+      options: [
+        { value: 'aroma',    label: 'Чтобы аромат первым встречал — цитрус, хмель, тропики' },
+        { value: 'taste',    label: 'Чтобы вкус был выверен: баланс, горечь, сладость/кислота' },
+        { value: 'body',     label: 'Чтобы было ощущение плотности и длинного послевкусия' },
+        { value: 'strength', label: 'Чтобы чувствовалась крепость — вечер удался' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'anti_flavors',
+      coins: 30,
+      text: 'А с чем у тебя точно не дружба в бокале?',
+      options: [
+        { value: 'banana',    label: 'Когда вдруг банан/гвоздика — не моё' },
+        { value: 'coffee',    label: 'Когда пиво как десерт: кофе, шоколад, молочные стауты' },
+        { value: 'acid',      label: 'Когда прям ярко-кислое, как лимонад или кислые конфеты' },
+        { value: 'pine',      label: 'Когда хмель как жёсткая хвоя и горечь до слёз' },
+        { value: 'ok_all',    label: 'Да я со всеми дружу, люблю пробовать разное' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'snacks',
+      coins: 10,
+      text: 'На столе у тебя чаще всего что рядом с бокалом?',
+      options: [
+        { value: 'snacks',   label: 'Снэки: орехи, чипсы, сухарики' },
+        { value: 'fastfood', label: 'Пицца, бургеры и подобные радости' },
+        { value: 'meat',     label: 'Мясо/гриль: крылья, рёбра и компания' },
+        { value: 'no_food',  label: 'Обычно без еды, главное — сам бокал' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'budget',
+      coins: 20,
+      text: 'Какой сценарий про тебя чаще всего?',
+      options: [
+        { value: 'quick',   label: 'Забежал на один–два бокала, выдохнул и домой' },
+        { value: 'normal',  label: 'Нормально посидеть: пару позиций и закуска — вечер удался' },
+        { value: 'event',   label: 'Это событие: дегустация, новый релиз, закладываю отдельный бюджет' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'time_of_day',
+      coins: 10,
+      text: 'В какой момент дня чаще всего ловишь мысль: «неплохо бы пивка»?',
+      options: [
+        { value: 'after_work', label: 'После работы/дел, ближе к вечеру' },
+        { value: 'late',       label: 'Поздно вечером/ночью' },
+        { value: 'weekend',    label: 'Днём в выходные' },
+        { value: 'random',     label: 'Спонтанно — когда совпало настроение или зовут' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'comms',
+      coins: 10,
+      text: 'Представь, бар — это человек в твоём Telegram. Что от него хотелось бы получать?',
+      options: [
+        { value: 'pings',   label: 'Короткие пинги: «сегодня день такого-то стиля/акции»' },
+        { value: 'picks',   label: 'Подборки: «3 варианта под твой вкус на вечер»' },
+        { value: 'games',   label: 'Игры, квизы и розыгрыши за монеты и призы' },
+        { value: 'stories', label: 'Истории и мини-гайды про стили, чтобы разбираться' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'birthday_optin',
+      coins: 40,
+      text: 'У нас есть фишка — поздравлять своих людей не просто «с праздником», а под их вкус. Как тебе идея персональных подарков от бара к дню рождения?',
+      options: [
+        { value: 'love',    label: 'Обожаю такие штуки, я за' },
+        { value: 'ok',      label: 'Норм, если без спама и навязчивости' },
+        { value: 'neutral', label: 'Скорее нейтрально' },
+        { value: 'no',      label: 'Не люблю, когда напоминают про ДР' }
+      ]
+    },
+    {
+      type: 'birthday',
+      id: 'birthday_date',
+      coins: 0,
+      text: 'Укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции. За это ещё подкинем монет 😉'
+    }
   ];
 
-  // ---- state ----
-  const S = { i:0, score:0, profile:{}, completed:false, birthdayDay:null, birthdayMonth:null };
+  const TOTAL_QUESTIONS = STEPS.filter(s => s.type === 'q').length;
+  const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 
-  // ---- cache helpers ----
-  const getLast = () => +localStorage.getItem(LAST_KEY) || 0;
-  const setLast = (ts) => localStorage.setItem(LAST_KEY, String(ts || Date.now()));
-  const saveBDay = (d,m) => { try{ localStorage.setItem(BDAY_KEY, `${d}-${m}`); }catch(_){} };
-  const loadBDay = () => {
+  // ===== Telegram / haptic =====
+  const TG = window.Telegram && window.Telegram.WebApp;
+  function haptic(level){
     try{
-      const s = localStorage.getItem(BDAY_KEY);
-      if(!s) return null;
-      const [d,m] = s.split('-').map(n=>+n||null);
-      return {d,m};
-    }catch(_){ return null; }
-  };
-
-  // ---- DOM getters (точно под твой index.html) ----
-  const elStartWrap  = ()=> document.getElementById('trivia-start');         // div
-  const elStartBtn   = ()=> elStartWrap()?.querySelector('[data-action="trivia-start"]'); // button
-  const elStartHint  = ()=> document.getElementById('trivia-start-hint');    // span
-  const elBody       = ()=> document.getElementById('trivia-body');          // content box
-  const elRootCard   = ()=> elBody()?.closest('.trivia-card');
-
-  // ---- styles (минимально, без ломания каркаса) ----
-  function ensureStyles(){
-    if (document.getElementById('pq-styles')) return;
-    const css = `
-      .trivia-card .pq-progress{height:4px;background:rgba(255,255,255,.1);border-radius:6px;overflow:hidden;margin:8px 0 6px}
-      .trivia-card .pq-progress > i{display:block;height:100%;width:0;background:#ff9800}
-      .trivia-card .pq-sub{opacity:.8;font-size:12px;margin:4px 0}
-      .trivia-card .pq-opts{display:flex;flex-direction:column;gap:8px;margin-top:8px}
-      .trivia-card .pq-opt{border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:10px 12px;cursor:pointer;background:rgba(0,0,0,.2)}
-      .trivia-card .pq-opt.is-sel{border-color:#ff9800;background:linear-gradient(135deg,rgba(255,152,0,.25),rgba(255,255,255,.02))}
-      .trivia-card .pq-cta{margin-top:10px;display:flex;justify-content:flex-end}
-      .trivia-card .pq-cta .btn[disabled]{opacity:.5;pointer-events:none}
-      /* birthday wheels */
-      .trivia-card .pq-wheels{display:flex;gap:16px;justify-content:center;margin:14px 0 8px}
-      .trivia-card .pq-wheel{position:relative;width:120px;max-width:46vw}
-      .trivia-card .pq-wheel .pq-scroll{max-height:160px;overflow-y:auto;scrollbar-width:none;-ms-overflow-style:none;padding:18px 0}
-      .trivia-card .pq-wheel .pq-scroll::-webkit-scrollbar{display:none}
-      .trivia-card .pq-row{height:26px;display:flex;align-items:center;justify-content:center}
-      .trivia-card .pq-hl{position:absolute;left:6px;right:6px;top:50%;height:26px;transform:translateY(-50%);border:1px dashed rgba(255,255,255,.35);border-radius:8px;pointer-events:none}
-      .trivia-card .pq-lab{margin-top:6px;text-align:center;opacity:.8;font-size:12px}
-    `;
-    const style = document.createElement('style');
-    style.id = 'pq-styles'; style.textContent = css;
-    document.head.appendChild(style);
+      TG?.HapticFeedback?.impactOccurred(level || 'light');
+    }catch(_){
+      navigator.vibrate?.(10);
+    }
   }
 
-  // ---- start row ----
-  function renderStart(){
-    const wrap = elStartWrap(); if(!wrap) return;
-    const btn  = elStartBtn();  if(!btn) return;
-    const hint = elStartHint();
-    ensureStyles();
+  // ===== Баланс / призы (как было) =====
+  const COIN_KEY = 'beer_coins';
+  function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
+  function setCoins(v){
+    localStorage.setItem(COIN_KEY, String(Math.max(0, v|0)));
+    try{ window.syncCoinsUI?.(); }catch(_){}
+  }
+  function addCoins(n){
+    if (typeof window.addCoins === 'function') return window.addCoins(n);
+    setCoins(getCoins() + (n|0));
+  }
+  function logPrize(txt){
+    try{ window.logReward?.({source:'profile_quiz', prize:txt}); }catch(_){}
+  }
+
+  // ===== Ключи прохождения / кэш =====
+  const UID = TG?.initDataUnsafe?.user?.id || 'anon';
+  const QUIZ_ID = 'beer_profile_quiz_v1';
+  const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
+  const BDAY_KEY = `${QUIZ_ID}_bday_${UID}`;
+  const getLast = () => +(localStorage.getItem(LAST_KEY) || 0);
+  const setLast = (ts = Date.now()) => localStorage.setItem(LAST_KEY, String(ts));
+
+  // ===== Состояние =====
+  const S = {
+    i: 0,
+    canNext: false,
+    score: 0,
+    earned: [],
+    profile: {},
+    birthdayDay: 1,
+    birthdayMonth: 1,
+    birthdayTouched: false,
+    completed: false
+  };
+
+  // Устойчивый флаг прохождения (как «сохранённая шторка»)
+  const hasCompleted = () => !!S.completed || !!getLast();
+
+  // ===== DOM =====
+  const elBody  = () => document.getElementById('trivia-body');
+  const elStart = () => document.getElementById('trivia-start');
+  const elHint  = () => document.getElementById('trivia-start-hint');
+  const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
+
+  // ===== Стили квиза + барабанов (твои — без изменений) =====
+  let stylesInjected = false;
+  function ensureStyles(){
+    if (stylesInjected) return;
+    stylesInjected = true;
+    const css = `
+      .trivia-q p{ margin:8px 0; }
+      .trivia-sub{ font-size:12px; opacity:0.7; margin-bottom:6px; }
+      .trivia-progress{ width:100%; height:6px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,0.06); margin-bottom:10px; }
+      .trivia-progress-bar{ height:100%; width:0%; background:linear-gradient(90deg,#ffb347,#ff7b00); transition:width .25s ease; }
+      .trivia-opts{ margin-top:8px; }
+      .trivia-opt{ display:flex; align-items:flex-start; gap:8px; padding:8px 10px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.06); margin-bottom:8px; cursor:pointer; transition:background .15s ease,border-color .15s ease,transform .12s ease; }
+      .trivia-opt:hover{ background:rgba(255,255,255,0.05); }
+      .trivia-opt.is-selected{ background:rgba(255,152,0,0.18); border-color:#ffb347; transform:translateY(-1px); }
+      .trivia-opt input{ display:none; }
+      .trivia-cta{ margin-top:12px; }
+      .trivia-next{ width:100%; opacity:0.5; pointer-events:none; background:transparent !important; border:1px solid rgba(255,255,255,0.35); color:#fff; }
+      .trivia-next.is-active{ opacity:1; pointer-events:auto; background:#ff9800 !important; border-color:#ff9800; color:#000 !important; }
+      .bday-wheels{ display:flex; gap:16px; justify-content:center; margin:16px 0 8px; }
+      .bday-wheel{ position:relative; display:flex; flex-direction:column; align-items:center; min-width:110px; }
+      .bday-wheel-scroll{ width:100%; max-height:120px; overflow-y:auto; padding:20px 0; scrollbar-width:none; -ms-overflow-style:none; }
+      .bday-wheel-scroll::-webkit-scrollbar{ display:none; }
+      .bday-wheel-item{ height:28px; display:flex; align-items:center; justify-content:center; font-size:14px; opacity:0.55; transition:opacity .12s ease, transform .12s ease; }
+      .bday-wheel-item.is-active{ font-size:18px; font-weight:600; opacity:1; transform:scale(1.0); }
+      .bday-wheel-highlight{ position:absolute; left:6px; right:6px; top:50%; height:32px; transform:translateY(-50%); border-radius:999px; border:1px solid rgba(255,255,255,0.3); pointer-events:none; }
+      .trivia-card .trivia-start{ display:flex; flex-direction:column; align-items:stretch; gap:10px; }
+      .trivia-start-inner{ display:flex; gap:12px; align-items:flex-start; }
+      .trivia-start-icon{ flex:0 0 auto; width:40px; height:40px; border-radius:999px; overflow:hidden; }
+      .trivia-start-icon img{ display:block; width:100%; height:100%; object-fit:contain; }
+      .trivia-start-copy{ flex:1 1 auto; }
+      .trivia-start__hint{ margin-top:4px; font-size:12px; opacity:0.75; }
+      .trivia-start-btn{ margin-top:4px; width:100%; display:block; }
+      .trivia-start-btn.is-done{ opacity:0.7; pointer-events:none; background:transparent !important; border:1px solid rgba(255,255,255,0.35); color:#aaaaaa !important; }
+    `;
+    const styleEl = document.createElement('style');
+    styleEl.textContent = css;
+    document.head.appendChild(styleEl);
+  }
+
+  // ===== Транспорт через window.api =====
+  async function sendProfileQuizFinishToServer() {
+    const data = {
+      quiz_id: QUIZ_ID,
+      score: S.score,
+      bday_day: S.birthdayDay,
+      bday_month: S.birthdayMonth,
+      profile: S.profile,
+      answers_json: JSON.stringify(S.profile || {})
+    };
+
+    if (typeof window.api !== 'function') {
+      console.warn('[quiz.finish] нет window.api, работаем локально');
+      setLast(Date.now());
+      addCoins(S.score);
+      return;
+    }
+
+    try {
+      const res = await window.api('profile_quiz.finish', data);
+      console.log('[quiz.finish] response', res);
+
+      if (res && res.ok) {
+        S.completed = true;           // не даём серверу «сбить» локальную отметку
+        setLast(Date.now());
+        if (res.fresh_state && window.applyServerState) {
+          window.applyServerState(res.fresh_state);
+        } else if (window.syncCoinsUI) {
+          window.syncCoinsUI();
+        }
+      }
+    } catch (e) {
+      console.error('[quiz.finish] error', e);
+    }
+  }
+
+  async function fetchProfileQuizStateFromServer() {
+    if (typeof window.api !== 'function') {
+      console.warn('[quiz.state] нет window.api');
+      renderStartRow();
+      return;
+    }
+
+    try {
+      const res = await window.api('profile_quiz.state', { quiz_id: QUIZ_ID });
+      console.log('[quiz.state] response', res);
+
+      if (res && res.ok) {
+        const remoteDone =
+          res.status === 'completed' || res.completed === true || res.done === true ||
+          res.bday_day != null || res.bday_month != null;
+
+        if (remoteDone) { S.completed = true; setLast(Date.now()); }
+
+        S.birthdayDay   = Number(res.bday_day || S.birthdayDay || 1) || 1;
+        S.birthdayMonth = Number(res.bday_month || S.birthdayMonth || 1) || 1;
+      }
+    } catch (e) {
+      console.error('[quiz.state] error', e);
+    }
+
+    renderStartRow();
+  }
+
+  // ===== Стартовая плашка (кнопка «Начать») =====
+  function renderStartRow(){
+    const start = elStart(), hint = elHint();
+    if (!start) return;
+
+    start.classList.remove('is-hidden');
+    const btn = start.querySelector('[data-action="trivia-start"]');
+    if (!btn) return;
 
     if (hasCompleted()){
       btn.disabled = true;
+      btn.classList.remove('is-active');
+      btn.classList.add('is-done');
       btn.textContent = 'Квиз пройден';
-      hint && (hint.style.display='block', hint.textContent='Можно пройти только один раз 🙌');
+      if (hint){ hint.style.display = 'block'; hint.textContent = 'Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌'; }
     } else {
       btn.disabled = false;
+      btn.classList.remove('is-done');
+      btn.classList.add('is-active');
       btn.textContent = 'Начать';
-      hint && (hint.style.display='none', hint.textContent='');
+      if (hint){ hint.style.display = 'none'; hint.textContent = ''; }
     }
   }
 
-  // ---- completed flag: устойчиво ----
-  const hasCompleted = () => !!S.completed || !!getLast();
-
-  // ---- server: state ----
-  async function fetchState(){
-    if (typeof window.api !== 'function'){ renderStart(); return; }
-    try{
-      const res = await window.api('profile_quiz.state', { quiz_id: QUIZ_ID });
-      console.log('[quiz.state]', res);
-      if(res?.ok){
-        const done = res.status==='completed' || res.completed === true || res.done === true ||
-                     res.bday_day != null || res.bday_month != null;
-        if (done){ S.completed = true; setLast(); }
-
-        const d = +res.bday_day   || null;
-        const m = +res.bday_month || null;
-        if (d && d>=1 && d<=31) S.birthdayDay = d;
-        if (m && m>=1 && m<=12) S.birthdayMonth = m;
-      }
-    }catch(e){ console.warn('[quiz.state] error', e); }
-    renderStart();
-  }
-
-  // ---- server: finish ----
-  async function sendFinish(){
-    if (typeof window.api !== 'function'){ setLast(); return; }
-    try{
-      const res = await window.api('profile_quiz.finish', {
-        quiz_id: QUIZ_ID,
-        score: S.score,
-        bday_day: S.birthdayDay,
-        bday_month: S.birthdayMonth,
-        profile: S.profile
-      });
-      console.log('[quiz.finish]', res);
-      if (res?.ok) { S.completed = true; setLast(); }
-      // применим свежий стейт, если у тебя есть общий апдейтер
-      if (res?.fresh_state && typeof window.applyServerState==='function'){
-        window.applyServerState(res.fresh_state);
-      } else if (typeof window.syncCoinsUI==='function'){
-        window.syncCoinsUI();
-      }
-    }catch(e){ console.error('[quiz.finish] error', e); }
-  }
-
-  // ---- render question ----
-  function renderQuestion(step){
-    const box = elBody(); if(!box) return; ensureStyles();
-
-    const iQ  = STEPS.slice(0, S.i+1).filter(s=>s.type!=='birthday').length;
-    const tQ  = STEPS.filter(s=>s.type!=='birthday').length;
-    const pct = Math.round(((iQ-1)/Math.max(1,tQ))*100);
-
-    const opts = (step.options||[]).map(o=>(
-      `<button class="pq-opt" data-val="${o.value}">${o.label}</button>`
-    )).join('');
-
-    box.innerHTML = `
-      <div class="pq-progress"><i style="width:${pct}%"></i></div>
-      <div class="pq-sub">Вопрос на ${step.coins} монет</div>
-      <p>${step.text}</p>
-      <div class="pq-opts">${opts}</div>
-      <div class="pq-cta"><button class="btn btn-primary" id="pq-next" disabled>Далее</button></div>
-    `;
-
-    const next = box.querySelector('#pq-next');
-    box.querySelectorAll('.pq-opt').forEach(btn=>{
-      btn.onclick = ()=>{
-        box.querySelectorAll('.pq-opt').forEach(b=>b.classList.remove('is-sel'));
-        btn.classList.add('is-sel');
-        S.profile[step.id] = btn.dataset.val;
-        next.disabled = false;
-      };
-    });
-    next.onclick = ()=>{
-      S.score += step.coins || 0;
-      nextStep();
-    };
-  }
-
-  // ---- infinite wheel (бесконечная прокрутка) ----
-  function createInfiniteWheel(container, total, initial){
-    const loops = 7;                 // сколько раз повторяем 1..N
-    const rows  = [];
-    for(let k=0;k<loops;k++){
-      for(let v=1; v<=total; v++){
-        const row = document.createElement('div');
-        row.className = 'pq-row';
-        row.textContent = v;
-        row.dataset.v = String(v);
-        rows.push(row);
-      }
+  // ===== Прогресс =====
+  function getQuestionIndex(stepIndex){
+    let idx = 0;
+    for (let i = 0; i <= stepIndex; i++){
+      if (STEPS[i].type === 'q') idx++;
     }
-    const scroll = document.createElement('div');
-    scroll.className = 'pq-scroll';
-    rows.forEach(r=>scroll.appendChild(r));
-    container.innerHTML = '';
-    container.appendChild(scroll);
-
-    const rowH = 26; // синхронно с CSS
-    // ставим «центр»
-    const middleLoop = Math.floor(loops/2);
-    const startIndex = middleLoop*total + ((initial && initial>=1 && initial<=total)? (initial-1) : 0);
-    scroll.scrollTop = startIndex * rowH;
-
-    // текущее значение по scrollTop
-    const getVal = ()=>{
-      const idx = Math.round(scroll.scrollTop/rowH) % total;
-      return idx + 1;
-    };
-
-    // петля: перекидываем к центру, когда подходим к краям
-    scroll.addEventListener('scroll', ()=>{
-      const maxTop = (loops*total-1) * rowH;
-      if (scroll.scrollTop < total*rowH) {
-        scroll.scrollTop += total*rowH*(loops-2);
-      } else if (scroll.scrollTop > maxTop - total*rowH) {
-        scroll.scrollTop -= total*rowH*(loops-2);
-      }
-    });
-
-    // клики по строкам — центрируем
-    scroll.addEventListener('click', (e)=>{
-      const row = e.target.closest('.pq-row'); if(!row) return;
-      const curTop = scroll.scrollTop;
-      const curIdx = Math.round(curTop/rowH);
-      const want   = Number(row.dataset.v);
-      // сдвинем к ближайшему такому же «want» поблизости
-      const curVal = (curIdx % total) + 1;
-      let delta = want - curVal;
-      // ограничим шаг, чтобы был «рядом»
-      if (delta > total/2) delta -= total;
-      if (delta < -total/2) delta += total;
-      scroll.scrollTo({ top: curTop + delta*rowH, behavior:'smooth' });
-    });
-
-    return { get value(){ return getVal(); } };
+    return idx;
   }
 
-  // ---- render birthday step ----
-  function renderBirthday(){
-    const box = elBody(); if(!box) return; ensureStyles();
-
-    // локальный фолбэк даты
-    if (S.birthdayDay==null || S.birthdayMonth==null){
-      const saved = loadBDay();
-      if (saved){ S.birthdayDay = saved.d; S.birthdayMonth = saved.m; }
-    }
-
-    box.innerHTML = `
-      <p>${STEPS[STEPS.length-1].text}</p>
-      <div class="pq-wheels">
-        <div class="pq-wheel">
-          <div class="pq-hl"></div>
-          <div id="pq-day"></div>
-          <div class="pq-lab">День</div>
-        </div>
-        <div class="pq-wheel">
-          <div class="pq-hl"></div>
-          <div id="pq-mon"></div>
-          <div class="pq-lab">Месяц</div>
-        </div>
-      </div>
-      <div class="pq-cta"><button class="btn btn-primary" id="pq-save">Сохранить</button></div>
-    `;
-
-    const dayWheel = createInfiniteWheel(document.getElementById('pq-day'), 31, S.birthdayDay||1);
-    const monWheel = createInfiniteWheel(document.getElementById('pq-mon'), 12, S.birthdayMonth||1);
-
-    document.getElementById('pq-save').onclick = ()=>{
-      S.birthdayDay   = dayWheel.value;
-      S.birthdayMonth = monWheel.value;
-      saveBDay(S.birthdayDay, S.birthdayMonth);
-      S.score += (STEPS.find(s=>s.type==='birthday')?.coins||0);
-      finishQuiz();
-    };
-  }
-
-  // ---- navigation ----
-  function nextStep(){
-    S.i++;
+  // ===== Рендер шага =====
+  function renderStep(){
     const step = STEPS[S.i];
-    if (!step) { finishQuiz(); return; }
-    if (step.type==='birthday') renderBirthday();
-    else renderQuestion(step);
-  }
-
-  // ---- start flow ----
-  function startQuiz(){
-    const step = STEPS[0];
-    S.i=0; S.score=0; S.profile={}; // reset
-    if (step.type==='birthday') renderBirthday();
-    else renderQuestion(step);
-  }
-
-  async function finishQuiz(){
-    S.completed = true;
-    setLast();
-    // UI
-    const box = elBody(); if (box) {
-      box.innerHTML = `
-        <div class="pq-sub">Готово! 🎉</div>
-        <p>Мы сохранили «паспорт вкуса» и дату. Монеты уже на счёте.</p>
-      `;
-    }
-    renderStart();
-    await sendFinish();
-  }
-
-  // ---- mount trivia on sheet open ----
-  function mountTrivia(){
+    const box = elBody();
+    if (!box || !step) return;
     ensureStyles();
-    renderStart();
-    fetchState(); // подтянуть признак completed + дату с бэка
 
-    // прямой клик по кнопке «Начать»
-    const btn = elStartBtn();
-    if (btn){
-      btn.onclick = ()=>{
-        if (hasCompleted()) return;
-        startQuiz();
-      };
+    if (step.type === 'q'){
+      renderQuestionStep(step);
+    }else if (step.type === 'birthday'){
+      renderBirthdayStep(step);
     }
   }
-  window.mountTrivia = mountTrivia;
 
-  // открытие шторки: добавляем вызов mountTrivia при title ~ "Викторина"
-  const __openSheet = window.openSheet;
-  window.openSheet = function(opts){
-    __openSheet && __openSheet(opts);
-    const title = (opts && opts.title) || '';
-    if (/викторин/i.test(title)) mountTrivia();
-  };
+  function renderQuestionStep(step){
+    const box = elBody(); if (!box) return;
+    const qIndex = getQuestionIndex(S.i);
+    const totalQ = TOTAL_QUESTIONS;
+    const answered = Math.max(0, qIndex - 1);
+    const progress = Math.round((answered / totalQ) * 100);
 
-  // Доп. делегирование (на случай динамики)
+    S.canNext = false;
+
+    box.innerHTML =
+      `<div class="trivia-q">
+         <div class="trivia-progress"><div class="trivia-progress-bar" style="width:${progress}%"></div></div>
+         <div class="trivia-sub">Вопрос на ${step.coins} монет</div>
+         <p class="trivia-text">${step.text}</p>
+         <div class="trivia-opts">
+           ${step.options.map(opt => `
+             <label class="trivia-opt" data-val="${opt.value}">
+               <input type="radio" name="ans" value="${opt.value}">
+               <span>${opt.label}</span>
+             </label>`).join('')}
+         </div>
+         <div class="trivia-cta">
+           <button class="btn btn-primary trivia-next" data-action="trivia-next" disabled>Далее</button>
+         </div>
+       </div>`;
+  }
+
+  // ===== Барабаны ДР: круговая прокрутка =====
+  function buildLoopedItems(total, itemBuilder){
+    const LOOPS = 7; // достаточный запас, чтобы «замыкать» скролл
+    let html = '';
+    for (let k=0; k<LOOPS; k++){
+      for (let v=1; v<=total; v++){
+        html += itemBuilder(v);
+      }
+    }
+    return { html, LOOPS };
+  }
+
+  function initBirthdayWheelsLooped(){
+    const body = elBody(); if (!body) return;
+
+    const wheels = body.querySelectorAll('.bday-wheel-scroll');
+    wheels.forEach(scrollEl => {
+      const kind = scrollEl.dataset.kind;           // 'day' | 'month'
+      const total = (kind === 'day') ? 31 : 12;
+
+      // высота одного «кольца» (первый круг)
+      const items = Array.from(scrollEl.querySelectorAll('.bday-wheel-item'));
+      if (!items.length) return;
+
+      const firstIdx = 0;
+      const lastIdxOfFirstRing = total - 1;
+      const ringHeight = items[lastIdxOfFirstRing].offsetTop + items[lastIdxOfFirstRing].offsetHeight - items[firstIdx].offsetTop;
+
+      // ставим начальную позицию в среднее кольцо под нужное значение
+      const current = (kind === 'day' ? (S.birthdayDay||1) : (S.birthdayMonth||1));
+      const LOOPS = Math.round(items.length / total);
+      const middleRingStartIndex = Math.floor(LOOPS/2) * total;
+      const targetIndex = middleRingStartIndex + (Math.max(1, Math.min(total, current)) - 1);
+      scrollEl.scrollTop = items[targetIndex].offsetTop - (scrollEl.clientHeight/2 - items[targetIndex].offsetHeight/2);
+
+      let stopTimer = null;
+      let lastVal = current;
+
+      function valueByCenter(){
+        const rect = scrollEl.getBoundingClientRect();
+        const cy = rect.top + rect.height/2;
+        let best = null, bestDist = Infinity, bestVal = null;
+
+        for (const it of items){
+          const r = it.getBoundingClientRect();
+          const ic = (r.top + r.bottom)/2;
+          const d = Math.abs(ic - cy);
+          if (d < bestDist){
+            bestDist = d;
+            best = it;
+            bestVal = Number(it.dataset.value)||null;
+          }
+        }
+        return {node:best, val:bestVal};
+      }
+
+      function applyActive(node){
+        items.forEach(x=>x.classList.toggle('is-active', x===node));
+      }
+
+      function setModel(val, silent){
+        if (kind === 'day'){
+          if (val!==S.birthdayDay){ S.birthdayDay = val; if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); } }
+          else if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); }
+        }else{
+          if (val!==S.birthdayMonth){ S.birthdayMonth = val; if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); } }
+          else if (!silent){ S.birthdayTouched = true; enableBirthdayButton(); }
+        }
+      }
+
+      function wrapIfNeeded(){
+        // если уходим в крайние кольца — переносим в середину, сохраняя визуально тот же элемент
+        const top = scrollEl.scrollTop;
+        const maxTop = scrollEl.scrollHeight - scrollEl.clientHeight;
+
+        if (top < ringHeight){
+          scrollEl.scrollTop = top + ringHeight*(LOOPS-2);
+        }else if (top > maxTop - ringHeight){
+          scrollEl.scrollTop = top - ringHeight*(LOOPS-2);
+        }
+      }
+
+      function onScroll(isEnd){
+        wrapIfNeeded();
+
+        const {node, val} = valueByCenter();
+        if (!node || !val) return;
+
+        if (!isEnd){
+          if (val !== lastVal){
+            lastVal = val;
+            applyActive(node);
+            setModel(val, false);
+            haptic('light');
+          }
+        }else{
+          // финальная фиксация в центр
+          const targetTop = node.offsetTop - (scrollEl.clientHeight/2 - node.offsetHeight/2);
+          scrollEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+          applyActive(node);
+          setModel(val, true);
+          haptic('medium');
+        }
+      }
+
+      // начальная подсветка
+      const first = valueByCenter();
+      if (first.node){ applyActive(first.node); }
+
+      scrollEl.addEventListener('scroll', ()=>{
+        onScroll(false);
+        if (stopTimer) clearTimeout(stopTimer);
+        stopTimer = setTimeout(()=>onScroll(true), 130);
+      });
+
+      // клик по значению — плавно центрируем
+      scrollEl.addEventListener('click', (e)=>{
+        const row = e.target.closest('.bday-wheel-item');
+        if (!row) return;
+        const targetTop = row.offsetTop - (scrollEl.clientHeight/2 - row.offsetHeight/2);
+        scrollEl.scrollTo({ top: targetTop, behavior: 'smooth' });
+      });
+    });
+  }
+
+  // включение кнопки «Сохранить дату»
+  function enableBirthdayButton(){
+    const body = elBody(); if (!body) return;
+    const btn = body.querySelector('[data-action="trivia-save-bday"]');
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.add('is-active');
+  }
+
+  function renderBirthdayStep(step){
+    const box = elBody(); if (!box) return;
+    ensureStyles();
+
+    // подтянем локально сохранённую дату
+    try{
+      if (!S.birthdayTouched){
+        const saved = localStorage.getItem(BDAY_KEY);
+        if (saved){
+          const [dS, mS] = saved.split('-');
+          const d = parseInt(dS, 10);
+          const m = parseInt(mS, 10);
+          if (d >= 1 && d <= 31) S.birthdayDay = d;
+          if (m >= 1 && m <= 12) S.birthdayMonth = m;
+        }
+      }
+    }catch(_){}
+
+    const score = S.score || 0;
+
+    // !!! Главное изменение: генерим ДУБЛИРУЮЩИЕСЯ списки (круговая лента)
+    const days = buildLoopedItems(31, (v)=>`<div class="bday-wheel-item" data-value="${v}">${v}</div>`);
+    const months = buildLoopedItems(12, (v)=>`<div class="bday-wheel-item" data-value="${v}">${MONTHS[v-1]}</div>`);
+
+    box.innerHTML =
+      `<div class="trivia-q trivia-bday">
+         <div class="trivia-title">Финальный шаг</div>
+         <p class="trivia-text">Ты набрал <b>${score} монет</b> в этой викторине вкуса.</p>
+         <p class="trivia-text">${step.text}</p>
+         <div class="bday-wheels">
+           <div class="bday-wheel">
+             <div class="bday-wheel-scroll" data-kind="day">
+               ${days.html}
+             </div>
+             <div class="bday-wheel-highlight"></div>
+           </div>
+           <div class="bday-wheel">
+             <div class="bday-wheel-scroll" data-kind="month">
+               ${months.html}
+             </div>
+             <div class="bday-wheel-highlight"></div>
+           </div>
+         </div>
+         <p class="trivia-sub">Дата нужна только для того, чтобы вовремя прилетал подарок от бара — без спама.</p>
+         <div class="trivia-cta">
+           <button class="btn btn-primary trivia-next" data-action="trivia-save-bday" disabled>Указать дату и забрать монеты</button>
+         </div>
+       </div>`;
+
+    initBirthdayWheelsLooped();
+  }
+
+  // ===== Завершение =====
+  function renderFinish(){
+    const box = elBody(); if (!box) return;
+    const score = S.score || 0;
+    box.innerHTML =
+      `<div class="trivia-q">
+         <p>Готово! Мы сохранили твой «паспорт вкуса» и дату. На счёт зачислено <b>${score} монет</b>.</p>
+       </div>`;
+  }
+
+  function startQuiz(){
+    rootCard()?.classList.add('is-running');
+    elStart()?.classList.add('is-hidden');
+
+    S.i = 0;
+    S.canNext = false;
+    S.score = 0;
+    S.earned = new Array(STEPS.length).fill(false);
+    S.profile = {};
+    S.birthdayTouched = false;
+
+    renderStep();
+  }
+
+  function finishQuiz(){
+    logPrize(`+${S.score}🪙 за викторину вкуса`);
+
+    S.completed = true;
+    setLast(Date.now());          // ← фиксируем локально сразу (устойчиво, как «память шторки»)
+
+    haptic('light');
+    renderFinish();
+    rootCard()?.classList.remove('is-running');
+
+    // шлём результат
+    sendProfileQuizFinishToServer();
+
+    setTimeout(renderStartRow, 1400);
+  }
+
+  // ===== Слушатель кликов =====
   document.addEventListener('click', (e)=>{
-    const btn = e.target.closest?.('[data-action="trivia-start"]');
-    if (btn){
+    const body = elBody();
+
+    // старт
+    if (e.target.closest?.('[data-action="trivia-start"]')){
       e.preventDefault();
       if (hasCompleted()) return;
       startQuiz();
+      return;
+    }
+
+    if (!body || !body.contains(e.target)) return;
+
+    const step = STEPS[S.i];
+
+    // выбор варианта
+    const opt = e.target.closest?.('.trivia-opt');
+    if (opt && step && step.type === 'q' && body.contains(opt)){
+      const value = opt.dataset.val;
+      body.querySelectorAll('.trivia-opt').forEach(el => el.classList.remove('is-selected'));
+      opt.classList.add('is-selected');
+
+      if (step.id){ S.profile[step.id] = value; }
+
+      const nextBtn = body.querySelector('.trivia-next');
+      if (nextBtn){ nextBtn.disabled = false; nextBtn.classList.add('is-active'); }
+      S.canNext = true;
+      haptic('light');
+      return;
+    }
+
+    // далее
+    if (e.target.closest?.('[data-action="trivia-next"]')){
+      e.preventDefault();
+      if (!S.canNext) return;
+      const curStep = STEPS[S.i];
+      if (curStep && curStep.type === 'q' && !S.earned[S.i]){
+        S.score += curStep.coins || 0;
+        S.earned[S.i] = true;
+      }
+      if (S.i < STEPS.length - 1){
+        S.i++;
+        S.canNext = false;
+        renderStep();
+      }else{
+        finishQuiz();
+      }
+      return;
+    }
+
+    // сохранение ДР
+    if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday'){
+      e.preventDefault();
+      const day = S.birthdayDay || 1;
+      const month = S.birthdayMonth || 1;
+
+      if (!(day >= 1 && day <= 31 && month >= 1 && month <= 12)){
+        alert('Укажи реальную дату — день от 1 до 31 и месяц 😉');
+        return;
+      }
+
+      try{
+        const payload = `${String(day).padStart(2,'0')}-${String(month).padStart(2,'0')}`;
+        localStorage.setItem(BDAY_KEY, payload);
+        try{ window.onBeerBirthdaySaved?.({ day, month, score: S.score, profile: S.profile }); }catch(_){}
+      }catch(_){}
+
+      finishQuiz();
+      return;
     }
   });
+
+  // ===== Монтаж при появлении в шторке =====
+  function mountIfReady(){
+    const body = elBody(), start = elStart();
+    if (body && start){
+      ensureStyles();
+      renderStartRow();
+      body.innerHTML = '';
+      fetchProfileQuizStateFromServer(); // ← тянем статус с бэка
+      return true;
+    }
+    return false;
+  }
+
+  if (!mountIfReady()){
+    const mo = new MutationObserver(()=>{ if (mountIfReady()) mo.disconnect(); });
+    mo.observe(document.body, {childList:true, subtree:true});
+  }
+
+  // экспорт — можно вызывать при открытии шторки
+  window.mountTrivia = function(){
+    ensureStyles();
+    const body = elBody(); if (body) body.innerHTML = '';
+    const start = elStart(); if (start) start.classList.remove('is-hidden');
+
+    // сброс временного (но не сбиваем признак completed/LAST_KEY)
+    S.i = 0; S.canNext = false; S.score = 0;
+    S.earned = new Array(STEPS.length).fill(false);
+    S.profile = {}; S.birthdayTouched = false;
+
+    renderStartRow();
+    fetchProfileQuizStateFromServer();
+  };
+
+  // ===== По аналогии с «Паспортом»: обёртка openSheet =====
+  const _openSheet = window.openSheet;
+  window.openSheet = function(opts){
+    _openSheet && _openSheet(opts);
+    const title = (opts && opts.title) || '';
+    if (/викторин/i.test(title) && typeof window.mountTrivia === 'function'){
+      window.mountTrivia();
+    }
+  };
 
 })();
