@@ -599,75 +599,85 @@
 
   // ===== Слушатель кликов =====
 document.addEventListener('click', async (e) => {
-  // старт
-  if (e.target.closest?.('[data-action="trivia-start"]')){
+  // Нужен для всех веток ниже
+  const body = elBody();
+
+  // --- Старт квиза
+  if (e.target.closest?.('[data-action="trivia-start"]')) {
     e.preventDefault();
 
-    // 1) сразу покажем «Проверяем статус…»
+    // Показать "Проверяем статус…"
     S.pending = true;
     renderStartRow();
 
-    // 2) принудительно обновим состояние из таблицы/бэка
+    // Принудительно обновить состояние из бэка/таблицы
     try { await fetchProfileQuizStateFromServer(true); } catch(_) {}
 
-    // 3) если после обновления уже пройдено — просто перерисуем плашку «Квиз пройден»
-    if (hasCompleted()){
-      S.pending = false;
+    // Если после обновления уже пройдено — просто показать "Квиз пройден"
+    if (hasCompleted()) {
+      // fetchProfileQuizStateFromServer уже снял pending и дернул renderStartRow()
       renderStartRow();
       return;
     }
 
-    // 4) иначе запускаем вопросы
+    // Иначе — реально стартуем
     startQuiz();
     return;
   }
 
-    if (!body || !body.contains(e.target)) return;
-    const step = STEPS[S.i];
+  // Дальше обрабатываем клики только внутри тела квиза
+  if (!body || !body.contains(e.target)) return;
 
-    const opt = e.target.closest?.('.trivia-opt');
-    if (opt && step && step.type === 'q' && body.contains(opt)){
-      const value = opt.dataset.val;
-      body.querySelectorAll('.trivia-opt').forEach(el => el.classList.remove('is-selected'));
-      opt.classList.add('is-selected');
-      if (step.id) S.profile[step.id] = value;
+  const step = STEPS[S.i];
 
-      const nextBtn = body.querySelector('.trivia-next');
-      if (nextBtn){ nextBtn.disabled=false; nextBtn.classList.add('is-active'); }
-      S.canNext = true;
-      haptic('light');
+  // Выбор варианта ответа
+  const opt = e.target.closest?.('.trivia-opt');
+  if (opt && step && step.type === 'q') {
+    const value = opt.dataset.val;
+    body.querySelectorAll('.trivia-opt').forEach(el => el.classList.remove('is-selected'));
+    opt.classList.add('is-selected');
+    if (step.id) S.profile[step.id] = value;
+
+    const nextBtn = body.querySelector('.trivia-next');
+    if (nextBtn) { nextBtn.disabled = false; nextBtn.classList.add('is-active'); }
+    S.canNext = true;
+    haptic('light');
+    return;
+  }
+
+  // Далее
+  if (e.target.closest?.('[data-action="trivia-next"]')) {
+    e.preventDefault();
+    if (!S.canNext) return;
+    const curStep = STEPS[S.i];
+    if (curStep && curStep.type === 'q' && !S.earned[S.i]) {
+      S.score += curStep.coins || 0;
+      S.earned[S.i] = true;
+    }
+    if (S.i < STEPS.length - 1) { S.i++; S.canNext = false; renderStep(); }
+    else { finishQuiz(); }
+    return;
+  }
+
+  // Сохранить ДР
+  if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday') {
+    e.preventDefault();
+    const d = S.birthdayDay || 1;
+    const m = S.birthdayMonth || 1;
+    if (!(d >= 1 && d <= 31 && m >= 1 && m <= 12)) {
+      alert('Укажи реальную дату — день от 1 до 31 и месяц 😉');
       return;
     }
+    try {
+      const payload = `${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
+      localStorage.setItem(BDAY_KEY, payload);
+      try { window.onBeerBirthdaySaved?.({ day:d, month:m, score:S.score, profile:S.profile }); } catch(_){}
+    } catch(_){}
+    finishQuiz();
+    return;
+  }
+});
 
-    if (e.target.closest?.('[data-action="trivia-next"]')){
-      e.preventDefault();
-      if (!S.canNext) return;
-      const curStep = STEPS[S.i];
-      if (curStep && curStep.type === 'q' && !S.earned[S.i]){
-        S.score += curStep.coins || 0;
-        S.earned[S.i] = true;
-      }
-      if (S.i < STEPS.length - 1){ S.i++; S.canNext=false; renderStep(); }
-      else { finishQuiz(); }
-      return;
-    }
-
-    if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday'){
-      e.preventDefault();
-      const d = S.birthdayDay || 1;
-      const m = S.birthdayMonth || 1;
-      if (!(d>=1 && d<=31 && m>=1 && m<=12)){ alert('Укажи реальную дату — день от 1 до 31 и месяц 😉'); return; }
-
-      try{
-        const payload = `${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
-        localStorage.setItem(BDAY_KEY, payload);
-        try{ window.onBeerBirthdaySaved?.({ day:d, month:m, score:S.score, profile:S.profile }); }catch(_){}
-      }catch(_){}
-
-      finishQuiz();
-      return;
-    }
-  });
 
   // ===== Монтаж при появлении в шторке =====
   function mountIfReady(){
