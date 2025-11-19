@@ -185,7 +185,8 @@
     birthdayDay: 1,
     birthdayMonth: 1,
     birthdayTouched: false,
-    completed: false
+    completed: false,
+    pending: false            // <-- добавлено: ждём свежий статус из таблицы
   };
 
   // ===== «Память шторки»: как у Паспорта (устойчиво) =====
@@ -197,7 +198,7 @@
   const elHint  = () => document.getElementById('trivia-start-hint');
   const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
 
-  // ===== Стили (оставлены как в твоём файле) =====
+  // ===== Стили (твои + два фикса скрытия) =====
   let stylesInjected = false;
   function ensureStyles(){
     if (stylesInjected) return;
@@ -230,6 +231,10 @@
       .trivia-start__hint{ margin-top:4px; font-size:12px; opacity:0.75; }
       .trivia-start-btn{ margin-top:4px; width:100%; display:block; }
       .trivia-start-btn.is-done{ opacity:0.7; pointer-events:none; background:transparent !important; border:1px solid rgba(255,255,255,0.35); color:#aaaaaa !important; }
+
+      /* ✅ фиксы поведения шторки */
+      .trivia-start.is-hidden { display: none !important; }     /* прячем стартовую плашку во время прохождения */
+      .trivia-card.is-running > .h1 { display: none !important; } /* прячем заголовок/картинку на время прохождения */
     `;
     const styleEl = document.createElement('style');
     styleEl.textContent = css;
@@ -274,19 +279,26 @@
     }
   }
 
-  async function fetchProfileQuizStateFromServer() {
+  // ===== Свежая проверка состояния из таблицы (с анти-кэшем) =====
+  async function fetchProfileQuizStateFromServer(fresh){
     if (typeof window.api !== 'function') {
       console.warn('[quiz.state] нет window.api');
+      S.pending = false;
       renderStartRow();
       return;
     }
 
     try {
-      const res = await window.api('profile_quiz.state', { quiz_id: QUIZ_ID });
+      const res = await window.api('profile_quiz.state', {
+        quiz_id: QUIZ_ID,
+        fresh: fresh ? 1 : 0,  // подсказка воркеру/ГАС — обойти KV
+        no_cache: 1,
+        ts: Date.now()
+      });
       console.log('[quiz.state] response', res);
 
       if (res && res.ok) {
-        // устойчиво: фиксируем completion ТОЛЬКО в сторону true
+        // фиксируем completion ТОЛЬКО в сторону true
         const remoteCompleted =
           res.status === 'completed' || res.completed === true || res.done === true ||
           res.bday_day != null || res.bday_month != null;
@@ -300,6 +312,7 @@
       console.error('[quiz.state] error', e);
     }
 
+    S.pending = false;
     renderStartRow();
   }
 
@@ -312,12 +325,20 @@
     const btn = start.querySelector('[data-action="trivia-start"]');
     if (!btn) return;
 
+    if (S.pending){
+      btn.disabled = true;
+      btn.classList.remove('is-done','is-active');
+      btn.textContent = 'Проверяем статус…';
+      if (hint){ hint.style.display='block'; hint.textContent='Обновляем данные из таблицы…'; }
+      return;
+    }
+
     if (hasCompleted()){
       btn.disabled = true;
       btn.classList.remove('is-active');
       btn.classList.add('is-done');
       btn.textContent = 'Квиз пройден';
-      if (hint){ hint.style.display='block'; hint.textContent='Анкету можно пройти один раз. Спасибо, что заполнил профиль 🙌'; }
+      if (hint){ hint.style.display='block'; hint.textContent='Квиз можно пройти один раз 🙌'; }
     } else {
       btn.disabled = false;
       btn.classList.remove('is-done');
@@ -567,8 +588,8 @@
   }
 
   function startQuiz(){
-    rootCard()?.classList.add('is-running');
-    elStart()?.classList.add('is-hidden');
+    rootCard()?.classList.add('is-running'); // прячем заголовок/картинку
+    elStart()?.classList.add('is-hidden');   // прячем старт-блок
     S.i=0; S.canNext=false; S.score=0;
     S.earned = new Array(STEPS.length).fill(false);
     S.profile={}; S.birthdayTouched=false;
@@ -581,7 +602,7 @@
     setLast();                     // «память шторки» как у Паспорта
     haptic('light');
     renderFinish();
-    rootCard()?.classList.remove('is-running');
+    rootCard()?.classList.remove('is-running'); // возвращаем шапку
     sendProfileQuizFinishToServer();
     setTimeout(renderStartRow, 1400);
   }
@@ -653,9 +674,11 @@
     const body = elBody(), start = elStart();
     if (body && start){
       ensureStyles();
+      // показываем неактивную кнопку и ждём свежий статус
+      S.pending = true;
       renderStartRow();
       body.innerHTML = '';
-      fetchProfileQuizStateFromServer(); // подтянуть статус/дату
+      fetchProfileQuizStateFromServer(true); // fresh проверка из таблицы
       return true;
     }
     return false;
@@ -666,25 +689,26 @@
   }
 
   // экспорт для явного вызова
-  window.mountTrivia = function(){
+  window.mountTrivia = function(forceFresh){
     ensureStyles();
     const body = elBody(); if (body) body.innerHTML = '';
     const start = elStart(); if (start) start.classList.remove('is-hidden');
-    // сброс временного (без сброса completion!)
+    // НЕ сбиваем completion — только обновляем из таблицы
     S.i=0; S.canNext=false; S.score=0;
     S.earned = new Array(STEPS.length).fill(false);
     S.profile={}; S.birthdayTouched=false;
+    S.pending = true;
     renderStartRow();
-    fetchProfileQuizStateFromServer();
+    fetchProfileQuizStateFromServer(!!forceFresh);
   };
 
-  // ===== Хук шторки (как у Паспорта): доклеиваем поведение для "Викторина" =====
+  // ===== Хук шторки (как у Паспорта): при открытии "Викторина" маунтим свежо =====
   const _openSheet = window.openSheet;
   window.openSheet = function(opts){
     _openSheet && _openSheet(opts);
     const title = (opts && opts.title) || '';
     if (/викторин/i.test(title) && typeof window.mountTrivia === 'function'){
-      window.mountTrivia();
+      window.mountTrivia(true); // просим свежий статус
     }
   };
 
