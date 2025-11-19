@@ -3,83 +3,143 @@
 
   // ===== Параметры квиза профиля =====
   const STEPS = [
-    { type:'q', id:'scene', coins:10, text:'Представь кадр из фильма: ты заходишь в бар. Какая сцена про тебя?',
-      options:[
-        { value:'solo',       label:'Один заходит, садится у стойки и просто выдыхает' },
-        { value:'small_team', label:'Пара друзей вваливается с фразой «ну что, как неделя?»' },
-        { value:'party',      label:'Шумная компания, смех, шутки бармену с порога' },
-        { value:'cowork',     label:'Человек с ноутом ищет уголок: «это мой офис на вечер»' }
-      ]},
-    { type:'q', id:'evening_scene', coins:10, text:'Если бы твой идеальный вечер с пивом был картинкой — что там происходит?',
-      options:[
-        { value:'sofa',   label:'Диван, сериал и что-то лёгкое в бокале' },
-        { value:'music',  label:'Музыка, редкие этикетки, хочется пробовать новое' },
-        { value:'sports', label:'Матч на экране, стол, друзья, шум и эмоции' },
-        { value:'tasting',label:'Маленькие дегустационные бокалы, нюхаю и разбираю вкусы' }
-      ]},
-    { type:'q', id:'beer_character', coins:20, text:'Представь, что пиво — это персонаж. Кто ближе всего по духу?',
-      options:[
-        { value:'light',  label:'Лёгкий, разговорчивый, с тобой весь вечер, но не давит' },
-        { value:'bitter', label:'Резкий, дерзкий, с характером — его либо любят, либо «слишком»' },
-        { value:'dessert',label:'Тёплый, плотный, немного сладкий, десертный друг' },
-        { value:'sour',   label:'Странный, кисленький, яркий — с ним точно не скучно' }
-      ]},
-    { type:'q', id:'experiments', coins:20, text:'Бар предлагает совершенно новый странный стиль. Как ты реагируешь?',
-      options:[
-        { value:'max', label:'«Давай два! Я за этим и пришёл»' },
-        { value:'mid', label:'«Окей, разок можно, но хочу знать, что взять “на всякий”»' },
-        { value:'low', label:'«Я за надёжность. Лучше то, что уже знаю»' }
-      ]},
-    { type:'q', id:'focus', coins:20, text:'В идеальном бокале что для тебя критично важно?',
-      options:[
-        { value:'aroma',    label:'Чтобы аромат первым встречал — цитрус, хмель, тропики' },
-        { value:'taste',    label:'Чтобы вкус был выверен: баланс, горечь, сладость/кислота' },
-        { value:'body',     label:'Чтобы было ощущение плотности и длинного послевкусия' },
-        { value:'strength', label:'Чтобы чувствовалась крепость — вечер удался' }
-      ]},
-    { type:'q', id:'anti_flavors', coins:30, text:'А с чем у тебя точно не дружба в бокале?',
-      options:[
-        { value:'banana', label:'Когда вдруг банан/гвоздика — не моё' },
-        { value:'coffee', label:'Когда пиво как десерт: кофе, шоколад, молочные стауты' },
-        { value:'acid',   label:'Когда прям ярко-кислое, как лимонад или кислые конфеты' },
-        { value:'pine',   label:'Когда хмель как жёсткая хвоя и горечь до слёз' },
-        { value:'ok_all', label:'Да я со всеми дружу, люблю пробовать разное' }
-      ]},
-    { type:'q', id:'snacks', coins:10, text:'На столе у тебя чаще всего что рядом с бокалом?',
-      options:[
-        { value:'snacks',  label:'Снэки: орехи, чипсы, сухарики' },
-        { value:'fastfood',label:'Пицца, бургеры и подобные радости' },
-        { value:'meat',    label:'Мясо/гриль: крылья, рёбра и компания' },
-        { value:'no_food', label:'Обычно без еды, главное — сам бокал' }
-      ]},
-    { type:'q', id:'budget', coins:20, text:'Какой сценарий про тебя чаще всего?',
-      options:[
-        { value:'quick',  label:'Забежал на один–два бокала, выдохнул и домой' },
-        { value:'normal', label:'Нормально посидеть: пару позиций и закуска — вечер удался' },
-        { value:'event',  label:'Это событие: дегустация, новый релиз, закладываю отдельный бюджет' }
-      ]},
-    { type:'q', id:'time_of_day', coins:10, text:'В какой момент дня чаще всего ловишь мысль: «неплохо бы пивка»?',
-      options:[
-        { value:'after_work',label:'После работы/дел, ближе к вечеру' },
-        { value:'late',      label:'Поздно вечером/ночью' },
-        { value:'weekend',   label:'Днём в выходные' },
-        { value:'random',    label:'Спонтанно — когда совпало настроение или зовут' }
-      ]},
-    { type:'q', id:'comms', coins:10, text:'Представь, бар — это человек в твоём Telegram. Что от него хотелось бы получать?',
-      options:[
-        { value:'pings',  label:'Короткие пинги: «сегодня день такого-то стиля/акции»' },
-        { value:'picks',  label:'Подборки: «3 варианта под твой вкус на вечер»' },
-        { value:'games',  label:'Игры, квизы и розыгрыши за монеты и призы' },
-        { value:'stories',label:'Истории и мини-гайды про стили, чтобы разбираться' }
-      ]},
-    { type:'q', id:'birthday_optin', coins:40, text:'У нас есть фишка — поздравлять своих людей не просто «с праздником», а под их вкус. Как тебе идея персональных подарков от бара к дню рождения?',
-      options:[
-        { value:'love',   label:'Обожаю такие штуки, я за' },
-        { value:'ok',     label:'Норм, если без спама и навязчивости' },
-        { value:'neutral',label:'Скорее нейтрально' },
-        { value:'no',     label:'Не люблю, когда напоминают про ДР' }
-      ]},
-    { type:'birthday', id:'birthday_date', coins:0, text:'Укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции. За это ещё подкинем монет 😉' }
+    {
+      type: 'q',
+      id: 'scene',
+      coins: 10,
+      text: 'Представь кадр из фильма: ты заходишь в бар. Какая сцена про тебя?',
+      options: [
+        { value: 'solo',       label: 'Один заходит, садится у стойки и просто выдыхает' },
+        { value: 'small_team', label: 'Пара друзей вваливается с фразой «ну что, как неделя?»' },
+        { value: 'party',      label: 'Шумная компания, смех, шутки бармену с порога' },
+        { value: 'cowork',     label: 'Человек с ноутом ищет уголок: «это мой офис на вечер»' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'evening_scene',
+      coins: 10,
+      text: 'Если бы твой идеальный вечер с пивом был картинкой — что там происходит?',
+      options: [
+        { value: 'sofa',    label: 'Диван, сериал и что-то лёгкое в бокале' },
+        { value: 'music',   label: 'Музыка, редкие этикетки, хочется пробовать новое' },
+        { value: 'sports',  label: 'Матч на экране, стол, друзья, шум и эмоции' },
+        { value: 'tasting', label: 'Маленькие дегустационные бокалы, нюхаю и разбираю вкусы' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'beer_character',
+      coins: 20,
+      text: 'Представь, что пиво — это персонаж. Кто ближе всего по духу?',
+      options: [
+        { value: 'light',   label: 'Лёгкий, разговорчивый, с тобой весь вечер, но не давит' },
+        { value: 'bitter',  label: 'Резкий, дерзкий, с характером — его либо любят, либо «слишком»' },
+        { value: 'dessert', label: 'Тёплый, плотный, немного сладкий, десертный друг' },
+        { value: 'sour',    label: 'Странный, кисленький, яркий — с ним точно не скучно' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'experiments',
+      coins: 20,
+      text: 'Бар предлагает совершенно новый странный стиль. Как ты реагируешь?',
+      options: [
+        { value: 'max',   label: '«Давай два! Я за этим и пришёл»' },
+        { value: 'mid',   label: '«Окей, разок можно, но хочу знать, что взять “на всякий”»' },
+        { value: 'low',   label: '«Я за надёжность. Лучше то, что уже знаю»' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'focus',
+      coins: 20,
+      text: 'В идеальном бокале что для тебя критично важно?',
+      options: [
+        { value: 'aroma',    label: 'Чтобы аромат первым встречал — цитрус, хмель, тропики' },
+        { value: 'taste',    label: 'Чтобы вкус был выверен: баланс, горечь, сладость/кислота' },
+        { value: 'body',     label: 'Чтобы было ощущение плотности и длинного послевкусия' },
+        { value: 'strength', label: 'Чтобы чувствовалась крепость — вечер удался' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'anti_flavors',
+      coins: 30,
+      text: 'А с чем у тебя точно не дружба в бокале?',
+      options: [
+        { value: 'banana',    label: 'Когда вдруг банан/гвоздика — не моё' },
+        { value: 'coffee',    label: 'Когда пиво как десерт: кофе, шоколад, молочные стауты' },
+        { value: 'acid',      label: 'Когда прям ярко-кислое, как лимонад или кислые конфеты' },
+        { value: 'pine',      label: 'Когда хмель как жёсткая хвоя и горечь до слёз' },
+        { value: 'ok_all',    label: 'Да я со всеми дружу, люблю пробовать разное' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'snacks',
+      coins: 10,
+      text: 'На столе у тебя чаще всего что рядом с бокалом?',
+      options: [
+        { value: 'snacks',   label: 'Снэки: орехи, чипсы, сухарики' },
+        { value: 'fastfood', label: 'Пицца, бургеры и подобные радости' },
+        { value: 'meat',     label: 'Мясо/гриль: крылья, рёбра и компания' },
+        { value: 'no_food',  label: 'Обычно без еды, главное — сам бокал' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'budget',
+      coins: 20,
+      text: 'Какой сценарий про тебя чаще всего?',
+      options: [
+        { value: 'quick',   label: 'Забежал на один–два бокала, выдохнул и домой' },
+        { value: 'normal',  label: 'Нормально посидеть: пару позиций и закуска — вечер удался' },
+        { value: 'event',   label: 'Это событие: дегустация, новый релиз, закладываю отдельный бюджет' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'time_of_day',
+      coins: 10,
+      text: 'В какой момент дня чаще всего ловишь мысль: «неплохо бы пивка»?',
+      options: [
+        { value: 'after_work', label: 'После работы/дел, ближе к вечеру' },
+        { value: 'late',       label: 'Поздно вечером/ночью' },
+        { value: 'weekend',    label: 'Днём в выходные' },
+        { value: 'random',     label: 'Спонтанно — когда совпало настроение или зовут' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'comms',
+      coins: 10,
+      text: 'Представь, бар — это человек в твоём Telegram. Что от него хотелось бы получать?',
+      options: [
+        { value: 'pings',   label: 'Короткие пинги: «сегодня день такого-то стиля/акции»' },
+        { value: 'picks',   label: 'Подборки: «3 варианта под твой вкус на вечер»' },
+        { value: 'games',   label: 'Игры, квизы и розыгрыши за монеты и призы' },
+        { value: 'stories', label: 'Истории и мини-гайды про стили, чтобы разбираться' }
+      ]
+    },
+    {
+      type: 'q',
+      id: 'birthday_optin',
+      coins: 40,
+      text: 'У нас есть фишка — поздравлять своих людей не просто «с праздником», а под их вкус. Как тебе идея персональных подарков от бара к дню рождения?',
+      options: [
+        { value: 'love',    label: 'Обожаю такие штуки, я за' },
+        { value: 'ok',      label: 'Норм, если без спама и навязчивости' },
+        { value: 'neutral', label: 'Скорее нейтрально' },
+        { value: 'no',      label: 'Не люблю, когда напоминают про ДР' }
+      ]
+    },
+    {
+      type: 'birthday',
+      id: 'birthday_date',
+      coins: 0,
+      text: 'Укажи день и месяц рождения, чтобы мы под тебя готовили персональные подарки и акции. За это ещё подкинем монет 😉'
+    }
   ];
 
   const TOTAL_QUESTIONS = STEPS.filter(s => s.type === 'q').length;
@@ -92,7 +152,22 @@
     catch(_){ navigator.vibrate?.(10); }
   }
 
-  // ===== Ключи/состояние =====
+  // ===== Баланс / призы (локальный фолбэк, основной — через воркер/GAS) =====
+  const COIN_KEY = 'beer_coins';
+  function getCoins(){ return +(localStorage.getItem(COIN_KEY) || 0); }
+  function setCoins(v){
+    localStorage.setItem(COIN_KEY, String(Math.max(0, v|0)));
+    try{ window.syncCoinsUI?.(); }catch(_){}
+  }
+  function addCoins(n){
+    if (typeof window.addCoins === 'function') return window.addCoins(n);
+    setCoins(getCoins() + (n|0));
+  }
+  function logPrize(txt){
+    try{ window.logReward?.({source:'profile_quiz', prize:txt}); }catch(_){}
+  }
+
+  // ===== Ключи прохождения =====
   const UID = TG?.initDataUnsafe?.user?.id || 'anon';
   const QUIZ_ID = 'beer_profile_quiz_v1';
   const LAST_KEY = `${QUIZ_ID}_last_finish_${UID}`;
@@ -100,44 +175,30 @@
   const getLast = () => +(localStorage.getItem(LAST_KEY) || 0);
   const setLast = (ts = Date.now()) => localStorage.setItem(LAST_KEY, String(ts));
 
+  // ===== Состояние =====
   const S = {
-    i:0, canNext:false, score:0, earned:[],
-    profile:{},
-    birthdayDay:1, birthdayMonth:1, birthdayTouched:false,
-    completed:false,
-    pending:false,           // «Проверяем статус…»
-    serverKnown:false,       // знаем ответ сервера
-    serverCompleted:false    // сервер сказал «пройдено»
+    i: 0,
+    canNext: false,
+    score: 0,
+    earned: [],
+    profile: {},
+    birthdayDay: 1,
+    birthdayMonth: 1,
+    birthdayTouched: false,
+    completed: false,
+    pending: false            // <-- ждём свежий статус из таблицы
   };
 
-  // ===== DOM helpers =====
-  const rootCard = () => document.querySelector('.trivia-card'); // контейнер шторки
-  function elBody(){ return document.getElementById('trivia-body'); }
-  function elStart(){ return document.getElementById('trivia-start'); }
-  function elHint(){ return document.getElementById('trivia-start-hint'); }
+  // ===== «Память шторки»: как у Паспорта (устойчиво) =====
+  const hasCompleted = () => !!S.completed || !!getLast();
 
-  // Создать недостающие узлы (плашку и body) прямо в JS
-  function ensureShell(){
-    const card = rootCard();
-    if (!card) return {card:null, start:null, body:null};
+  // ===== DOM =====
+  const elBody  = () => document.getElementById('trivia-body');
+  const elStart = () => document.getElementById('trivia-start');
+  const elHint  = () => document.getElementById('trivia-start-hint');
+  const rootCard = () => document.getElementById('trivia-body')?.closest('.trivia-card');
 
-    let body = elBody();
-    if (!body){
-      body = document.createElement('div');
-      body.id = 'trivia-body';
-      card.appendChild(body);
-    }
-    let start = elStart();
-    if (!start){
-      start = document.createElement('div');
-      start.id = 'trivia-start';
-      start.className = 'trivia-start';
-      card.insertBefore(start, body);
-    }
-    return {card, start, body};
-  }
-
-  // ===== Стили (включая поведение шторки) =====
+  // ===== Стили (твои + два фикса скрытия) =====
   let stylesInjected = false;
   function ensureStyles(){
     if (stylesInjected) return;
@@ -155,8 +216,13 @@
       .trivia-cta{ margin-top:12px; }
       .trivia-next{ width:100%; opacity:0.5; pointer-events:none; background:transparent !important; border:1px solid rgba(255,255,255,0.35); color:#fff; }
       .trivia-next.is-active{ opacity:1; pointer-events:auto; background:#ff9800 !important; border-color:#ff9800; color:#000 !important; }
-
-      /* стартовая плашка */
+      .bday-wheels{ display:flex; gap:16px; justify-content:center; margin:16px 0 8px; }
+      .bday-wheel{ position:relative; display:flex; flex-direction:column; align-items:center; min-width:110px; }
+      .bday-wheel-scroll{ width:100%; max-height:120px; overflow-y:auto; padding:20px 0; scrollbar-width:none; -ms-overflow-style:none; }
+      .bday-wheel-scroll::-webkit-scrollbar{ display:none; }
+      .bday-wheel-item{ height:28px; display:flex; align-items:center; justify-content:center; font-size:14px; opacity:0.55; transition:opacity .12s ease, transform .12s ease; }
+      .bday-wheel-item.is-active{ font-size:18px; font-weight:600; opacity:1; transform:scale(1.0); }
+      .bday-wheel-highlight{ position:absolute; left:6px; right:6px; top:50%; height:32px; transform:translateY(-50%); border-radius:999px; border:1px solid rgba(255,255,255,0.3); pointer-events:none; }
       .trivia-card .trivia-start{ display:flex; flex-direction:column; align-items:stretch; gap:10px; }
       .trivia-start-inner{ display:flex; gap:12px; align-items:flex-start; }
       .trivia-start-icon{ flex:0 0 auto; width:40px; height:40px; border-radius:999px; overflow:hidden; }
@@ -166,25 +232,16 @@
       .trivia-start-btn{ margin-top:4px; width:100%; display:block; }
       .trivia-start-btn.is-done{ opacity:0.7; pointer-events:none; background:transparent !important; border:1px solid rgba(255,255,255,0.35); color:#aaaaaa !important; }
 
-      /* барабаны */
-      .bday-wheels{ display:flex; gap:16px; justify-content:center; margin:16px 0 8px; }
-      .bday-wheel{ position:relative; display:flex; flex-direction:column; align-items:center; min-width:110px; }
-      .bday-wheel-scroll{ width:100%; max-height:120px; overflow-y:auto; padding:20px 0; scrollbar-width:none; -ms-overflow-style:none; }
-      .bday-wheel-scroll::-webkit-scrollbar{ display:none; }
-      .bday-wheel-item{ height:28px; display:flex; align-items:center; justify-content:center; font-size:14px; opacity:0.55; transition:opacity .12s ease, transform .12s ease; }
-      .bday-wheel-item.is-active{ font-size:18px; font-weight:600; opacity:1; transform:scale(1.0); }
-      .bday-wheel-highlight{ position:absolute; left:6px; right:6px; top:50%; height:32px; transform:translateY(-50%); border-radius:999px; border:1px solid rgba(255,255,255,0.3); pointer-events:none; }
-
-      /* поведение шторки */
-      .trivia-start.is-hidden { display: none !important; }           /* прячем старт на время прохождения */
-      .trivia-card.is-running > .h1 { display: none !important; }     /* прячем хедер/картинку во время прохождения */
+      /* ✅ фиксы поведения шторки */
+      .trivia-start.is-hidden { display: none !important; }
+      .trivia-card.is-running > .h1 { display: none !important; }
     `;
     const styleEl = document.createElement('style');
     styleEl.textContent = css;
     document.head.appendChild(styleEl);
   }
 
-  // ===== Транспорт к бэку =====
+  // ===== Транспорт через window.api =====
   async function sendProfileQuizFinishToServer() {
     const data = {
       quiz_id: QUIZ_ID,
@@ -194,110 +251,129 @@
       profile: S.profile,
       answers_json: JSON.stringify(S.profile || {})
     };
+
     if (typeof window.api !== 'function') {
-      setLast();
+      console.warn('[quiz.finish] нет window.api, локальный режим');
+      setLast(); addCoins(S.score);
       return;
     }
+
     try {
       const res = await window.api('profile_quiz.finish', data);
+      console.log('[quiz.finish] response', res);
+
       if (res && res.ok) {
         const remoteCompleted = res.status === 'completed' || res.completed === true || res.done === true;
         if (remoteCompleted) S.completed = true;
         setLast();
-        if (res.fresh_state && window.applyServerState) window.applyServerState(res.fresh_state);
+
+        if (res.fresh_state && window.applyServerState) {
+          window.applyServerState(res.fresh_state);
+        } else if (window.syncCoinsUI) {
+          window.syncCoinsUI();
+        }
       }
-    } catch(e){ console.error('[quiz.finish]', e); }
+    } catch (e) {
+      console.error('[quiz.finish] error', e);
+    }
   }
 
+  // ===== Свежая проверка состояния из таблицы (с анти-кэшем) =====
   async function fetchProfileQuizStateFromServer(fresh){
     if (typeof window.api !== 'function') {
+      console.warn('[quiz.state] нет window.api');
       S.pending = false;
       renderStartRow();
       return;
     }
+
     try {
       const res = await window.api('profile_quiz.state', {
-        quiz_id: QUIZ_ID, fresh: fresh ? 1 : 0, no_cache: 1, ts: Date.now()
+        quiz_id: QUIZ_ID,
+        fresh: fresh ? 1 : 0,
+        no_cache: 1,
+        ts: Date.now()
       });
-      S.serverKnown = true;
-      let remoteCompleted = false;
-      if (res && res.ok){
-        remoteCompleted =
+      console.log('[quiz.state] response', res);
+
+      if (res && res.ok) {
+        const remoteCompleted =
           res.status === 'completed' || res.completed === true || res.done === true ||
           res.bday_day != null || res.bday_month != null;
-        if (remoteCompleted){ S.completed = true; setLast(); }
-        if (res.bday_day  != null) S.birthdayDay   = Number(res.bday_day)   || S.birthdayDay;
-        if (res.bday_month!= null) S.birthdayMonth = Number(res.bday_month) || S.birthdayMonth;
+
+        if (remoteCompleted) { S.completed = true; setLast(); }
+
+        S.birthdayDay   = Number(res.bday_day || S.birthdayDay || 1) || 1;
+        S.birthdayMonth = Number(res.bday_month || S.birthdayMonth || 1) || 1;
       }
-      S.serverCompleted = !!remoteCompleted;
-    } catch(e){
-      console.error('[quiz.state]', e);
-      S.serverKnown = false;
-    } finally {
-      S.pending = false;
-      renderStartRow();
+    } catch (e) {
+      console.error('[quiz.state] error', e);
+    }
+
+    S.pending = false;
+    renderStartRow();
+  }
+
+  // ===== Стартовая плашка =====
+  function renderStartRow(){
+    const start = elStart(), hint = elHint();
+    if (!start) return;
+
+    start.classList.remove('is-hidden');
+    const btn = start.querySelector('[data-action="trivia-start"]');
+    if (!btn) return;
+
+    if (S.pending){
+      btn.disabled = true;
+      btn.classList.remove('is-done','is-active');
+      btn.textContent = 'Проверяем статус…';
+      if (hint){ hint.style.display='block'; hint.textContent='Обновляем данные из таблицы…'; }
+      return;
+    }
+
+    if (hasCompleted()){
+      btn.disabled = true;
+      btn.classList.remove('is-active');
+      btn.classList.add('is-done');
+      btn.textContent = 'Квиз пройден';
+      if (hint){ hint.style.display='block'; hint.textContent='Квиз можно пройти один раз 🙌'; }
+    } else {
+      btn.disabled = false;
+      btn.classList.remove('is-done');
+      btn.classList.add('is-active');
+      btn.textContent = 'Начать';
+      if (hint){ hint.style.display='none'; hint.textContent=''; }
     }
   }
 
-  // ===== Логика состояний =====
-  const hasCompleted = () => {
-    if (S.pending) return false;
-    if (S.serverKnown) return !!S.serverCompleted;
-    return !!S.completed || !!getLast();
-  };
-
-  // ===== Рендер стартовой плашки ЦЕЛИКОМ ИЗ JS =====
-  function renderStartRow(){
-    ensureStyles();
-    const {card, start} = ensureShell();
-    if (!card || !start) return;
-
-    // соберём HTML плашки
-    const btnLabel = S.pending ? 'Проверяем статус…'
-                   : hasCompleted() ? 'Квиз пройден'
-                   : 'Начать';
-    const btnClasses = ['btn','btn-primary','trivia-start-btn'];
-    if (hasCompleted()) btnClasses.push('is-done');
-    else if (!S.pending) btnClasses.push('is-active');
-
-    const hintText = S.pending ? 'Обновляем данные из таблицы…'
-                    : hasCompleted() ? 'Квиз можно пройти один раз 🙌'
-                    : '';
-
-    start.innerHTML = [
-      '<div class="trivia-start-inner">',
-        '<div class="trivia-start-icon"><img src="img/quiz.png" alt=""></div>',
-        '<div class="trivia-start-copy">',
-          '<div class="h3">Викторина вкуса</div>',
-          `<div class="trivia-start__hint" id="trivia-start-hint" style="${hintText ? '' : 'display:none'}">${hintText}</div>`,
-        '</div>',
-      '</div>',
-      `<button class="${btnClasses.join(' ')}" data-action="trivia-start"${S.pending || hasCompleted() ? ' disabled' : ''}>${btnLabel}</button>`
-    ].join('');
-    start.classList.remove('is-hidden');
+  // ===== Прогресс (номер среди вопросов type="q") =====
+  function getQuestionIndex(stepIndex){
+    let idx = 0;
+    for (let i = 0; i <= stepIndex; i++) if (STEPS[i].type === 'q') idx++;
+    return idx;
   }
 
-  // ===== Рендер шагов =====
-  function getQuestionIndex(stepIndex){ let idx=0; for(let i=0;i<=stepIndex;i++) if (STEPS[i].type==='q') idx++; return idx; }
-
+  // ===== Рендер шага =====
   function renderStep(){
     const step = STEPS[S.i];
-    const body = elBody();
-    if (!body || !step) return;
+    const box = elBody();
+    if (!box || !step) return;
     ensureStyles();
-    if (step.type === 'q') renderQuestionStep(step);
-    else if (step.type === 'birthday') renderBirthdayStep(step);
+
+    if (step.type === 'q')       renderQuestionStep(step);
+    else if (step.type==='birthday') renderBirthdayStep(step);
   }
 
   function renderQuestionStep(step){
-    const body = elBody(); if (!body) return;
+    const box = elBody(); if (!box) return;
     const qIndex = getQuestionIndex(S.i);
     const totalQ = TOTAL_QUESTIONS;
     const answered = Math.max(0, qIndex - 1);
     const progress = Math.round((answered / totalQ) * 100);
+
     S.canNext = false;
 
-    body.innerHTML =
+    box.innerHTML =
       `<div class="trivia-q">
          <div class="trivia-progress"><div class="trivia-progress-bar" style="width:${progress}%"></div></div>
          <div class="trivia-sub">Вопрос на ${step.coins} монет</div>
@@ -315,15 +391,31 @@
        </div>`;
   }
 
-  // ===== Барабаны: бесконечная прокрутка =====
+  // ===== Кнопка финала (активация после скролла барабанов) =====
+  function enableBirthdayButton(){
+    const body = elBody(); if (!body) return;
+    const btn = body.querySelector('[data-action="trivia-save-bday"]');
+    if (!btn) return;
+    btn.disabled = false;
+    btn.classList.add('is-active');
+  }
+
+  // ===== Вспомогательная генерация: много «колец» для бесконечного скролла =====
   function buildLoopedItems(count, render){
-    const LOOPS = 7; let html = '';
-    for (let k=0;k<LOOPS;k++){ for (let v=1; v<=count; v++) html += render(v); }
+    const LOOPS = 7;
+    let html = '';
+    for (let k=0;k<LOOPS;k++){
+      for (let v=1; v<=count; v++){
+        html += render(v);
+      }
+    }
     return { html, LOOPS };
   }
 
+  // ===== Инициализация барабанов (бесконечный скролл + центровка) =====
   function initBirthdayWheelsLooped(){
     const body = elBody(); if (!body) return;
+
     const wheels = body.querySelectorAll('.bday-wheel-scroll');
     wheels.forEach(scrollEl=>{
       const kind  = scrollEl.dataset.kind;
@@ -337,7 +429,8 @@
       const LOOPS = Math.round(items.length / total);
 
       let cur = (kind==='day' ? (S.birthdayDay||1) : (S.birthdayMonth||1));
-      if (kind==='day'){ if (cur<1 || cur>31) cur = 1; } else { if (cur<1 || cur>12) cur = 1; }
+      if (kind==='day')  { if (cur<1 || cur>31) cur = 1; }
+      else               { if (cur<1 || cur>12) cur = 1; }
 
       const midStartIndex = Math.floor(LOOPS/2) * total;
       const targetIndex   = midStartIndex + (cur - 1);
@@ -361,7 +454,9 @@
         return { node: best, val: bestVal };
       }
 
-      function applyActive(node){ items.forEach(x=>x.classList.toggle('is-active', x===node)); }
+      function applyActive(node){
+        items.forEach(x=>x.classList.toggle('is-active', x===node));
+      }
 
       function setModel(val, silent){
         if (kind==='day'){
@@ -376,14 +471,18 @@
       function wrapIfNeeded(){
         const top   = scrollEl.scrollTop;
         const maxTop= scrollEl.scrollHeight - scrollEl.clientHeight;
-        if (top < ringHeight)               scrollEl.scrollTop = top + ringHeight*(LOOPS-2);
-        else if (top > maxTop - ringHeight) scrollEl.scrollTop = top - ringHeight*(LOOPS-2);
+        if (top < ringHeight){
+          scrollEl.scrollTop = top + ringHeight*(LOOPS-2);
+        } else if (top > maxTop - ringHeight){
+          scrollEl.scrollTop = top - ringHeight*(LOOPS-2);
+        }
       }
 
       function onScroll(isEnd){
         wrapIfNeeded();
         const {node, val} = valueByCenter();
         if (!node || !val) return;
+
         if (!isEnd){
           if (val!==lastVal){
             lastVal = val;
@@ -391,7 +490,7 @@
             setModel(val, false);
             haptic('light');
           }
-        } else {
+        }else{
           const top = node.offsetTop - (scrollEl.clientHeight/2 - node.offsetHeight/2);
           scrollEl.scrollTo({ top, behavior:'smooth' });
           applyActive(node);
@@ -401,7 +500,7 @@
       }
 
       const first = valueByCenter();
-      if (first.node) applyActive(first.node);
+      if (first.node){ applyActive(first.node); }
 
       scrollEl.addEventListener('scroll', ()=>{
         onScroll(false);
@@ -418,16 +517,9 @@
     });
   }
 
-  function enableBirthdayButton(){
-    const body = elBody(); if (!body) return;
-    const btn = body.querySelector('[data-action="trivia-save-bday"]');
-    if (!btn) return;
-    btn.disabled = false;
-    btn.classList.add('is-active');
-  }
-
+  // ===== Рендер шага ДР (с бесконечными барабанами) =====
   function renderBirthdayStep(step){
-    const body = elBody(); if (!body) return;
+    const box = elBody(); if (!box) return;
     ensureStyles();
 
     try{
@@ -443,21 +535,26 @@
     }catch(_){}
 
     const score = S.score || 0;
+
     const days   = buildLoopedItems(31, v => `<div class="bday-wheel-item" data-value="${v}">${v}</div>`);
     const months = buildLoopedItems(12, v => `<div class="bday-wheel-item" data-value="${v}">${MONTHS[v-1]}</div>`);
 
-    body.innerHTML =
+    box.innerHTML =
       `<div class="trivia-q trivia-bday">
          <div class="trivia-title">Финальный шаг</div>
          <p class="trivia-text">Ты набрал <b>${score} монет</b> в этой викторине вкуса.</p>
          <p class="trivia-text">${step.text}</p>
          <div class="bday-wheels">
            <div class="bday-wheel">
-             <div class="bday-wheel-scroll" data-kind="day">${days.html}</div>
+             <div class="bday-wheel-scroll" data-kind="day">
+               ${days.html}
+             </div>
              <div class="bday-wheel-highlight"></div>
            </div>
            <div class="bday-wheel">
-             <div class="bday-wheel-scroll" data-kind="month">${months.html}</div>
+             <div class="bday-wheel-scroll" data-kind="month">
+               ${months.html}
+             </div>
              <div class="bday-wheel-highlight"></div>
            </div>
          </div>
@@ -466,38 +563,44 @@
            <button class="btn btn-primary trivia-next" data-action="trivia-save-bday" disabled>Указать дату и забрать монеты</button>
          </div>
        </div>`;
+
     initBirthdayWheelsLooped();
   }
 
+  // ===== Завершение =====
   function renderFinish(){
-    const body = elBody(); if (!body) return;
+    const box = elBody(); if (!box) return;
     const score = S.score || 0;
-    body.innerHTML = `<div class="trivia-q"><p>Готово! Мы сохранили твой «паспорт вкуса» и дату. На счёт зачислено <b>${score} монет</b>.</p></div>`;
+    box.innerHTML =
+      `<div class="trivia-q">
+         <p>Готово! Мы сохранили твой «паспорт вкуса» и дату. На счёт зачислено <b>${score} монет</b>.</p>
+       </div>`;
   }
 
-  // ===== Start/Finish =====
   function startQuiz(){
-    ensureShell();
     rootCard()?.classList.add('is-running');
     elStart()?.classList.add('is-hidden');
-    S.i=0; S.canNext=false; S.score=0; S.earned = new Array(STEPS.length).fill(false);
+    S.i=0; S.canNext=false; S.score=0;
+    S.earned = new Array(STEPS.length).fill(false);
     S.profile={}; S.birthdayTouched=false;
     renderStep();
   }
 
   function finishQuiz(){
+    logPrize(`+${S.score}🪙 за викторину вкуса`);
     S.completed = true;
     setLast();
     haptic('light');
     renderFinish();
     rootCard()?.classList.remove('is-running');
     sendProfileQuizFinishToServer();
-    setTimeout(renderStartRow, 1200);
+    setTimeout(renderStartRow, 1400);
   }
 
-  // ===== Слушатели =====
+  // ===== Слушатель кликов =====
   document.addEventListener('click', (e)=>{
-    // старт
+    const body = elBody();
+
     if (e.target.closest?.('[data-action="trivia-start"]')){
       e.preventDefault();
       if (hasCompleted()) return;
@@ -505,17 +608,16 @@
       return;
     }
 
-    const body = elBody();
     if (!body || !body.contains(e.target)) return;
     const step = STEPS[S.i];
 
-    // выбор варианта
     const opt = e.target.closest?.('.trivia-opt');
-    if (opt && step && step.type === 'q'){
+    if (opt && step && step.type === 'q' && body.contains(opt)){
       const value = opt.dataset.val;
       body.querySelectorAll('.trivia-opt').forEach(el => el.classList.remove('is-selected'));
       opt.classList.add('is-selected');
       if (step.id) S.profile[step.id] = value;
+
       const nextBtn = body.querySelector('.trivia-next');
       if (nextBtn){ nextBtn.disabled=false; nextBtn.classList.add('is-active'); }
       S.canNext = true;
@@ -523,42 +625,44 @@
       return;
     }
 
-    // далее
     if (e.target.closest?.('[data-action="trivia-next"]')){
       e.preventDefault();
       if (!S.canNext) return;
       const curStep = STEPS[S.i];
-      if (curStep && curStep.type === 'q' && !S.earned[S.i]){ S.score += curStep.coins || 0; S.earned[S.i] = true; }
+      if (curStep && curStep.type === 'q' && !S.earned[S.i]){
+        S.score += curStep.coins || 0;
+        S.earned[S.i] = true;
+      }
       if (S.i < STEPS.length - 1){ S.i++; S.canNext=false; renderStep(); }
       else { finishQuiz(); }
       return;
     }
 
-    // сохранить ДР
     if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday'){
       e.preventDefault();
-      const d = S.birthdayDay || 1, m = S.birthdayMonth || 1;
+      const d = S.birthdayDay || 1;
+      const m = S.birthdayMonth || 1;
       if (!(d>=1 && d<=31 && m>=1 && m<=12)){ alert('Укажи реальную дату — день от 1 до 31 и месяц 😉'); return; }
+
       try{
         const payload = `${String(d).padStart(2,'0')}-${String(m).padStart(2,'0')}`;
         localStorage.setItem(BDAY_KEY, payload);
         try{ window.onBeerBirthdaySaved?.({ day:d, month:m, score:S.score, profile:S.profile }); }catch(_){}
       }catch(_){}
-      finishQuiz(); return;
+
+      finishQuiz();
+      return;
     }
   });
 
-  // ===== Маунт при открытии шторки =====
+  // ===== Монтаж при появлении в шторке =====
   function mountIfReady(){
-    const card = rootCard();
-    if (card){
+    const body = elBody(), start = elStart();
+    if (body && start){
       ensureStyles();
-      ensureShell();                // создадим плашку и body, если их нет
       S.pending = true;
-      S.serverKnown = false;
-      S.serverCompleted = false;
-      renderStartRow();             // покажем «Проверяем статус…»
-      const body = elBody(); if (body) body.innerHTML = '';
+      renderStartRow();
+      body.innerHTML = '';
       fetchProfileQuizStateFromServer(true);
       return true;
     }
@@ -569,19 +673,19 @@
     mo.observe(document.body, {childList:true, subtree:true});
   }
 
-  // Публичный экспорт
+  // экспорт для явного вызова
   window.mountTrivia = function(forceFresh){
     ensureStyles();
-    ensureShell();
     const body = elBody(); if (body) body.innerHTML = '';
-    S.i=0; S.canNext=false; S.score=0; S.earned = new Array(STEPS.length).fill(false);
+    const start = elStart(); if (start) start.classList.remove('is-hidden');
+    S.i=0; S.canNext=false; S.score=0;
+    S.earned = new Array(STEPS.length).fill(false);
     S.profile={}; S.birthdayTouched=false;
-    S.pending = true; S.serverKnown=false; S.serverCompleted=false;
+    S.pending = true;
     renderStartRow();
     fetchProfileQuizStateFromServer(!!forceFresh);
   };
 
-  // Перехват openSheet (если нет финального хука — пусть будет здесь)
   const _openSheet = window.openSheet;
   window.openSheet = function(opts){
     _openSheet && _openSheet(opts);
@@ -590,4 +694,5 @@
       window.mountTrivia(true);
     }
   };
+
 })();
