@@ -242,16 +242,31 @@
 <!-- ===== квиз рендер из js ===== -->
 <template id="tpl-trivia">
   <div class="card trivia-card">
-    <!-- (необязательно) заголовок/картинка -->
-    <div class="h1">
-      <img src="img/casino-chips.png" alt="" loading="lazy">
-      Ответь на 4 простых вопроса и получи 100 монет
+    <div id="trivia-start" class="trivia-start">
+      <div class="trivia-start-inner">
+        <div class="trivia-start-icon">
+          <img src="img/casino-chips.png" alt="" loading="lazy">
+        </div>
+        <div class="trivia-start-copy">
+          <div class="trivia-title">
+            Ответь на 4 простых вопроса и получи 100 монет
+          </div>
+          <p id="trivia-start-hint" class="trivia-start__hint"></p>
+        </div>
+      </div>
+
+      <button
+        type="button"
+        class="btn btn-primary trivia-next trivia-start-btn"
+        data-action="trivia-start"
+      >
+        Начать
+      </button>
     </div>
 
     <div id="trivia-body"></div>
   </div>
 </template>
-
 
 
 
