@@ -186,7 +186,7 @@
     birthdayMonth: 1,
     birthdayTouched: false,
     completed: false,
-    pending: false            // <-- добавлено: ждём свежий статус из таблицы
+    pending: false            // <-- ждём свежий статус из таблицы
   };
 
   // ===== «Память шторки»: как у Паспорта (устойчиво) =====
@@ -233,8 +233,8 @@
       .trivia-start-btn.is-done{ opacity:0.7; pointer-events:none; background:transparent !important; border:1px solid rgba(255,255,255,0.35); color:#aaaaaa !important; }
 
       /* ✅ фиксы поведения шторки */
-      .trivia-start.is-hidden { display: none !important; }     /* прячем стартовую плашку во время прохождения */
-      .trivia-card.is-running > .h1 { display: none !important; } /* прячем заголовок/картинку на время прохождения */
+      .trivia-start.is-hidden { display: none !important; }
+      .trivia-card.is-running > .h1 { display: none !important; }
     `;
     const styleEl = document.createElement('style');
     styleEl.textContent = css;
@@ -263,7 +263,6 @@
       console.log('[quiz.finish] response', res);
 
       if (res && res.ok) {
-        // не даём серверу «сбить» локальную отметку
         const remoteCompleted = res.status === 'completed' || res.completed === true || res.done === true;
         if (remoteCompleted) S.completed = true;
         setLast();
@@ -291,14 +290,13 @@
     try {
       const res = await window.api('profile_quiz.state', {
         quiz_id: QUIZ_ID,
-        fresh: fresh ? 1 : 0,  // подсказка воркеру/ГАС — обойти KV
+        fresh: fresh ? 1 : 0,
         no_cache: 1,
         ts: Date.now()
       });
       console.log('[quiz.state] response', res);
 
       if (res && res.ok) {
-        // фиксируем completion ТОЛЬКО в сторону true
         const remoteCompleted =
           res.status === 'completed' || res.completed === true || res.done === true ||
           res.bday_day != null || res.bday_month != null;
@@ -404,7 +402,7 @@
 
   // ===== Вспомогательная генерация: много «колец» для бесконечного скролла =====
   function buildLoopedItems(count, render){
-    const LOOPS = 7; // нечётное, чтобы был «центр»
+    const LOOPS = 7;
     let html = '';
     for (let k=0;k<LOOPS;k++){
       for (let v=1; v<=count; v++){
@@ -420,23 +418,20 @@
 
     const wheels = body.querySelectorAll('.bday-wheel-scroll');
     wheels.forEach(scrollEl=>{
-      const kind  = scrollEl.dataset.kind;                // 'day' | 'month'
+      const kind  = scrollEl.dataset.kind;
       const total = (kind==='day') ? 31 : 12;
       const items = Array.from(scrollEl.querySelectorAll('.bday-wheel-item'));
       if (!items.length) return;
 
-      // высота одного «кольца»
       const firstIdx = 0;
       const lastIdxFirstRing = total - 1;
       const ringHeight = items[lastIdxFirstRing].offsetTop + items[lastIdxFirstRing].offsetHeight - items[firstIdx].offsetTop;
       const LOOPS = Math.round(items.length / total);
 
-      // стартовое значение
       let cur = (kind==='day' ? (S.birthdayDay||1) : (S.birthdayMonth||1));
       if (kind==='day')  { if (cur<1 || cur>31) cur = 1; }
       else               { if (cur<1 || cur>12) cur = 1; }
 
-      // позиционируем в среднее кольцо
       const midStartIndex = Math.floor(LOOPS/2) * total;
       const targetIndex   = midStartIndex + (cur - 1);
       const targetItem    = items[targetIndex];
@@ -496,7 +491,6 @@
             haptic('light');
           }
         }else{
-          // фиксация по центру
           const top = node.offsetTop - (scrollEl.clientHeight/2 - node.offsetHeight/2);
           scrollEl.scrollTo({ top, behavior:'smooth' });
           applyActive(node);
@@ -505,7 +499,6 @@
         }
       }
 
-      // начальная активная строка
       const first = valueByCenter();
       if (first.node){ applyActive(first.node); }
 
@@ -515,7 +508,6 @@
         stopTimer = setTimeout(()=>onScroll(true), 130);
       });
 
-      // клик по строке — центрируем
       scrollEl.addEventListener('click', (e)=>{
         const row = e.target.closest('.bday-wheel-item');
         if (!row) return;
@@ -530,7 +522,6 @@
     const box = elBody(); if (!box) return;
     ensureStyles();
 
-    // локальный фолбэк сохранённой даты
     try{
       if (!S.birthdayTouched){
         const saved = localStorage.getItem(BDAY_KEY);
@@ -545,7 +536,6 @@
 
     const score = S.score || 0;
 
-    // генерим МНОГО колец (бесконечный скролл)
     const days   = buildLoopedItems(31, v => `<div class="bday-wheel-item" data-value="${v}">${v}</div>`);
     const months = buildLoopedItems(12, v => `<div class="bday-wheel-item" data-value="${v}">${MONTHS[v-1]}</div>`);
 
@@ -588,8 +578,8 @@
   }
 
   function startQuiz(){
-    rootCard()?.classList.add('is-running'); // прячем заголовок/картинку
-    elStart()?.classList.add('is-hidden');   // прячем старт-блок
+    rootCard()?.classList.add('is-running');
+    elStart()?.classList.add('is-hidden');
     S.i=0; S.canNext=false; S.score=0;
     S.earned = new Array(STEPS.length).fill(false);
     S.profile={}; S.birthdayTouched=false;
@@ -598,11 +588,11 @@
 
   function finishQuiz(){
     logPrize(`+${S.score}🪙 за викторину вкуса`);
-    S.completed = true;            // локально фиксируем сразу
-    setLast();                     // «память шторки» как у Паспорта
+    S.completed = true;
+    setLast();
     haptic('light');
     renderFinish();
-    rootCard()?.classList.remove('is-running'); // возвращаем шапку
+    rootCard()?.classList.remove('is-running');
     sendProfileQuizFinishToServer();
     setTimeout(renderStartRow, 1400);
   }
@@ -611,7 +601,6 @@
   document.addEventListener('click', (e)=>{
     const body = elBody();
 
-    // старт
     if (e.target.closest?.('[data-action="trivia-start"]')){
       e.preventDefault();
       if (hasCompleted()) return;
@@ -622,7 +611,6 @@
     if (!body || !body.contains(e.target)) return;
     const step = STEPS[S.i];
 
-    // выбор варианта
     const opt = e.target.closest?.('.trivia-opt');
     if (opt && step && step.type === 'q' && body.contains(opt)){
       const value = opt.dataset.val;
@@ -637,7 +625,6 @@
       return;
     }
 
-    // далее
     if (e.target.closest?.('[data-action="trivia-next"]')){
       e.preventDefault();
       if (!S.canNext) return;
@@ -651,7 +638,6 @@
       return;
     }
 
-    // сохранение ДР
     if (e.target.closest?.('[data-action="trivia-save-bday"]') && step && step.type === 'birthday'){
       e.preventDefault();
       const d = S.birthdayDay || 1;
@@ -674,11 +660,10 @@
     const body = elBody(), start = elStart();
     if (body && start){
       ensureStyles();
-      // показываем неактивную кнопку и ждём свежий статус
       S.pending = true;
       renderStartRow();
       body.innerHTML = '';
-      fetchProfileQuizStateFromServer(true); // fresh проверка из таблицы
+      fetchProfileQuizStateFromServer(true);
       return true;
     }
     return false;
@@ -693,7 +678,6 @@
     ensureStyles();
     const body = elBody(); if (body) body.innerHTML = '';
     const start = elStart(); if (start) start.classList.remove('is-hidden');
-    // НЕ сбиваем completion — только обновляем из таблицы
     S.i=0; S.canNext=false; S.score=0;
     S.earned = new Array(STEPS.length).fill(false);
     S.profile={}; S.birthdayTouched=false;
@@ -702,13 +686,12 @@
     fetchProfileQuizStateFromServer(!!forceFresh);
   };
 
-  // ===== Хук шторки (как у Паспорта): при открытии "Викторина" маунтим свежо =====
   const _openSheet = window.openSheet;
   window.openSheet = function(opts){
     _openSheet && _openSheet(opts);
     const title = (opts && opts.title) || '';
     if (/викторин/i.test(title) && typeof window.mountTrivia === 'function'){
-      window.mountTrivia(true); // просим свежий статус
+      window.mountTrivia(true);
     }
   };
 
