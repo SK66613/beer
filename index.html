@@ -54,6 +54,8 @@
     <svg class="badge" viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Загрузка">
       <defs>
         <clipPath id="badge-clip"><circle cx="120" cy="120" r="92"/></clipPath>
+
+        <!-- Градиенты -->
         <linearGradient id="beer-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"  stop-color="#FAD97A"/>
           <stop offset="65%" stop-color="#E3A71A"/>
@@ -64,31 +66,62 @@
           <stop offset="40%" stop-color="rgba(255,255,255,.12)"/>
           <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
         </linearGradient>
-        <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.5"/></filter>
+
+        <!-- Мягкость -->
+        <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="1.5"/>
+        </filter>
       </defs>
 
-      <circle cx="120" cy="120" r="108" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="8"/>
-      <circle class="ring" cx="120" cy="120" r="108" fill="none" stroke="#FFD36B" stroke-width="8" stroke-linecap="round"/>
+      <!-- Внешнее статичное кольцо -->
+      <circle cx="120" cy="120" r="108" fill="none"
+              stroke="rgba(255,255,255,.12)" stroke-width="8"/>
 
+      <!-- Бесконечный круговой спиннер-дуга -->
+      <g class="spinner">
+        <circle cx="120" cy="120" r="108" fill="none"
+                stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
+                stroke-dasharray="120 560"/>
+      </g>
+
+      <!-- Внутренний круг: пиво, волны, пена, блики -->
       <g clip-path="url(#badge-clip)">
+        <!-- Янтарь: наполнение волной -->
         <g class="beer">
           <g class="wave wave-a">
             <rect x="-240" y="60" width="720" height="160" fill="url(#beer-grad)"/>
-            <path d="M-240,110 q30,-14 60,0 t60,0 t60,0 t60,0 t60,0 l0,110 l-300,0 Z" fill="rgba(255,255,255,.08)"/>
+            <path d="M-240,110 q30,-14 60,0 t60,0 t60,0 t60,0 t60,0 l0,110 l-300,0 Z"
+                  fill="rgba(255,255,255,.08)"/>
           </g>
           <g class="wave wave-b">
             <rect x="-240" y="70" width="720" height="160" fill="url(#beer-grad)"/>
-            <path d="M-240,120 q30,-12 60,0 t60,0 t60,0 t60,0 t60,0 l0,100 l-300,0 Z" fill="rgba(255,255,255,.05)"/>
+            <path d="M-240,120 q30,-12 60,0 t60,0 t60,0 t60,0 t60,0 l0,100 l-300,0 Z"
+                  fill="rgba(255,255,255,.05)"/>
           </g>
         </g>
 
+        <!-- Пена (реалистичнее, появляется после наполнения) -->
         <g class="foam" filter="url(#soft)">
-          <ellipse cx="70"  cy="62" rx="32" ry="12" fill="#FFFFFF"/>
-          <ellipse cx="105" cy="58" rx="38" ry="13" fill="#FFFFFF"/>
-          <ellipse cx="140" cy="61" rx="34" ry="12" fill="#FFFFFF"/>
-          <ellipse cx="170" cy="59" rx="30" ry="11" fill="#FFFFFF"/>
+          <!-- нижний слой -->
+          <ellipse cx="70"  cy="62" rx="32" ry="12" fill="#fff"/>
+          <ellipse cx="105" cy="58" rx="38" ry="13" fill="#fff"/>
+          <ellipse cx="140" cy="61" rx="34" ry="12" fill="#fff"/>
+          <ellipse cx="170" cy="59" rx="30" ry="11" fill="#fff"/>
+          <!-- верхний пористый слой -->
+          <g opacity=".9">
+            <ellipse cx="70"  cy="62" rx="28" ry="10" fill="#fff"/>
+            <ellipse cx="105" cy="58" rx="36" ry="12" fill="#fff"/>
+            <ellipse cx="140" cy="61" rx="30" ry="10" fill="#fff"/>
+          </g>
+          <!-- шапочки/комочки -->
+          <g opacity=".95">
+            <circle cx="85"  cy="58" r="6" fill="#fff"/>
+            <circle cx="118" cy="56" r="7" fill="#fff"/>
+            <circle cx="152" cy="59" r="5" fill="#fff"/>
+          </g>
         </g>
 
+        <!-- Пузырьки -->
         <g class="bubbles">
           <circle cx="80"  cy="170" r="2.4"/>
           <circle cx="100" cy="185" r="2"/>
@@ -97,6 +130,7 @@
           <circle cx="110" cy="195" r="1.8"/>
         </g>
 
+        <!-- Блик стекла -->
         <ellipse class="highlight" cx="95" cy="95" rx="70" ry="95" fill="url(#glass-glow)"/>
       </g>
     </svg>
@@ -104,6 +138,7 @@
     <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+
 
 
 
@@ -729,100 +764,129 @@
 
 <script>
 (() => {
-  // === 0) Адрес воркера задаем прямо тут (без глобалей) ===
-  const API_BASE = (window.API_BASE && String(window.API_BASE).trim()) ||
-                   'https://craftbeer-demo.cyberian13.workers.dev';
+  // ==== 0) Адрес воркера (локально в этом скрипте) ====
+  const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // === 1) Helper: управление прелоадером ===
+  // ==== 1) Прелоадер ====
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){ const el=$pre(); if(!el) return; if(t) setCaption(t); el.classList.remove('is-hidden'); }
-  function hideLoader(force=false){
-    const el=$pre(); if(!el) return;
-    el.classList.add('is-hidden');
-    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
+  function hideLoader(force=false){ const el=$pre(); if(!el) return;
+    el.classList.add('is-hidden'); if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 380);
   }
-
-  // страховки: при любой необработанной ошибке лоадер не зависнет
+  // если что-то упало — не оставим лоадер висеть
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  // === 2) Fetch helpers ===
+  // ==== 2) Fetch helpers ====
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-
   async function jpostJSON(url, body, timeoutMs=12000){
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort('timeout'), timeoutMs);
+    const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
-      const r = await fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
-        body: JSON.stringify(body||{}),
-        signal: ctrl.signal
-      });
-      const ct = r.headers.get('content-type')||'';
-      const raw = await r.text();
-      let data;
-      try{ data = JSON.parse(raw); }
-      catch(e){
-        console.error('NOT JSON', {url, status:r.status, ct, raw:raw.slice(0,400)});
-        throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`);
-      }
+      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+                                   body: JSON.stringify(body||{}), signal: ctrl.signal });
+      const ct = r.headers.get('content-type')||''; const raw = await r.text();
+      let data; try{ data = JSON.parse(raw); }
+      catch(e){ console.error('NOT JSON', {url, status:r.status, ct, raw: raw.slice(0,400)}); throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`); }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       return data;
     } finally { clearTimeout(t); }
   }
 
-  // === 3) Ждём state: бесконечные ретраи с бэкоффом, пока не ок ===
+  // ==== 3) Применение состояния к UI (зови свои функции-обновлялки тут) ====
+  function applyState(s){
+    if (!s) return;
+    // --- Профиль ---
+    if (s.coins != null && typeof updateCoinsUI === 'function') updateCoinsUI(s.coins);
+    if (s.styles_count != null && typeof updateStylesCounter === 'function') updateStylesCounter(s.styles_count, s.styles_total);
+    if (s.last_stamp_name && typeof updateLastStamp === 'function') updateLastStamp(s.last_stamp_name);
+    if (s.ref_total != null && typeof updateRefTotal === 'function') updateRefTotal(s.ref_total);
+
+    // --- Призы ---
+    if (Array.isArray(s.last_prizes) && typeof updateLastPrizes === 'function') updateLastPrizes(s.last_prizes);
+
+    // --- Турнир / игра ---
+    if (Array.isArray(s.leaderboard_today)   && typeof renderLeaderboardToday   === 'function') renderLeaderboardToday(s.leaderboard_today);
+    if (Array.isArray(s.leaderboard_alltime) && typeof renderLeaderboardAlltime === 'function') renderLeaderboardAlltime(s.leaderboard_alltime);
+    if (s.game_today_best  != null && typeof updateTodayBest  === 'function') updateTodayBest(s.game_today_best);
+    if (s.game_plays_today != null && typeof updateTodayPlays === 'function') updateTodayPlays(s.game_plays_today);
+
+    if (s.config && typeof cacheConfig === 'function') cacheConfig(s.config);
+  }
+
+  // ==== 4) Наблюдатель за KV-снапшотом (перерисовка при новом kv_sig) ====
+  let LAST_SIG = null;
+  async function watchState(tg_init){
+    while (true){
+      try{
+        const st = await jpostJSON(API_BASE+'/api/mini/state', { tg_init, fresh:false });
+        if (st?.kv_sig && st.kv_sig !== LAST_SIG){
+          LAST_SIG = st.kv_sig;
+          applyState(st);
+        }
+      }catch(_){} // молча ретраим
+      await sleep(15000); // 15s
+    }
+  }
+
+  // ==== 5) Универсальный /api/mini/event — сразу применяем fresh_state ====
+  window.postMiniEvent = async function(type, data, tg_init){
+    const res = await jpostJSON(API_BASE+'/api/mini/event', { tg_init, type, data });
+    if (res?.fresh_state) applyState(res.fresh_state);
+    return res;
+  };
+
+  // ==== 6) Ждём пока появится валидный state (ретраи с бэкоффом) ====
   async function waitForState(tg_init){
     let attempt = 0;
     while (true){
       attempt++;
       try{
         setCaption(`Подключаемся… попытка ${attempt}`);
-        // 1) «будим» GAS (через воркер)
-        const boot = await jpostJSON(API_BASE + '/api/mini/bootstrap', { tg_init, fresh:true });
-        // 2) тянем state (KV + SWR)
-        const st   = await jpostJSON(API_BASE + '/api/mini/state', { tg_init, fresh:false });
+        // будим GAS через воркер
+        const boot = await jpostJSON(API_BASE+'/api/mini/bootstrap', { tg_init, fresh:true });
+        // state (KV+SWR)
+        const st   = await jpostJSON(API_BASE+'/api/mini/state', { tg_init, fresh:false });
 
-        // Считаем валидным, если есть fresh_state от bootstrap или ok от state
         const state = (st?.ok ? st : (boot?.fresh_state ? { ok:true, ...boot.fresh_state } : null));
         if (state && (state.ok || state.coins != null || state.config)){
           return state;
         }
-        console.warn('State not valid yet', {boot, st});
         throw new Error('state_invalid');
-      } catch(e){
-        console.warn('Wait state error:', e?.message || e);
-        // backoff: 1s, 2s, 3s … до 6s, затем держим 6s
-        const delay = Math.min(6000, 1000 * attempt);
+      }catch(e){
+        const delay = Math.min(6000, 1000*attempt);
         setCaption(`Нет связи с сервером, пытаемся снова… (${Math.round(delay/1000)}s)`);
         await sleep(delay);
       }
     }
   }
 
-  // === 4) Init: показываем UI только после валидных данных ===
+  // ==== 7) Главный init ====
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
+
     showLoader('Подключаемся…');
     tg?.showProgress?.();
 
     try{
-      // ждём пока реально будет state
       const state = await waitForState(tg_init);
       window.APP_STATE = state;
 
-      // твой рендер (если есть)
+      // мгновенное применение
+      applyState(window.APP_STATE);
+
+      // если есть твоя общая отрисовка — дергаем её
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      // убираем прелоадер только после успешного рендера
+      // прячем лоудер
       hideLoader(true);
+
+      // фоновый вотчер на смену снимка
+      watchState(tg_init);
     }catch(e){
-      // сюда попадём только если внутри waitForState будет throw без ретраев
       console.error('initAppUltra fatal:', e);
       setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
     }finally{
@@ -834,6 +898,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
