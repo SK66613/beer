@@ -55,101 +55,84 @@
       <defs>
         <clipPath id="badge-clip"><circle cx="120" cy="120" r="92"/></clipPath>
 
-        <!-- Градиенты -->
+        <!-- Янтарный градиент пива -->
         <linearGradient id="beer-grad" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%"  stop-color="#FAD97A"/>
           <stop offset="65%" stop-color="#E3A71A"/>
           <stop offset="100%" stop-color="#C58500"/>
         </linearGradient>
+
+        <!-- Блик стекла -->
         <linearGradient id="glass-glow" x1="0" y1="0" x2="1" y2="1">
           <stop offset="0%"  stop-color="rgba(255,255,255,.45)"/>
           <stop offset="40%" stop-color="rgba(255,255,255,.12)"/>
           <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
         </linearGradient>
 
-        <!-- Мягкость общего слоя -->
+        <!-- Мягкость -->
         <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="1.5"/>
+          <feGaussianBlur stdDeviation="1.2"/>
         </filter>
 
-        <!-- Текстура пены: лёгкий шум + микродеформация -->
-        <filter id="foamGrain" x="-20%" y="-40%" width="140%" height="180%">
-          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" seed="3" result="n">
-            <animate attributeName="seed" values="3;5;7;9;3" dur="4s" repeatCount="indefinite"/>
-          </feTurbulence>
+        <!-- Лёгкий шум для текстуры пены -->
+        <filter id="foamGrain" x="-15%" y="-40%" width="130%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="1" seed="4" result="n"/>
           <feColorMatrix type="matrix" values="
             1 0 0 0 0
             0 1 0 0 0
             0 0 1 0 0
-            0 0 0 1.2 -0.2"/>
-          <feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/>
-        </filter>
-
-        <!-- Подсветка гребня пены -->
-        <filter id="foamRidge" x="-10%" y="-40%" width="120%" height="180%">
-          <feGaussianBlur stdDeviation="0.8"/>
+            0 0 0 1.15 -0.15"/>
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="1.6" xChannelSelector="R" yChannelSelector="G"/>
         </filter>
       </defs>
 
-      <!-- Базовое бледное кольцо -->
+      <!-- Трек кольца -->
       <circle cx="120" cy="120" r="108" fill="none"
-              stroke="rgba(255,255,255,.12)" stroke-width="8"/>
+              stroke="rgba(255,255,255,.10)" stroke-width="8"/>
 
-      <!-- Крутящийся по кругу спиннер-дуга (CSS + SMIL fallback) -->
-      <g class="spinner" transform="rotate(0 120 120)">
-        <circle cx="120" cy="120" r="108" fill="none"
-                stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
-                stroke-dasharray="150 680"/>
-        <animateTransform attributeName="transform" attributeType="XML"
-                          type="rotate" from="0 120 120" to="360 120 120"
-                          dur="1.1s" repeatCount="indefinite"/>
-      </g>
+      <!-- Бегущая дуга (спиннер) -->
+      <circle class="spinner-dash" cx="120" cy="120" r="108" fill="none"
+              stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
+              stroke-dasharray="120 680" />
 
-      <!-- Внутренний круг: пиво, волны, пена, блики -->
+      <!-- Внутренняя сцена -->
       <g clip-path="url(#badge-clip)">
-        <!-- Янтарь: наполнение волной -->
+        <!-- Пиво с волнами -->
         <g class="beer">
           <g class="wave wave-a">
             <rect x="-240" y="60" width="720" height="160" fill="url(#beer-grad)"/>
-            <path d="M-240,110 q30,-14 60,0 t60,0 t60,0 t60,0 t60,0 l0,110 l-300,0 Z"
-                  fill="rgba(255,255,255,.08)"/>
+            <path d="M-240,110 q28,-12 56,0 t56,0 t56,0 t56,0 t56,0 l0,110 l-280,0 Z" fill="rgba(255,255,255,.08)"/>
           </g>
           <g class="wave wave-b">
             <rect x="-240" y="70" width="720" height="160" fill="url(#beer-grad)"/>
-            <path d="M-240,120 q30,-12 60,0 t60,0 t60,0 t60,0 t60,0 l0,100 l-300,0 Z"
-                  fill="rgba(255,255,255,.05)"/>
+            <path d="M-240,120 q26,-11 52,0 t52,0 t52,0 t52,0 t52,0 l0,100 l-260,0 Z" fill="rgba(255,255,255,.05)"/>
           </g>
         </g>
 
-        <!-- Пена v2: гребень + текстура + «попы» -->
+        <!-- Пена v3: чистый гребень + текстура + микро-пузырьки -->
         <g class="foam" filter="url(#soft)">
-          <!-- Волнистый гребень (двойной слой для объёма) -->
-          <g class="foam-ridge" filter="url(#foamRidge)">
-            <path d="M52,62 Q90,54 128,62 T204,62 L204,74 L52,74 Z" fill="#FFFFFF" opacity="0.95"/>
-            <path d="M52,63 Q90,55 128,63 T204,63 L204,74 L52,74 Z" fill="#FFFFFF" opacity="0.65"/>
-            <animateTransform attributeName="transform" type="translate"
-              values="-3 0; 3 0; -3 0" dur="2.6s" repeatCount="indefinite"/>
-          </g>
-
-          <!-- Текстура пены на кромке -->
-          <rect x="52" y="56" width="152" height="20" fill="#FFFFFF" opacity="0.25" filter="url(#foamGrain)"/>
-
-          <!-- Мелкие «попы» -->
+          <!-- основной гребень -->
+          <path class="foam-crest" d="M44,62 C78,54 162,54 196,62 L196,74 L44,74 Z" fill="#fff" opacity=".96"/>
+          <!-- мягкий верхний слой -->
+          <path class="foam-crest2" d="M44,61 C78,53 162,53 196,61 L196,73 L44,73 Z" fill="#fff" opacity=".55"/>
+          <!-- текстура только по кромке -->
+          <rect x="44" y="56" width="152" height="20" fill="#fff" opacity=".22" filter="url(#foamGrain)"/>
+          <!-- микро-пузырьки -->
           <g class="foam-pops">
-            <circle cx="78"  cy="60" r="2.8" fill="#fff"/>
-            <circle cx="102" cy="59" r="3.2" fill="#fff"/>
-            <circle cx="134" cy="60" r="2.4" fill="#fff"/>
-            <circle cx="160" cy="59" r="2.6" fill="#fff"/>
+            <circle cx="78"  cy="60" r="2.6" fill="#fff"/>
+            <circle cx="108" cy="59" r="3.0" fill="#fff"/>
+            <circle cx="138" cy="60" r="2.3" fill="#fff"/>
+            <circle cx="164" cy="59" r="2.5" fill="#fff"/>
           </g>
         </g>
 
-        <!-- Пузырьки -->
+        <!-- Пузырьки в пиве -->
         <g class="bubbles">
-          <circle cx="80"  cy="170" r="2.4"/>
-          <circle cx="100" cy="185" r="2"/>
-          <circle cx="125" cy="178" r="2.6"/>
-          <circle cx="150" cy="190" r="2.1"/>
-          <circle cx="110" cy="195" r="1.8"/>
+          <circle cx="82"  cy="170" r="2.2"/>
+          <circle cx="104" cy="186" r="1.9"/>
+          <circle cx="128" cy="178" r="2.4"/>
+          <circle cx="150" cy="192" r="2.0"/>
+          <circle cx="112" cy="196" r="1.7"/>
         </g>
 
         <!-- Блик стекла -->
@@ -160,6 +143,7 @@
     <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+
 
 
 
@@ -788,10 +772,8 @@
 
 <script>
 (() => {
-  // === адрес воркера локально, без глобалей ===
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // === прелоадер ===
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
@@ -820,7 +802,6 @@
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  // ждём минимум один цикл «наливания» + минимальное время на экране
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
     const elapsed = performance.now() - LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
@@ -829,27 +810,22 @@
     if (wait > 0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // === fetch helpers ===
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
       const r = await fetch(url, {
-        method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
-        body: JSON.stringify(body||{}),
-        signal: ctrl.signal
+        method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify(body||{}), signal: ctrl.signal
       });
       const ct = r.headers.get('content-type')||''; const raw = await r.text();
-      let data;
-      try{ data = JSON.parse(raw); }
+      let data; try{ data = JSON.parse(raw); }
       catch(e){ console.error('NOT JSON', {url, status:r.status, ct, raw: raw.slice(0,400)}); throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`); }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       return data;
     } finally { clearTimeout(t); }
   }
 
-  // === применение state к UI (подставь свои функции, проверка через typeof) ===
   function applyState(s){
     if (!s) return;
     if (s.coins != null && typeof updateCoinsUI === 'function') updateCoinsUI(s.coins);
@@ -864,7 +840,6 @@
     if (s.config && typeof cacheConfig === 'function') cacheConfig(s.config);
   }
 
-  // === watcher по kv_sig (обновление без перезагрузки)
   let LAST_SIG = null;
   async function watchState(tg_init){
     while (true){
@@ -874,12 +849,11 @@
           LAST_SIG = st.kv_sig;
           applyState(st);
         }
-      }catch(_){} // молча
+      }catch(_){}
       await sleep(15000);
     }
   }
 
-  // === ожидание валидного state (ретраи с бэкоффом)
   async function waitForState(tg_init){
     let attempt = 0;
     while (true){
@@ -899,27 +873,22 @@
     }
   }
 
-  // === главный init ===
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
-
     showLoader('Подключаемся…');
     tg?.showProgress?.();
 
     try{
       const state = await waitForState(tg_init);
       window.APP_STATE = state;
-
       applyState(window.APP_STATE);
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      // ждём минимум один цикл анимации перед скрытием
-      await waitLoaderCycle();
+      await waitLoaderCycle();   // минимум один цикл анимации
       hideLoader(true);
 
-      // фоновые обновления
-      watchState(tg_init);
+      watchState(tg_init);       // фоновая синхронизация KV
     }catch(e){
       console.error('initAppUltra fatal:', e);
       setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
@@ -932,6 +901,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
