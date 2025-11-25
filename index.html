@@ -49,10 +49,9 @@
 <body>
 
 <!-- BeerCraft Ultra Loader (overlay) -->
-<div id="app-preloader" class="ultra-preloader" aria-hidden="true" style="--loader-size:110px;">
+<div id="app-preloader" class="ultra-preloader" aria-hidden="true">
   <div class="badge-wrap">
-    <!-- width/height убрал — размером управляем через CSS переменную -->
-    <svg class="badge" viewBox="0 0 240 240" role="img" aria-label="Загрузка">
+    <svg class="badge" viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Загрузка">
       <defs>
         <clipPath id="badge-clip"><circle cx="120" cy="120" r="92"/></clipPath>
 
@@ -87,13 +86,13 @@
         </filter>
       </defs>
 
-      <!-- Тонкая «калия» — трек для бегущей дуги (граница кружки) -->
-      <circle class="track" cx="120" cy="120" r="108" fill="none"
-              stroke="rgba(255,255,255,.06)" stroke-width="6"/>
+      <!-- Трек кольца -->
+      <circle cx="120" cy="120" r="108" fill="none"
+              stroke="rgba(255,255,255,.10)" stroke-width="8"/>
 
-      <!-- Бегущая дуга (CSS + SMIL + JS-fallback) -->
+      <!-- Бегущая дуга (CSS + SMIL fallback) -->
       <circle class="spinner-dash" cx="120" cy="120" r="108" fill="none"
-              stroke="#FFD36B" stroke-width="6" stroke-linecap="round"
+              stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
               stroke-dasharray="120 680" stroke-dashoffset="0">
         <animate attributeName="stroke-dashoffset"
                  values="0;-800" dur="1.15s" repeatCount="indefinite" />
@@ -101,7 +100,7 @@
 
       <!-- Внутренняя сцена -->
       <g clip-path="url(#badge-clip)">
-        <!-- «Тело» пива: волны + плавный «налив» -->
+        <!-- Пиво с волнами -->
         <g class="beer">
           <g class="wave wave-a">
             <rect x="-240" y="60" width="720" height="160" fill="url(#beer-grad)"/>
@@ -112,16 +111,6 @@
             <path d="M-240,120 q26,-11 52,0 t52,0 t52,0 t52,0 t52,0 l0,100 l-260,0 Z" fill="rgba(255,255,255,.05)"/>
           </g>
         </g>
-
-        <!-- Волнистая кромка пива: стык с пеной (не идеально ровная) -->
-        <path class="beer-cap" fill="url(#beer-grad)"
-              d="M44,64 C78,56 162,56 196,64 L196,140 L44,140 Z">
-          <animate attributeName="d" dur="3.2s" repeatCount="indefinite"
-            values="
-              M44,64 C78,56 162,56 196,64 L196,140 L44,140 Z;
-              M44,63 C78,55 162,57 196,63 L196,140 L44,140 Z;
-              M44,64 C78,56 162,56 196,64 L196,140 L44,140 Z" />
-        </path>
 
         <!-- Пена v3: чистый гребень + текстура + микро-пузырьки -->
         <g class="foam" filter="url(#soft)">
@@ -145,7 +134,7 @@
           <circle cx="112" cy="196" r="1.7"/>
         </g>
 
-        <!-- Блик стекла (если не нужен — удали этот эллипс) -->
+        <!-- Блик стекла -->
         <ellipse class="highlight" cx="95" cy="95" rx="70" ry="95" fill="url(#glass-glow)"/>
       </g>
     </svg>
@@ -783,39 +772,35 @@
 
 <script>
 (() => {
+  // адрес воркера
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // =========== Прелоадер ===========
+  // --- Прелоадер (как раньше) ---
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
-  let LOADER_T0 = 0, LOADER_FILL_DONE = false;
+
+  let LOADER_T0 = 0;
+  let LOADER_FILL_DONE = false;
 
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){
     const el=$pre(); if(!el) return;
     if(t) setCaption(t);
-    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false;
-    el.querySelector('.beer')?.addEventListener('animationend', (e)=>{
-      if (e.animationName==='fill') LOADER_FILL_DONE = true;
-    }, {once:true});
+    LOADER_T0 = performance.now();
+    LOADER_FILL_DONE = false;
+    const beer = el.querySelector('.beer');
+    beer?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
     el.classList.remove('is-hidden');
   }
   function hideLoader(force=false){
     const el=$pre(); if(!el) return;
-    el.classList.add('is-hidden'); if(force) setTimeout(()=>{ try{ el.remove(); }catch(_){} },380);
+    el.classList.add('is-hidden');
+    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
   }
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
-    const elapsed = performance.now()-LOADER_T0;
-    const leftVisible = Math.max(0, minVisibleMs - elapsed);
-    const leftFill    = LOADER_FILL_DONE ? 0 : Math.max(0, fillMs - elapsed);
-    const wait = Math.max(leftVisible, leftFill);
-    if (wait>0) await new Promise(r=>setTimeout(r, wait));
-  }
-
-  // Спиннер-страховка (если CSS/SMIL вдруг не крутят на десктопе)
+  // спиннер-страховка для десктопа
   function ensureSpinnerRuns(){
     const c = document.querySelector('.spinner-dash');
     if (!c) return;
@@ -827,24 +812,38 @@
       const after = getComputedStyle(c).strokeDashoffset;
       if (before === after || !after){
         let t0 = null; const period = 1.15;
-        const loop = (ts) => { if(!t0) t0=ts; const dt=(ts-t0)/1000;
+        function loop(ts){
+          if (!t0) t0 = ts;
+          const dt = (ts - t0) / 1000;
           c.style.strokeDashoffset = String(-(len * (dt % period) / period));
           requestAnimationFrame(loop);
-        };
+        }
         requestAnimationFrame(loop);
       }
     }, 400);
   }
 
-  // =========== fetch helper (без кастомных заголовков) ===========
+  // ждём минимум один цикл «наливания»
+  async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
+    const elapsed = performance.now()-LOADER_T0;
+    const leftVisible = Math.max(0, minVisibleMs - elapsed);
+    const leftFill    = LOADER_FILL_DONE ? 0 : Math.max(0, fillMs - elapsed);
+    const wait = Math.max(leftVisible, leftFill);
+    if (wait>0) await new Promise(r=>setTimeout(r, wait));
+  }
+
+  // --- fetch helper: БЕЗ кастомных заголовков (чтобы не было preflight-провала) ---
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
       const r = await fetch(url, {
         method:'POST',
-        cache: 'no-store',
-        headers:{ 'Content-Type':'application/json', 'Accept':'application/json' },
+        cache: 'no-store',              // браузер не будет брать из своего кэша
+        headers:{
+          'Content-Type':'application/json',
+          'Accept':'application/json'
+        },
         body: JSON.stringify(body||{}),
         signal: ctrl.signal
       });
@@ -856,10 +855,11 @@
     } finally { clearTimeout(t); }
   }
 
-  // =========== Применение стейта к UI ===========
+  // --- простые DOM-апдейтеры на случай, если твоих функций нет ---
   const setText = (sel, v)=>{ const el=document.querySelector(sel); if(el) el.textContent=String(v??''); };
   const setHTML = (sel, html)=>{ const el=document.querySelector(sel); if(el) el.innerHTML=html; };
 
+  // --- применение state к UI (профиль, призы, штампы, турнир) ---
   function applyState(s){
     if (!s) return;
 
@@ -905,12 +905,13 @@
     if (s.config && typeof cacheConfig==='function') cacheConfig(s.config);
   }
 
-  // =========== watcher по kv_sig ===========
+  // --- watcher по kv_sig ---
   let LAST_SIG = null, WATCH_ABORT = false;
   async function watchState(tg_init, uid){
     WATCH_ABORT = false;
     while (!WATCH_ABORT){
       try{
+        // только body (uid, bust), НИКАКИХ кастом-заголовков
         const st = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`, { tg_init, fresh:false, uid, bust:Date.now() });
         if (st?.kv_sig && st.kv_sig !== LAST_SIG){
           LAST_SIG = st.kv_sig;
@@ -921,14 +922,14 @@
     }
   }
 
-  // мгновенный апдейт после /event
+  // --- /api/mini/event: сразу применяем fresh_state ---
   window.postMiniEvent = async function(type, data, tg_init, uid){
     const res = await jpostJSON(`${API_BASE}/api/mini/event?bust=${Date.now()}`, { tg_init, type, data, uid, bust:Date.now() });
     if (res?.fresh_state) applyState(res.fresh_state);
     return res;
   };
 
-  // ожидание валидного state (ретраи)
+  // --- ожидание валидного state (ретраи) ---
   async function waitForState(tg_init, uid, switched){
     let attempt = 0;
     while (true){
@@ -952,17 +953,19 @@
     }
   }
 
-  // =========== init с детектом смены аккаунта ===========
+  // --- главный init с детектом смены аккаунта ---
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
     const UID = String(tg?.initDataUnsafe?.user?.id || '');
     const lastUid = sessionStorage.getItem('last_uid') || '';
     const switched = UID && lastUid && UID !== lastUid;
+
     if (switched){ LAST_SIG = null; window.APP_STATE = null; WATCH_ABORT = true; }
     if (UID) sessionStorage.setItem('last_uid', UID);
 
-    showLoader('Подключаемся…'); ensureSpinnerRuns();
+    showLoader('Подключаемся…');
+    ensureSpinnerRuns(); // гарант кручения на десктопе
     tg?.showProgress?.();
 
     try{
@@ -972,21 +975,23 @@
       applyState(window.APP_STATE);
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      await waitLoaderCycle();
+      await waitLoaderCycle();   // минимум один цикл анимации
       hideLoader(true);
 
-      watchState(tg_init, UID);
+      watchState(tg_init, UID);  // фоновая синхронизация KV
     }catch(e){
       console.error('initAppUltra fatal:', e);
       setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
     }finally{
-      tg?.ready?.(); tg?.hideProgress?.();
+      tg?.ready?.();
+      tg?.hideProgress?.();
     }
   }
 
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
