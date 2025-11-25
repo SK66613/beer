@@ -90,10 +90,13 @@
       <circle cx="120" cy="120" r="108" fill="none"
               stroke="rgba(255,255,255,.10)" stroke-width="8"/>
 
-      <!-- Бегущая дуга (спиннер) -->
+      <!-- Бегущая дуга (CSS + SMIL fallback) -->
       <circle class="spinner-dash" cx="120" cy="120" r="108" fill="none"
               stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
-              stroke-dasharray="120 680" />
+              stroke-dasharray="120 680" stroke-dashoffset="0">
+        <animate attributeName="stroke-dashoffset"
+                 values="0;-800" dur="1.15s" repeatCount="indefinite" />
+      </circle>
 
       <!-- Внутренняя сцена -->
       <g clip-path="url(#badge-clip)">
@@ -111,13 +114,9 @@
 
         <!-- Пена v3: чистый гребень + текстура + микро-пузырьки -->
         <g class="foam" filter="url(#soft)">
-          <!-- основной гребень -->
-          <path class="foam-crest" d="M44,62 C78,54 162,54 196,62 L196,74 L44,74 Z" fill="#fff" opacity=".96"/>
-          <!-- мягкий верхний слой -->
+          <path class="foam-crest"  d="M44,62 C78,54 162,54 196,62 L196,74 L44,74 Z" fill="#fff" opacity=".96"/>
           <path class="foam-crest2" d="M44,61 C78,53 162,53 196,61 L196,73 L44,73 Z" fill="#fff" opacity=".55"/>
-          <!-- текстура только по кромке -->
           <rect x="44" y="56" width="152" height="20" fill="#fff" opacity=".22" filter="url(#foamGrain)"/>
-          <!-- микро-пузырьки -->
           <g class="foam-pops">
             <circle cx="78"  cy="60" r="2.6" fill="#fff"/>
             <circle cx="108" cy="59" r="3.0" fill="#fff"/>
@@ -143,6 +142,7 @@
     <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+
 
 
 
@@ -772,8 +772,10 @@
 
 <script>
 (() => {
+  // адрес воркера (если нужно — замени)
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
+  // --- Прелоадер
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
@@ -802,6 +804,31 @@
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
+  // Спиннер-страховка: если dashoffset не двигается — анимируем вручную
+  function ensureSpinnerRuns(){
+    const c = document.querySelector('.spinner-dash');
+    if (!c) return;
+    const r = Number(c.getAttribute('r') || 108);
+    const len = Math.round(2 * Math.PI * r);
+    c.style.strokeDasharray = `120 ${len}`;
+    const before = getComputedStyle(c).strokeDashoffset;
+    setTimeout(() => {
+      const after = getComputedStyle(c).strokeDashoffset;
+      if (before === after || !after){
+        let t0 = null; const period = 1.15;
+        function loop(ts){
+          if (!t0) t0 = ts;
+          const dt = (ts - t0) / 1000;
+          const offset = -(len * (dt % period) / period);
+          c.style.strokeDashoffset = String(offset);
+          requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+      }
+    }, 400);
+  }
+
+  // ждём минимум один цикл анимации + минимальное время на экране
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
     const elapsed = performance.now() - LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
@@ -810,36 +837,83 @@
     if (wait > 0) await new Promise(r=>setTimeout(r, wait));
   }
 
+  // --- fetch helpers
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
       const r = await fetch(url, {
-        method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
-        body: JSON.stringify(body||{}), signal: ctrl.signal
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify(body||{}),
+        signal: ctrl.signal
       });
       const ct = r.headers.get('content-type')||''; const raw = await r.text();
-      let data; try{ data = JSON.parse(raw); }
+      let data;
+      try{ data = JSON.parse(raw); }
       catch(e){ console.error('NOT JSON', {url, status:r.status, ct, raw: raw.slice(0,400)}); throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`); }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       return data;
     } finally { clearTimeout(t); }
   }
 
+  // --- простые DOM-апдейтеры (fallback, если нет твоих функций)
+  const setText = (sel, val) => { const el=document.querySelector(sel); if(el!=null) el.textContent = String(val ?? ''); };
+  const setHTML = (sel, html) => { const el=document.querySelector(sel); if(el!=null) el.innerHTML = html; };
+
+  // --- применение state к UI (и через функции, и через data-* селекторы)
   function applyState(s){
     if (!s) return;
-    if (s.coins != null && typeof updateCoinsUI === 'function') updateCoinsUI(s.coins);
-    if (s.styles_count != null && typeof updateStylesCounter === 'function') updateStylesCounter(s.styles_count, s.styles_total);
-    if (s.last_stamp_name && typeof updateLastStamp === 'function') updateLastStamp(s.last_stamp_name);
-    if (s.ref_total != null && typeof updateRefTotal === 'function') updateRefTotal(s.ref_total);
-    if (Array.isArray(s.last_prizes) && typeof updateLastPrizes === 'function') updateLastPrizes(s.last_prizes);
-    if (Array.isArray(s.leaderboard_today)   && typeof renderLeaderboardToday   === 'function') renderLeaderboardToday(s.leaderboard_today);
-    if (Array.isArray(s.leaderboard_alltime) && typeof renderLeaderboardAlltime === 'function') renderLeaderboardAlltime(s.leaderboard_alltime);
+
+    // Профиль / цифры
+    if (typeof updateCoinsUI === 'function') updateCoinsUI(s.coins); else if (s.coins != null) setText('[data-coins]', s.coins);
+    if (typeof updateStylesCounter === 'function') updateStylesCounter(s.styles_count, s.styles_total);
+    else if (s.styles_count != null) setText('[data-styles]', `${s.styles_count ?? 0}/${s.styles_total ?? ''}`);
+    if (typeof updateRefTotal === 'function') updateRefTotal(s.ref_total); else if (s.ref_total != null) setText('[data-ref-total]', s.ref_total);
+
+    if (typeof updateLastStamp === 'function') updateLastStamp(s.last_stamp_name);
+    else if (s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
+
+    // Последние призы
+    if (Array.isArray(s.last_prizes)){
+      if (typeof updateLastPrizes === 'function') updateLastPrizes(s.last_prizes);
+      else {
+        setHTML('[data-last-prizes]', s.last_prizes.map(p=>`
+          <li class="prize-row">
+            <span class="prize-name">${p.name ?? p.prize ?? 'Приз'}</span>
+            <span class="prize-when">${p.when ?? ''}</span>
+          </li>`).join(''));
+      }
+    }
+
+    // Штампы / подсветка полученных (если есть разметка с data-style-id)
+    if (Array.isArray(s.styles_collected)){
+      const ids = new Set(s.styles_collected.map(x=>String(x)));
+      document.querySelectorAll('[data-style-id]').forEach(el=>{
+        const id = String(el.getAttribute('data-style-id')||'');
+        el.classList.toggle('is-collected', ids.has(id));
+      });
+    }
+
+    // Турнир
+    if (Array.isArray(s.leaderboard_today)){
+      if (typeof renderLeaderboardToday === 'function') renderLeaderboardToday(s.leaderboard_today);
+      else setHTML('[data-leaderboard-today]', s.leaderboard_today.map((r,i)=>`
+        <div class="lb-row"><b>${i+1}.</b> ${r.name ?? r.username ?? 'Игрок'} — ${r.score ?? 0}</div>`).join(''));
+    }
+    if (Array.isArray(s.leaderboard_alltime)){
+      if (typeof renderLeaderboardAlltime === 'function') renderLeaderboardAlltime(s.leaderboard_alltime);
+      else setHTML('[data-leaderboard-alltime]', s.leaderboard_alltime.map((r,i)=>`
+        <div class="lb-row"><b>${i+1}.</b> ${r.name ?? r.username ?? 'Игрок'} — ${r.score ?? 0}</div>`).join(''));
+    }
+
     if (s.game_today_best  != null && typeof updateTodayBest  === 'function') updateTodayBest(s.game_today_best);
     if (s.game_plays_today != null && typeof updateTodayPlays === 'function') updateTodayPlays(s.game_plays_today);
+
     if (s.config && typeof cacheConfig === 'function') cacheConfig(s.config);
   }
 
+  // --- watcher по kv_sig (фоновые обновления)
   let LAST_SIG = null;
   async function watchState(tg_init){
     while (true){
@@ -854,6 +928,14 @@
     }
   }
 
+  // --- /api/mini/event: сразу применяем fresh_state из ответа
+  window.postMiniEvent = async function(type, data, tg_init){
+    const res = await jpostJSON(API_BASE+'/api/mini/event', { tg_init, type, data });
+    if (res?.fresh_state) applyState(res.fresh_state);
+    return res;
+  };
+
+  // --- ожидание валидного state (ретраи с бэкоффом)
   async function waitForState(tg_init){
     let attempt = 0;
     while (true){
@@ -873,15 +955,19 @@
     }
   }
 
+  // --- главный init
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
+
     showLoader('Подключаемся…');
+    ensureSpinnerRuns();  // гарант кручения на десктопе
     tg?.showProgress?.();
 
     try{
       const state = await waitForState(tg_init);
       window.APP_STATE = state;
+
       applyState(window.APP_STATE);
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
@@ -901,6 +987,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
