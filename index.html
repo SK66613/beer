@@ -48,11 +48,6 @@
   
 <!-- ========== BeerCraft Loader (scoped & clean) ========== -->
 <div id="app-preloader" class="bcl-root" aria-hidden="true" style="--size:110px;">
-  style="--size:110px; --joint:-1px;
-       --foam-appear:.7s;         /* было .35s */
-       --foam-drop:2.6s;          /* было 1.8s */
-       --foam-delay:.50s;         /* было .15s */
-       --foam-drop-delay:.60s;"   /* было .10s */
 
   <style>
     /* ====== SCOPED (всё под .bcl-root) ====== */
@@ -81,13 +76,10 @@
     @keyframes waveB{ to{ transform:translateX(-240px);} }
 
     /* Пена: мягкое появление + лёгкое «дыхание» */
-.foam{
-  opacity:0;
-  transform: translateY(calc(-20px + var(--joint))); /* как у тебя */
-  animation:
-    foamAppear var(--foam-appear, .35s) ease-out forwards var(--foam-delay, .15s),
-    foamDrop   var(--foam-drop,   1.8s) cubic-bezier(.22,.61,.21,1) forwards var(--foam-drop-delay, .10s);
-}
+    .foam{ opacity:0; transform:translateY(-20px); animation:
+      foamAppear .35s ease-out forwards .15s,
+      foamDrop   3.8s cubic-bezier(.22,.61,.21,1) forwards .10s;
+    }
 
     @keyframes foamAppear{ to{opacity:1;} }
     @keyframes foamDrop  { to{transform:translateY(0);} }
