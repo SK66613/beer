@@ -67,8 +67,27 @@
           <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
         </linearGradient>
 
+        <!-- Мягкость общего слоя -->
         <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="1.5"/>
+        </filter>
+
+        <!-- Текстура пены: лёгкий шум + микродеформация -->
+        <filter id="foamGrain" x="-20%" y="-40%" width="140%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="1" seed="3" result="n">
+            <animate attributeName="seed" values="3;5;7;9;3" dur="4s" repeatCount="indefinite"/>
+          </feTurbulence>
+          <feColorMatrix type="matrix" values="
+            1 0 0 0 0
+            0 1 0 0 0
+            0 0 1 0 0
+            0 0 0 1.2 -0.2"/>
+          <feDisplacementMap in="SourceGraphic" in2="n" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+        </filter>
+
+        <!-- Подсветка гребня пены -->
+        <filter id="foamRidge" x="-10%" y="-40%" width="120%" height="180%">
+          <feGaussianBlur stdDeviation="0.8"/>
         </filter>
       </defs>
 
@@ -81,7 +100,6 @@
         <circle cx="120" cy="120" r="108" fill="none"
                 stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
                 stroke-dasharray="150 680"/>
-        <!-- Fallback-анимация, если CSS-трансформы в WebView «молчат» -->
         <animateTransform attributeName="transform" attributeType="XML"
                           type="rotate" from="0 120 120" to="360 120 120"
                           dur="1.1s" repeatCount="indefinite"/>
@@ -103,24 +121,25 @@
           </g>
         </g>
 
-        <!-- Пена (двухслойная, реалистичнее) — появляется после наливания -->
+        <!-- Пена v2: гребень + текстура + «попы» -->
         <g class="foam" filter="url(#soft)">
-          <!-- нижний слой -->
-          <ellipse cx="70"  cy="62" rx="32" ry="12" fill="#fff"/>
-          <ellipse cx="105" cy="58" rx="38" ry="13" fill="#fff"/>
-          <ellipse cx="140" cy="61" rx="34" ry="12" fill="#fff"/>
-          <ellipse cx="170" cy="59" rx="30" ry="11" fill="#fff"/>
-          <!-- верхний пористый слой -->
-          <g opacity=".9">
-            <ellipse cx="70"  cy="62" rx="28" ry="10" fill="#fff"/>
-            <ellipse cx="105" cy="58" rx="36" ry="12" fill="#fff"/>
-            <ellipse cx="140" cy="61" rx="30" ry="10" fill="#fff"/>
+          <!-- Волнистый гребень (двойной слой для объёма) -->
+          <g class="foam-ridge" filter="url(#foamRidge)">
+            <path d="M52,62 Q90,54 128,62 T204,62 L204,74 L52,74 Z" fill="#FFFFFF" opacity="0.95"/>
+            <path d="M52,63 Q90,55 128,63 T204,63 L204,74 L52,74 Z" fill="#FFFFFF" opacity="0.65"/>
+            <animateTransform attributeName="transform" type="translate"
+              values="-3 0; 3 0; -3 0" dur="2.6s" repeatCount="indefinite"/>
           </g>
-          <!-- шапочки/комочки -->
-          <g opacity=".95">
-            <circle cx="85"  cy="58" r="6" fill="#fff"/>
-            <circle cx="118" cy="56" r="7" fill="#fff"/>
-            <circle cx="152" cy="59" r="5" fill="#fff"/>
+
+          <!-- Текстура пены на кромке -->
+          <rect x="52" y="56" width="152" height="20" fill="#FFFFFF" opacity="0.25" filter="url(#foamGrain)"/>
+
+          <!-- Мелкие «попы» -->
+          <g class="foam-pops">
+            <circle cx="78"  cy="60" r="2.8" fill="#fff"/>
+            <circle cx="102" cy="59" r="3.2" fill="#fff"/>
+            <circle cx="134" cy="60" r="2.4" fill="#fff"/>
+            <circle cx="160" cy="59" r="2.6" fill="#fff"/>
           </g>
         </g>
 
@@ -141,6 +160,7 @@
     <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+
 
 
 
@@ -768,9 +788,10 @@
 
 <script>
 (() => {
+  // === адрес воркера локально, без глобалей ===
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // --- Прелоадер
+  // === прелоадер ===
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
@@ -783,7 +804,6 @@
     if(t) setCaption(t);
     LOADER_T0 = performance.now();
     LOADER_FILL_DONE = false;
-    // отметим окончание «fill» (наливания)
     const beer = el.querySelector('.beer');
     if (beer){
       beer.addEventListener('animationend', (e)=>{
@@ -797,11 +817,10 @@
     el.classList.add('is-hidden');
     if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
   }
-  // страховки
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  // ждём минимум цикл перед скрытием (без рывков)
+  // ждём минимум один цикл «наливания» + минимальное время на экране
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
     const elapsed = performance.now() - LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
@@ -810,22 +829,27 @@
     if (wait > 0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // --- fetch helpers
+  // === fetch helpers ===
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
-      const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json','Accept':'application/json'},
-                                   body: JSON.stringify(body||{}), signal: ctrl.signal });
+      const r = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify(body||{}),
+        signal: ctrl.signal
+      });
       const ct = r.headers.get('content-type')||''; const raw = await r.text();
-      let data; try{ data = JSON.parse(raw); }
+      let data;
+      try{ data = JSON.parse(raw); }
       catch(e){ console.error('NOT JSON', {url, status:r.status, ct, raw: raw.slice(0,400)}); throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`); }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       return data;
     } finally { clearTimeout(t); }
   }
 
-  // --- применение стейта к UI (подключи свои функции при наличии)
+  // === применение state к UI (подставь свои функции, проверка через typeof) ===
   function applyState(s){
     if (!s) return;
     if (s.coins != null && typeof updateCoinsUI === 'function') updateCoinsUI(s.coins);
@@ -840,7 +864,7 @@
     if (s.config && typeof cacheConfig === 'function') cacheConfig(s.config);
   }
 
-  // --- watcher по kv_sig (обновление без перезагрузки)
+  // === watcher по kv_sig (обновление без перезагрузки)
   let LAST_SIG = null;
   async function watchState(tg_init){
     while (true){
@@ -855,7 +879,7 @@
     }
   }
 
-  // --- ожидание валидного стейта (ретраи с бэкоффом)
+  // === ожидание валидного state (ретраи с бэкоффом)
   async function waitForState(tg_init){
     let attempt = 0;
     while (true){
@@ -875,10 +899,11 @@
     }
   }
 
-  // --- главный init
+  // === главный init ===
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
+
     showLoader('Подключаемся…');
     tg?.showProgress?.();
 
@@ -889,10 +914,11 @@
       applyState(window.APP_STATE);
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      // ждём минимум один цикл анимации, затем мягко прячем
+      // ждём минимум один цикл анимации перед скрытием
       await waitLoaderCycle();
       hideLoader(true);
 
+      // фоновые обновления
       watchState(tg_init);
     }catch(e){
       console.error('initAppUltra fatal:', e);
@@ -906,6 +932,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
