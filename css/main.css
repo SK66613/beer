@@ -1068,61 +1068,56 @@ canvas, .game, .no-gesture { touch-action: none; }
 
 
 
-/* ===== Overlay ===== */
+/* Overlay */
 .ultra-preloader{
-  position:fixed; inset:0;
-  display:flex; align-items:center; justify-content:center;
+  position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
   background: radial-gradient(120% 80% at 50% 0%, #121416 0%, #0B0D11 45%, #07080A 100%);
-  z-index:99999; transition:opacity .35s ease, visibility .35s ease;
+  z-index:99999; transition:opacity .35s, visibility .35s;
 }
 .ultra-preloader.is-hidden{ opacity:0; visibility:hidden; pointer-events:none; }
-
 .badge-wrap{ display:flex; flex-direction:column; align-items:center; gap:14px; }
-.caption{ color:#EDF2F7; font:600 14px/1.1 Inter, system-ui, Arial; letter-spacing:.2px; opacity:.9; }
+.caption{ color:#EDF2F7; font:600 14px/1.1 Inter, system-ui, Arial; opacity:.9; letter-spacing:.2px; }
 
-/* ===== Спиннер (кросс-браузер) ===== */
-.spinner{
-  transform-box: fill-box;     /* важно для SVG в WebView */
-  transform-origin: center;
-  animation: spin 1.1s linear infinite;
+/* Бегущая дуга — без вращений, только dashoffset */
+.spinner-dash{
+  stroke-dashoffset: 0;
+  animation: dash 1.15s linear infinite;
   filter: drop-shadow(0 0 6px rgba(255,211,107,.25));
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes dash { to { stroke-dashoffset: -800; } }
 
-/* ===== Пиво наливается (один цикл) ===== */
+/* Пиво — один цикл «наливания» */
 .beer{ transform-origin:50% 100%; animation: fill 1.8s ease-in-out forwards .1s; }
-@keyframes fill{ from{ transform:scaleY(0); } to{ transform:scaleY(.78); } }
+@keyframes fill{ from{ transform:scaleY(0);} to{ transform:scaleY(.78);} }
 
-/* Две волны (параллакс) */
+/* Волны */
 .wave-a{ animation: waveA 3.6s linear infinite .2s; }
 .wave-b{ animation: waveB 5.2s linear infinite 0s; opacity:.95; }
-@keyframes waveA{ to { transform: translateX(-240px);} }
-@keyframes waveB{ to { transform: translateX(-240px);} }
+@keyframes waveA{ to{ transform: translateX(-240px);} }
+@keyframes waveB{ to{ transform: translateX(-240px);} }
 
-/* ===== Пена v2 ===== */
-.foam{ opacity:0; animation: foamIn .65s ease-out forwards; animation-delay:.9s; }
-@keyframes foamIn{ from{opacity:0;transform:translateY(-3px) scale(.98);} to{opacity:1;transform:translateY(0) scale(1);} }
+/* Пена появляется и «дышит» без грязи */
+.foam{ opacity:0; animation: foamIn .55s ease-out forwards; animation-delay:.9s; }
+@keyframes foamIn{ from{opacity:0;transform:translateY(-2px) scale(.99);} to{opacity:1;transform:translateY(0) scale(1);} }
 
-.foam .foam-ridge path{ animation: ridgeBreath 2.4s ease-in-out infinite alternate; }
-@keyframes ridgeBreath{ from{ transform: translateY(0);} to{ transform: translateY(1.6px);} }
+/* лёгкое покачивание гребня */
+.foam-crest,.foam-crest2{ animation: crestBreath 2.6s ease-in-out infinite alternate; }
+@keyframes crestBreath{ from{ transform:translateY(0);} to{ transform:translateY(1.4px);} }
 
-.foam-pops circle{
-  opacity:.0; transform: translateY(0) scale(.9);
-  animation: pop 1.6s ease-out infinite;
-}
+/* микро-пузырьки на кромке */
+.foam-pops circle{ opacity:0; transform:translateY(0) scale(.9); animation: pop 1.6s ease-out infinite; }
 .foam-pops circle:nth-child(1){ animation-delay:.2s; }
 .foam-pops circle:nth-child(2){ animation-delay:.7s; }
 .foam-pops circle:nth-child(3){ animation-delay:1.1s; }
 .foam-pops circle:nth-child(4){ animation-delay:1.35s; }
-
 @keyframes pop{
-  0%   { opacity:0;   transform: translateY(0)    scale(.9); }
-  25%  { opacity:.95; transform: translateY(-2px)  scale(1.05); }
-  60%  { opacity:.75; transform: translateY(-4px)  scale(1.0); }
-  100% { opacity:0;   transform: translateY(-8px)  scale(.95); }
+  0%{ opacity:0;   transform:translateY(0)    scale(.9); }
+  25%{ opacity:.95;transform:translateY(-2px) scale(1.05); }
+  60%{ opacity:.75;transform:translateY(-4px) scale(1.0); }
+  100%{opacity:0;  transform:translateY(-8px) scale(.95); }
 }
 
-/* Пузырьки вверх */
+/* Пузырьки в пиве */
 .bubbles circle{
   fill:#FFE9A6; opacity:0; transform:translateY(0);
   animation: rise 2.4s ease-in-out infinite;
@@ -1141,7 +1136,7 @@ canvas, .game, .no-gesture { touch-action: none; }
 .highlight{ mix-blend-mode:screen; opacity:.18; animation: glow 3.2s ease-in-out infinite; }
 @keyframes glow{ 0%{opacity:.18;transform:translateX(0);} 50%{opacity:.28;transform:translateX(6px);} 100%{opacity:.18;transform:translateX(0);} }
 
-/* Reduce motion */
+/* reduce-motion */
 @media (prefers-reduced-motion: reduce){
-  .spinner,.beer,.wave-a,.wave-b,.foam,.foam ellipse,.foam circle,.foam path,.bubbles circle,.highlight{ animation:none !important; }
+  .spinner-dash,.beer,.wave-a,.wave-b,.foam,.foam-crest,.foam-crest2,.foam-pops circle,.bubbles circle,.highlight{ animation:none !important; }
 }
