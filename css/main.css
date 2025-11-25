@@ -1099,8 +1099,6 @@ canvas, .game, .no-gesture { touch-action: none; }
 /* Пена появляется и «дышит» без грязи */
 .foam{ opacity:0; animation: foamIn .55s ease-out forwards; animation-delay:.9s; }
 @keyframes foamIn{ from{opacity:0;transform:translateY(-2px) scale(.99);} to{opacity:1;transform:translateY(0) scale(1);} }
-
-/* лёгкое покачивание гребня */
 .foam-crest,.foam-crest2{ animation: crestBreath 2.6s ease-in-out infinite alternate; }
 @keyframes crestBreath{ from{ transform:translateY(0);} to{ transform:translateY(1.4px);} }
 
@@ -1136,7 +1134,7 @@ canvas, .game, .no-gesture { touch-action: none; }
 .highlight{ mix-blend-mode:screen; opacity:.18; animation: glow 3.2s ease-in-out infinite; }
 @keyframes glow{ 0%{opacity:.18;transform:translateX(0);} 50%{opacity:.28;transform:translateX(6px);} 100%{opacity:.18;transform:translateX(0);} }
 
-/* reduce-motion */
+/* reduce-motion: спиннер оставляем активным */
 @media (prefers-reduced-motion: reduce){
-  .spinner-dash,.beer,.wave-a,.wave-b,.foam,.foam-crest,.foam-crest2,.foam-pops circle,.bubbles circle,.highlight{ animation:none !important; }
+  .beer,.wave-a,.wave-b,.foam,.foam-crest,.foam-crest2,.foam-pops circle,.bubbles circle,.highlight{ animation:none !important; }
 }
