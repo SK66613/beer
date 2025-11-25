@@ -1080,11 +1080,10 @@ canvas, .game, .no-gesture { touch-action: none; }
 .badge-wrap{ display:flex; flex-direction:column; align-items:center; gap:14px; }
 .caption{ color:#EDF2F7; font:600 14px/1.1 Inter, system-ui, Arial; letter-spacing:.2px; opacity:.9; }
 
-/* ===== Спиннер — кросс-браузер ===== */
+/* ===== Спиннер (кросс-браузер) ===== */
 .spinner{
-  /* CSS-анимация вращения */
-  transform-box: fill-box;          /* важное! для SVG в WebView */
-  transform-origin: center;         /* по центру viewBox */
+  transform-box: fill-box;     /* важно для SVG в WebView */
+  transform-origin: center;
   animation: spin 1.1s linear infinite;
   filter: drop-shadow(0 0 6px rgba(255,211,107,.25));
 }
@@ -1094,18 +1093,34 @@ canvas, .game, .no-gesture { touch-action: none; }
 .beer{ transform-origin:50% 100%; animation: fill 1.8s ease-in-out forwards .1s; }
 @keyframes fill{ from{ transform:scaleY(0); } to{ transform:scaleY(.78); } }
 
-/* Волны (параллакс) */
+/* Две волны (параллакс) */
 .wave-a{ animation: waveA 3.6s linear infinite .2s; }
 .wave-b{ animation: waveB 5.2s linear infinite 0s; opacity:.95; }
 @keyframes waveA{ to { transform: translateX(-240px);} }
 @keyframes waveB{ to { transform: translateX(-240px);} }
 
-/* Пена — появляется после наливания и «дышит» */
+/* ===== Пена v2 ===== */
 .foam{ opacity:0; animation: foamIn .65s ease-out forwards; animation-delay:.9s; }
-@keyframes foamIn{ from{opacity:0;transform:translateY(-3px) scale(.98);}
-                   to  {opacity:1;transform:translateY(0)    scale(1);} }
-.foam ellipse, .foam circle{ animation: foamSizzle 2.6s ease-in-out infinite alternate; }
-@keyframes foamSizzle{ from{transform:translateY(0);} to{transform:translateY(2px);} }
+@keyframes foamIn{ from{opacity:0;transform:translateY(-3px) scale(.98);} to{opacity:1;transform:translateY(0) scale(1);} }
+
+.foam .foam-ridge path{ animation: ridgeBreath 2.4s ease-in-out infinite alternate; }
+@keyframes ridgeBreath{ from{ transform: translateY(0);} to{ transform: translateY(1.6px);} }
+
+.foam-pops circle{
+  opacity:.0; transform: translateY(0) scale(.9);
+  animation: pop 1.6s ease-out infinite;
+}
+.foam-pops circle:nth-child(1){ animation-delay:.2s; }
+.foam-pops circle:nth-child(2){ animation-delay:.7s; }
+.foam-pops circle:nth-child(3){ animation-delay:1.1s; }
+.foam-pops circle:nth-child(4){ animation-delay:1.35s; }
+
+@keyframes pop{
+  0%   { opacity:0;   transform: translateY(0)    scale(.9); }
+  25%  { opacity:.95; transform: translateY(-2px)  scale(1.05); }
+  60%  { opacity:.75; transform: translateY(-4px)  scale(1.0); }
+  100% { opacity:0;   transform: translateY(-8px)  scale(.95); }
+}
 
 /* Пузырьки вверх */
 .bubbles circle{
@@ -1124,11 +1139,9 @@ canvas, .game, .no-gesture { touch-action: none; }
 
 /* Блик стекла */
 .highlight{ mix-blend-mode:screen; opacity:.18; animation: glow 3.2s ease-in-out infinite; }
-@keyframes glow{ 0%{opacity:.18;transform:translateX(0);}
-                 50%{opacity:.28;transform:translateX(6px);}
-                 100%{opacity:.18;transform:translateX(0);} }
+@keyframes glow{ 0%{opacity:.18;transform:translateX(0);} 50%{opacity:.28;transform:translateX(6px);} 100%{opacity:.18;transform:translateX(0);} }
 
 /* Reduce motion */
 @media (prefers-reduced-motion: reduce){
-  .spinner,.beer,.wave-a,.wave-b,.foam,.foam ellipse,.foam circle,.bubbles circle,.highlight{ animation:none !important; }
+  .spinner,.beer,.wave-a,.wave-b,.foam,.foam ellipse,.foam circle,.foam path,.bubbles circle,.highlight{ animation:none !important; }
 }
