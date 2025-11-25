@@ -772,29 +772,58 @@
 
 <script>
 (() => {
+  // адрес воркера
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // ---------- helpers для прелоадера (как у тебя) ----------
+  // --- Прелоадер (как раньше) ---
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
-  let LOADER_T0 = 0, LOADER_FILL_DONE = false;
+
+  let LOADER_T0 = 0;
+  let LOADER_FILL_DONE = false;
 
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){
     const el=$pre(); if(!el) return;
     if(t) setCaption(t);
-    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false;
+    LOADER_T0 = performance.now();
+    LOADER_FILL_DONE = false;
     const beer = el.querySelector('.beer');
     beer?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
     el.classList.remove('is-hidden');
   }
   function hideLoader(force=false){
     const el=$pre(); if(!el) return;
-    el.classList.add('is-hidden'); if(force) setTimeout(()=>{ try{ el.remove(); }catch(_){} },380);
+    el.classList.add('is-hidden');
+    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
   }
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
+  // спиннер-страховка для десктопа
+  function ensureSpinnerRuns(){
+    const c = document.querySelector('.spinner-dash');
+    if (!c) return;
+    const r = Number(c.getAttribute('r') || 108);
+    const len = Math.round(2 * Math.PI * r);
+    c.style.strokeDasharray = `120 ${len}`;
+    const before = getComputedStyle(c).strokeDashoffset;
+    setTimeout(() => {
+      const after = getComputedStyle(c).strokeDashoffset;
+      if (before === after || !after){
+        let t0 = null; const period = 1.15;
+        function loop(ts){
+          if (!t0) t0 = ts;
+          const dt = (ts - t0) / 1000;
+          c.style.strokeDashoffset = String(-(len * (dt % period) / period));
+          requestAnimationFrame(loop);
+        }
+        requestAnimationFrame(loop);
+      }
+    }, 400);
+  }
+
+  // ждём минимум один цикл «наливания»
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
     const elapsed = performance.now()-LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
@@ -803,20 +832,17 @@
     if (wait>0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // ---------- fetch с no-store + X-User-ID ----------
+  // --- fetch helper: БЕЗ кастомных заголовков (чтобы не было preflight-провала) ---
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-  async function jpostJSON(url, body, uid, timeoutMs=12000){
+  async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
       const r = await fetch(url, {
         method:'POST',
-        cache: 'no-store',
+        cache: 'no-store',              // браузер не будет брать из своего кэша
         headers:{
           'Content-Type':'application/json',
-          'Accept':'application/json',
-          'Cache-Control':'no-store, no-cache, must-revalidate',
-          'Pragma':'no-cache',
-          ...(uid ? {'X-User-ID': String(uid)} : {})
+          'Accept':'application/json'
         },
         body: JSON.stringify(body||{}),
         signal: ctrl.signal
@@ -829,18 +855,20 @@
     } finally { clearTimeout(t); }
   }
 
-  // ---------- простые DOM-апдейтеры (на случай, если твоих функций нет) ----------
+  // --- простые DOM-апдейтеры на случай, если твоих функций нет ---
   const setText = (sel, v)=>{ const el=document.querySelector(sel); if(el) el.textContent=String(v??''); };
   const setHTML = (sel, html)=>{ const el=document.querySelector(sel); if(el) el.innerHTML=html; };
 
+  // --- применение state к UI (профиль, призы, штампы, турнир) ---
   function applyState(s){
     if (!s) return;
+
     // профиль
-    if (typeof updateCoinsUI==='function') updateCoinsUI(s.coins); else if(s.coins!=null) setText('[data-coins]', s.coins);
+    if (typeof updateCoinsUI==='function') updateCoinsUI(s.coins); else if (s.coins!=null) setText('[data-coins]', s.coins);
     if (typeof updateStylesCounter==='function') updateStylesCounter(s.styles_count, s.styles_total);
     else if (s.styles_count!=null) setText('[data-styles]', `${s.styles_count??0}/${s.styles_total??''}`);
-    if (typeof updateRefTotal==='function') updateRefTotal(s.ref_total); else if(s.ref_total!=null) setText('[data-ref-total]', s.ref_total);
-    if (typeof updateLastStamp==='function') updateLastStamp(s.last_stamp_name); else if(s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
+    if (typeof updateRefTotal==='function') updateRefTotal(s.ref_total); else if (s.ref_total!=null) setText('[data-ref-total]', s.ref_total);
+    if (typeof updateLastStamp==='function') updateLastStamp(s.last_stamp_name); else if (s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
 
     // последние призы
     if (Array.isArray(s.last_prizes)){
@@ -852,7 +880,7 @@
         </li>`).join(''));
     }
 
-    // подсветка собранных штампов
+    // подсветка полученных штампов
     if (Array.isArray(s.styles_collected)){
       const ids = new Set(s.styles_collected.map(x=>String(x)));
       document.querySelectorAll('[data-style-id]').forEach(el=>{
@@ -877,16 +905,16 @@
     if (s.config && typeof cacheConfig==='function') cacheConfig(s.config);
   }
 
-  // ---------- watcher по kv_sig с привязкой к UID ----------
+  // --- watcher по kv_sig ---
   let LAST_SIG = null, WATCH_ABORT = false;
   async function watchState(tg_init, uid){
     WATCH_ABORT = false;
     while (!WATCH_ABORT){
       try{
-        const st = await jpostJSON(API_BASE+'/api/mini/state', { tg_init, fresh:false, uid, bust:Date.now() }, uid);
+        // только body (uid, bust), НИКАКИХ кастом-заголовков
+        const st = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`, { tg_init, fresh:false, uid, bust:Date.now() });
         if (st?.kv_sig && st.kv_sig !== LAST_SIG){
           LAST_SIG = st.kv_sig;
-          // На всякий случай проверяем, что стейт не «чужой»
           if (!st.uid || String(st.uid) === String(uid)) applyState(st);
         }
       }catch(_){}
@@ -894,13 +922,14 @@
     }
   }
 
-  // ---------- /api/mini/event: сразу применяем fresh_state ----------
+  // --- /api/mini/event: сразу применяем fresh_state ---
   window.postMiniEvent = async function(type, data, tg_init, uid){
-    const res = await jpostJSON(API_BASE+'/api/mini/event', { tg_init, type, data, uid, bust:Date.now() }, uid);
+    const res = await jpostJSON(`${API_BASE}/api/mini/event?bust=${Date.now()}`, { tg_init, type, data, uid, bust:Date.now() });
     if (res?.fresh_state) applyState(res.fresh_state);
     return res;
   };
 
+  // --- ожидание валидного state (ретраи) ---
   async function waitForState(tg_init, uid, switched){
     let attempt = 0;
     while (true){
@@ -908,11 +937,9 @@
       try{
         setCaption(`Подключаемся… попытка ${attempt}`);
         const common = { tg_init, uid, bust: Date.now() };
-        // если аккаунт сменился — просим воркер сбросить/освежить снапшот
-        const boot = await jpostJSON(API_BASE+'/api/mini/bootstrap', { ...common, fresh:true, force: !!switched }, uid);
-        const st   = await jpostJSON(API_BASE+'/api/mini/state',     { ...common, fresh:false }, uid);
+        const boot = await jpostJSON(`${API_BASE}/api/mini/bootstrap?bust=${Date.now()}`, { ...common, fresh:true, force: !!switched });
+        const st   = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`,     { ...common, fresh:false });
 
-        // На случай, если воркер начал возвращать uid — проверим
         const state = (st?.ok ? st : (boot?.fresh_state ? { ok:true, ...boot.fresh_state } : null));
         if (state && (state.ok || state.coins!=null || state.config)){
           if (!state.uid || String(state.uid) === String(uid)) return state;
@@ -926,7 +953,7 @@
     }
   }
 
-  // ---------- главный init с детектом смены аккаунта ----------
+  // --- главный init с детектом смены аккаунта ---
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
@@ -934,33 +961,11 @@
     const lastUid = sessionStorage.getItem('last_uid') || '';
     const switched = UID && lastUid && UID !== lastUid;
 
-    // сброс фронт-состояния, если другой аккаунт
-    if (switched){
-      LAST_SIG = null;
-      window.APP_STATE = null;
-      WATCH_ABORT = true; // остановим прежний watcher, если был
-    }
+    if (switched){ LAST_SIG = null; window.APP_STATE = null; WATCH_ABORT = true; }
     if (UID) sessionStorage.setItem('last_uid', UID);
 
     showLoader('Подключаемся…');
-    // гарант кручения спиннера на десктопе
-    (function ensureSpinnerRuns(){
-      const c = document.querySelector('.spinner-dash'); if (!c) return;
-      const r = Number(c.getAttribute('r') || 108);
-      const len = Math.round(2 * Math.PI * r);
-      c.style.strokeDasharray = `120 ${len}`;
-      const before = getComputedStyle(c).strokeDashoffset;
-      setTimeout(()=>{ const after = getComputedStyle(c).strokeDashoffset;
-        if (before === after || !after){
-          let t0=null, period=1.15;
-          const loop=(ts)=>{ if(!t0) t0=ts; const dt=(ts-t0)/1000;
-            c.style.strokeDashoffset = String(-(len * (dt % period) / period));
-            requestAnimationFrame(loop);
-          };
-          requestAnimationFrame(loop);
-        }
-      }, 400);
-    })();
+    ensureSpinnerRuns(); // гарант кручения на десктопе
     tg?.showProgress?.();
 
     try{
@@ -970,10 +975,10 @@
       applyState(window.APP_STATE);
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      await waitLoaderCycle();
+      await waitLoaderCycle();   // минимум один цикл анимации
       hideLoader(true);
 
-      watchState(tg_init, UID);
+      watchState(tg_init, UID);  // фоновая синхронизация KV
     }catch(e){
       console.error('initAppUltra fatal:', e);
       setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
@@ -986,6 +991,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
