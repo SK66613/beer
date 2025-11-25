@@ -1065,3 +1065,79 @@ canvas, .game, .no-gesture { touch-action: none; }
   pointer-events: none !important;
   opacity: .6;
 }
+
+/* === Fullscreen плашка === */
+.beer-preloader{
+  position: fixed; inset: 0;
+  background: radial-gradient(120% 80% at 50% 0%, #121416 0%, #0A0B0D 45%, #050607 100%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 99999; transition: opacity .35s ease, visibility .35s ease;
+}
+.beer-preloader.is-hidden{ opacity:0; visibility:hidden; pointer-events:none; }
+
+/* === Компонент кружки === */
+.beer-loader{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+.beer-caption{ font: 600 14px/1.2 Inter, system-ui, Arial, sans-serif; color:#EDF2F7; opacity:.9; letter-spacing:.2px; }
+
+/* Пиво наполняется (scaleY снизу вверх) */
+.beer-liquid{
+  transform-origin: 50% 100%;
+  transform: scaleY(0);
+  animation: beer-fill 1.9s ease-in-out forwards .15s;
+}
+@keyframes beer-fill{ to{ transform: scaleY(0.78); } }
+
+/* Пузырьки идут вверх с лёгким дрейфом */
+.bubbles circle{
+  fill:#FFE9A6; opacity:.7;
+  animation: bubble 2.2s ease-in-out infinite;
+}
+.bubbles circle:nth-child(2){ animation-delay:.25s; }
+.bubbles circle:nth-child(3){ animation-delay:.5s; }
+.bubbles circle:nth-child(4){ animation-delay:.75s; }
+.bubbles circle:nth-child(5){ animation-delay:1s; }
+@keyframes bubble{
+  0%   { transform: translate(0,0);    opacity:.0; }
+  15%  { opacity:.7; }
+  100% { transform: translate(0,-80px); opacity:0; }
+}
+
+/* Пена слегка покачивается */
+.foam-top ellipse{
+  animation: foam-bob 2.4s ease-in-out infinite alternate;
+}
+@keyframes foam-bob{
+  from { transform: translateY(0px); }
+  to   { transform: translateY(2px); }
+}
+
+/* Подтёки пены (цикличные) */
+.foam-drips .drip{
+  opacity:.0;
+  animation: drip 2.8s ease-in-out infinite;
+  transform-origin: 50% 0%;
+}
+.foam-drips .drip.d1{ animation-delay:.4s; }
+.foam-drips .drip.d2{ animation-delay:1.1s; }
+.foam-drips .drip.d3{ animation-delay:1.8s; }
+
+@keyframes drip{
+  0%   { opacity:0; transform: translateY(0) scaleY(0.9); }
+  10%  { opacity:.9; }
+  70%  { opacity:.9; transform: translateY(20px) scaleY(1.02); }
+  100% { opacity:0; transform: translateY(38px) scaleY(0.98); }
+}
+
+/* Контур кружки слегка «дышит» для живости */
+.mug-outline{ animation: mug-glow 2.8s ease-in-out infinite; }
+@keyframes mug-glow{
+  0% { filter: drop-shadow(0 0 0px rgba(255,255,255,.0)); }
+  50%{ filter: drop-shadow(0 0 6px rgba(255,255,255,.15)); }
+  100%{ filter: drop-shadow(0 0 0px rgba(255,255,255,.0)); }
+}
+
+/* На медленных устройствах — меньше движения */
+@media (prefers-reduced-motion: reduce){
+  .beer-liquid, .bubbles circle, .foam-top ellipse, .foam-drips .drip, .mug-outline{ animation: none !important; }
+}
+
