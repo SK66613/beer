@@ -1068,23 +1068,25 @@ canvas, .game, .no-gesture { touch-action: none; }
 
 
 
-/* Overlay */
+/* ===== Overlay и размер через переменную --loader-size ===== */
 .ultra-preloader{
   position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
   background: radial-gradient(120% 80% at 50% 0%, #121416 0%, #0B0D11 45%, #07080A 100%);
   z-index:99999; transition:opacity .35s, visibility .35s;
 }
 .ultra-preloader.is-hidden{ opacity:0; visibility:hidden; pointer-events:none; }
-.badge-wrap{ display:flex; flex-direction:column; align-items:center; gap:14px; }
-.caption{ color:#EDF2F7; font:600 14px/1.1 Inter, system-ui, Arial; opacity:.9; letter-spacing:.2px; }
+.badge-wrap{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+.badge{ width: var(--loader-size, 110px); height:auto; }  /* ← половинный размер */
+.caption{ color:#EDF2F7; font:600 13px/1.1 Inter, system-ui, Arial; opacity:.9; letter-spacing:.2px; }
 
-/* Бегущая дуга — без вращений, только dashoffset */
+/* Трек-«калия» */
+.track{ paint-order: stroke; }
+
+/* Бегущая дуга по кольцевому треку */
 .spinner-dash{
   stroke-dashoffset: 0;
   animation: dash 1.15s linear infinite;
-  /* filter: drop-shadow(0 0 6px rgba(255,211,107,.25));  <-- убираем */
 }
-
 @keyframes dash { to { stroke-dashoffset: -800; } }
 
 /* Пиво — один цикл «наливания» */
@@ -1097,7 +1099,10 @@ canvas, .game, .no-gesture { touch-action: none; }
 @keyframes waveA{ to{ transform: translateX(-240px);} }
 @keyframes waveB{ to{ transform: translateX(-240px);} }
 
-/* Пена появляется и «дышит» без грязи */
+/* Волнистая кромка пива (чуть «дышит») */
+.beer-cap{ opacity:.92; mix-blend-mode: multiply; }
+
+/* Пена появляется и «дышит» */
 .foam{ opacity:0; animation: foamIn .55s ease-out forwards; animation-delay:.9s; }
 @keyframes foamIn{ from{opacity:0;transform:translateY(-2px) scale(.99);} to{opacity:1;transform:translateY(0) scale(1);} }
 .foam-crest,.foam-crest2{ animation: crestBreath 2.6s ease-in-out infinite alternate; }
