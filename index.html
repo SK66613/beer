@@ -48,10 +48,105 @@
 </head>
 <body>
 
-<!-- BeerCraft Ultra Loader (overlay) -->
-<div id="app-preloader" class="ultra-preloader" aria-hidden="true">
+<!-- ========== BeerCraft Loader (compact) ========== -->
+<div id="app-preloader" class="ultra-preloader" aria-hidden="true" style="--loader-size:110px;">
+  <style>
+    /* ===== Overlay и размер через переменную --loader-size ===== */
+    .ultra-preloader{
+      position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+      background: radial-gradient(120% 80% at 50% 0%, #121416 0%, #0B0D11 45%, #07080A 100%);
+      z-index:99999; transition:opacity .35s, visibility .35s;
+    }
+    .ultra-preloader.is-hidden{ opacity:0; visibility:hidden; pointer-events:none; }
+    .ultra-preloader .badge-wrap{ display:flex; flex-direction:column; align-items:center; gap:12px; }
+    .ultra-preloader .badge{ width: var(--loader-size, 110px); height:auto; }
+    .ultra-preloader .caption{ color:#EDF2F7; font:600 13px/1.1 Inter, system-ui, Arial; opacity:.9; letter-spacing:.2px; }
+
+    /* Кольцевая «калия» (трек) + бегунок */
+    .ultra-preloader .spinner-dash{
+      stroke-dashoffset: 0;
+      animation: dash 1.15s linear infinite;
+      filter: none;              /* убрали тень, чтобы не было второго ободка */
+    }
+    @keyframes dash { to { stroke-dashoffset: -800; } }
+
+    /* Налив пива — один цикл */
+    .ultra-preloader .beer{ transform-origin:50% 100%; animation: fill 1.8s ease-in-out forwards .1s; }
+    @keyframes fill{ from{ transform:scaleY(0);} to{ transform:scaleY(.78);} }
+
+    /* Волны */
+    .ultra-preloader .wave-a{ animation: waveA 3.6s linear infinite .2s; }
+    .ultra-preloader .wave-b{ animation: waveB 5.2s linear infinite 0s; opacity:.95; }
+    @keyframes waveA{ to{ transform: translateX(-240px);} }
+    @keyframes waveB{ to{ transform: translateX(-240px);} }
+
+    /* Волнистая поверхность пива (стык с пеной) */
+    .ultra-preloader .beer-surface{ opacity:.92; mix-blend-mode: multiply; }
+
+    /* Пена: появляется и плавно САДИТСЯ на поверхность */
+    .ultra-preloader .foam{
+      opacity:0;
+      transform: translateY(-22px);
+      animation:
+        foamAppear .35s ease-out forwards .15s,          /* проявление */
+        foamDrop   1.8s cubic-bezier(.22,.61,.21,1) forwards .10s; /* опускание */
+    }
+    @keyframes foamAppear{ to{ opacity:1; } }
+    @keyframes foamDrop  { to{ transform: translateY(0); } }
+
+    /* лёгкое «дыхание» гребня */
+    .ultra-preloader .foam-crest,.ultra-preloader .foam-crest2{
+      animation: crestBreath 2.6s ease-in-out infinite alternate;
+    }
+    @keyframes crestBreath{ from{ transform:translateY(0);} to{ transform:translateY(1.4px);} }
+
+    /* Пузырьки на кромке */
+    .ultra-preloader .foam-pops circle{
+      opacity:0; transform:translateY(0) scale(.9); animation: pop 1.6s ease-out infinite;
+    }
+    .ultra-preloader .foam-pops circle:nth-child(1){ animation-delay:.2s; }
+    .ultra-preloader .foam-pops circle:nth-child(2){ animation-delay:.7s; }
+    .ultra-preloader .foam-pops circle:nth-child(3){ animation-delay:1.1s; }
+    .ultra-preloader .foam-pops circle:nth-child(4){ animation-delay:1.35s; }
+    @keyframes pop{
+      0%{ opacity:0;   transform:translateY(0)    scale(.9); }
+      25%{ opacity:.95;transform:translateY(-2px) scale(1.05); }
+      60%{ opacity:.75;transform:translateY(-4px) scale(1.0); }
+      100%{opacity:0;  transform:translateY(-8px) scale(.95); }
+    }
+
+    /* Пузырьки в пиве */
+    .ultra-preloader .bubbles circle{
+      fill:#FFE9A6; opacity:0; transform:translateY(0);
+      animation: rise 2.4s ease-in-out infinite;
+    }
+    .ultra-preloader .bubbles circle:nth-child(2){ animation-delay:.3s; }
+    .ultra-preloader .bubbles circle:nth-child(3){ animation-delay:.6s; }
+    .ultra-preloader .bubbles circle:nth-child(4){ animation-delay:.9s; }
+    .ultra-preloader .bubbles circle:nth-child(5){ animation-delay:1.2s; }
+    @keyframes rise{
+      0%{ opacity:0; transform:translateY(0) scale(.9); }
+      20%{ opacity:.85; }
+      100%{ opacity:0; transform:translateY(-90px) scale(1.05); }
+    }
+
+    /* Блик внутри можно оставить/убрать; внешних ободков больше нет */
+    .ultra-preloader .highlight{ mix-blend-mode:screen; opacity:.18; animation: glow 3.2s ease-in-out infinite; }
+    @keyframes glow{ 0%{opacity:.18;transform:translateX(0);} 50%{opacity:.28;transform:translateX(6px);} 100%{opacity:.18;transform:translateX(0);} }
+
+    /* Уважаем reduce-motion, но спиннер не глушим (пусть крутится всегда) */
+    @media (prefers-reduced-motion: reduce){
+      .ultra-preloader .beer,.ultra-preloader .wave-a,.ultra-preloader .wave-b,
+      .ultra-preloader .foam,.ultra-preloader .foam-crest,.ultra-preloader .foam-crest2,
+      .ultra-preloader .foam-pops circle,.ultra-preloader .bubbles circle,.ultra-preloader .highlight{
+        animation:none !important;
+      }
+    }
+  </style>
+
   <div class="badge-wrap">
-    <svg class="badge" viewBox="0 0 240 240" width="220" height="220" role="img" aria-label="Загрузка">
+    <!-- SVG мини-крутилка -->
+    <svg class="badge" viewBox="0 0 240 240" role="img" aria-label="Загрузка">
       <defs>
         <clipPath id="badge-clip"><circle cx="120" cy="120" r="92"/></clipPath>
 
@@ -86,13 +181,13 @@
         </filter>
       </defs>
 
-      <!-- Трек кольца -->
-      <circle cx="120" cy="120" r="108" fill="none"
-              stroke="rgba(255,255,255,.10)" stroke-width="8"/>
+      <!-- Тонкая «калия» (трек) -->
+      <circle class="track" cx="120" cy="120" r="108" fill="none"
+              stroke="rgba(255,255,255,.08)" stroke-width="6"/>
 
-      <!-- Бегущая дуга (CSS + SMIL fallback) -->
+      <!-- Бегунок по калии (CSS + SMIL; JS-fallback уже в твоём коде) -->
       <circle class="spinner-dash" cx="120" cy="120" r="108" fill="none"
-              stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
+              stroke="#FFD36B" stroke-width="6" stroke-linecap="round"
               stroke-dasharray="120 680" stroke-dashoffset="0">
         <animate attributeName="stroke-dashoffset"
                  values="0;-800" dur="1.15s" repeatCount="indefinite" />
@@ -100,7 +195,7 @@
 
       <!-- Внутренняя сцена -->
       <g clip-path="url(#badge-clip)">
-        <!-- Пиво с волнами -->
+        <!-- Тело пива (с волнами) -->
         <g class="beer">
           <g class="wave wave-a">
             <rect x="-240" y="60" width="720" height="160" fill="url(#beer-grad)"/>
@@ -112,7 +207,17 @@
           </g>
         </g>
 
-        <!-- Пена v3: чистый гребень + текстура + микро-пузырьки -->
+        <!-- Волнистая ПОВЕРХНОСТЬ пива — сюда «садится» пена -->
+        <path class="beer-surface" fill="url(#beer-grad)"
+              d="M44,64 C78,56 162,56 196,64 L196,140 L44,140 Z">
+          <animate attributeName="d" dur="3s" repeatCount="indefinite"
+            values="
+              M44,64 C78,56 162,56 196,64 L196,140 L44,140 Z;
+              M44,63 C78,55 162,57 196,63 L196,140 L44,140 Z;
+              M44,64 C78,56 162,56 196,64 L196,140 L44,140 Z" />
+        </path>
+
+        <!-- Пена (опускается и стыкуется с поверхностью) -->
         <g class="foam" filter="url(#soft)">
           <path class="foam-crest"  d="M44,62 C78,54 162,54 196,62 L196,74 L44,74 Z" fill="#fff" opacity=".96"/>
           <path class="foam-crest2" d="M44,61 C78,53 162,53 196,61 L196,73 L44,73 Z" fill="#fff" opacity=".55"/>
@@ -125,7 +230,7 @@
           </g>
         </g>
 
-        <!-- Пузырьки в пиве -->
+        <!-- Пузырьки внутри -->
         <g class="bubbles">
           <circle cx="82"  cy="170" r="2.2"/>
           <circle cx="104" cy="186" r="1.9"/>
@@ -134,7 +239,7 @@
           <circle cx="112" cy="196" r="1.7"/>
         </g>
 
-        <!-- Блик стекла -->
+        <!-- Внутренний блик (если мешает — добавь style="display:none") -->
         <ellipse class="highlight" cx="95" cy="95" rx="70" ry="95" fill="url(#glass-glow)"/>
       </g>
     </svg>
@@ -142,6 +247,8 @@
     <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+<!-- ========== /BeerCraft Loader ========== -->
+
 
 
 
