@@ -67,21 +67,24 @@
           <stop offset="100%" stop-color="rgba(255,255,255,0)"/>
         </linearGradient>
 
-        <!-- Мягкость -->
         <filter id="soft" x="-30%" y="-30%" width="160%" height="160%">
           <feGaussianBlur stdDeviation="1.5"/>
         </filter>
       </defs>
 
-      <!-- Внешнее статичное кольцо -->
+      <!-- Базовое бледное кольцо -->
       <circle cx="120" cy="120" r="108" fill="none"
               stroke="rgba(255,255,255,.12)" stroke-width="8"/>
 
-      <!-- Бесконечный круговой спиннер-дуга -->
-      <g class="spinner">
+      <!-- Крутящийся по кругу спиннер-дуга (CSS + SMIL fallback) -->
+      <g class="spinner" transform="rotate(0 120 120)">
         <circle cx="120" cy="120" r="108" fill="none"
                 stroke="#FFD36B" stroke-width="8" stroke-linecap="round"
-                stroke-dasharray="120 560"/>
+                stroke-dasharray="150 680"/>
+        <!-- Fallback-анимация, если CSS-трансформы в WebView «молчат» -->
+        <animateTransform attributeName="transform" attributeType="XML"
+                          type="rotate" from="0 120 120" to="360 120 120"
+                          dur="1.1s" repeatCount="indefinite"/>
       </g>
 
       <!-- Внутренний круг: пиво, волны, пена, блики -->
@@ -100,7 +103,7 @@
           </g>
         </g>
 
-        <!-- Пена (реалистичнее, появляется после наполнения) -->
+        <!-- Пена (двухслойная, реалистичнее) — появляется после наливания -->
         <g class="foam" filter="url(#soft)">
           <!-- нижний слой -->
           <ellipse cx="70"  cy="62" rx="32" ry="12" fill="#fff"/>
@@ -138,6 +141,7 @@
     <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+
 
 
 
@@ -764,23 +768,49 @@
 
 <script>
 (() => {
-  // ==== 0) Адрес воркера (локально в этом скрипте) ====
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // ==== 1) Прелоадер ====
+  // --- Прелоадер
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
+  let LOADER_T0 = 0;
+  let LOADER_FILL_DONE = false;
+
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
-  function showLoader(t){ const el=$pre(); if(!el) return; if(t) setCaption(t); el.classList.remove('is-hidden'); }
-  function hideLoader(force=false){ const el=$pre(); if(!el) return;
-    el.classList.add('is-hidden'); if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 380);
+  function showLoader(t){
+    const el=$pre(); if(!el) return;
+    if(t) setCaption(t);
+    LOADER_T0 = performance.now();
+    LOADER_FILL_DONE = false;
+    // отметим окончание «fill» (наливания)
+    const beer = el.querySelector('.beer');
+    if (beer){
+      beer.addEventListener('animationend', (e)=>{
+        if (e.animationName === 'fill') LOADER_FILL_DONE = true;
+      }, {once:true});
+    }
+    el.classList.remove('is-hidden');
   }
-  // если что-то упало — не оставим лоадер висеть
+  function hideLoader(force=false){
+    const el=$pre(); if(!el) return;
+    el.classList.add('is-hidden');
+    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
+  }
+  // страховки
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  // ==== 2) Fetch helpers ====
+  // ждём минимум цикл перед скрытием (без рывков)
+  async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
+    const elapsed = performance.now() - LOADER_T0;
+    const leftVisible = Math.max(0, minVisibleMs - elapsed);
+    const leftFill    = LOADER_FILL_DONE ? 0 : Math.max(0, fillMs - elapsed);
+    const wait = Math.max(leftVisible, leftFill);
+    if (wait > 0) await new Promise(r=>setTimeout(r, wait));
+  }
+
+  // --- fetch helpers
   const sleep = (ms) => new Promise(r => setTimeout(r, ms));
   async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
@@ -795,28 +825,22 @@
     } finally { clearTimeout(t); }
   }
 
-  // ==== 3) Применение состояния к UI (зови свои функции-обновлялки тут) ====
+  // --- применение стейта к UI (подключи свои функции при наличии)
   function applyState(s){
     if (!s) return;
-    // --- Профиль ---
     if (s.coins != null && typeof updateCoinsUI === 'function') updateCoinsUI(s.coins);
     if (s.styles_count != null && typeof updateStylesCounter === 'function') updateStylesCounter(s.styles_count, s.styles_total);
     if (s.last_stamp_name && typeof updateLastStamp === 'function') updateLastStamp(s.last_stamp_name);
     if (s.ref_total != null && typeof updateRefTotal === 'function') updateRefTotal(s.ref_total);
-
-    // --- Призы ---
     if (Array.isArray(s.last_prizes) && typeof updateLastPrizes === 'function') updateLastPrizes(s.last_prizes);
-
-    // --- Турнир / игра ---
     if (Array.isArray(s.leaderboard_today)   && typeof renderLeaderboardToday   === 'function') renderLeaderboardToday(s.leaderboard_today);
     if (Array.isArray(s.leaderboard_alltime) && typeof renderLeaderboardAlltime === 'function') renderLeaderboardAlltime(s.leaderboard_alltime);
     if (s.game_today_best  != null && typeof updateTodayBest  === 'function') updateTodayBest(s.game_today_best);
     if (s.game_plays_today != null && typeof updateTodayPlays === 'function') updateTodayPlays(s.game_plays_today);
-
     if (s.config && typeof cacheConfig === 'function') cacheConfig(s.config);
   }
 
-  // ==== 4) Наблюдатель за KV-снапшотом (перерисовка при новом kv_sig) ====
+  // --- watcher по kv_sig (обновление без перезагрузки)
   let LAST_SIG = null;
   async function watchState(tg_init){
     while (true){
@@ -826,34 +850,22 @@
           LAST_SIG = st.kv_sig;
           applyState(st);
         }
-      }catch(_){} // молча ретраим
-      await sleep(15000); // 15s
+      }catch(_){} // молча
+      await sleep(15000);
     }
   }
 
-  // ==== 5) Универсальный /api/mini/event — сразу применяем fresh_state ====
-  window.postMiniEvent = async function(type, data, tg_init){
-    const res = await jpostJSON(API_BASE+'/api/mini/event', { tg_init, type, data });
-    if (res?.fresh_state) applyState(res.fresh_state);
-    return res;
-  };
-
-  // ==== 6) Ждём пока появится валидный state (ретраи с бэкоффом) ====
+  // --- ожидание валидного стейта (ретраи с бэкоффом)
   async function waitForState(tg_init){
     let attempt = 0;
     while (true){
       attempt++;
       try{
         setCaption(`Подключаемся… попытка ${attempt}`);
-        // будим GAS через воркер
         const boot = await jpostJSON(API_BASE+'/api/mini/bootstrap', { tg_init, fresh:true });
-        // state (KV+SWR)
-        const st   = await jpostJSON(API_BASE+'/api/mini/state', { tg_init, fresh:false });
-
+        const st   = await jpostJSON(API_BASE+'/api/mini/state',     { tg_init, fresh:false });
         const state = (st?.ok ? st : (boot?.fresh_state ? { ok:true, ...boot.fresh_state } : null));
-        if (state && (state.ok || state.coins != null || state.config)){
-          return state;
-        }
+        if (state && (state.ok || state.coins != null || state.config)) return state;
         throw new Error('state_invalid');
       }catch(e){
         const delay = Math.min(6000, 1000*attempt);
@@ -863,11 +875,10 @@
     }
   }
 
-  // ==== 7) Главный init ====
+  // --- главный init
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
-
     showLoader('Подключаемся…');
     tg?.showProgress?.();
 
@@ -875,16 +886,13 @@
       const state = await waitForState(tg_init);
       window.APP_STATE = state;
 
-      // мгновенное применение
       applyState(window.APP_STATE);
-
-      // если есть твоя общая отрисовка — дергаем её
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      // прячем лоудер
+      // ждём минимум один цикл анимации, затем мягко прячем
+      await waitLoaderCycle();
       hideLoader(true);
 
-      // фоновый вотчер на смену снимка
       watchState(tg_init);
     }catch(e){
       console.error('initAppUltra fatal:', e);
@@ -898,6 +906,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
