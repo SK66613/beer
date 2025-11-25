@@ -67,12 +67,10 @@
         <filter id="soft" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="1.5"/></filter>
       </defs>
 
-      <!-- Внешнее кольцо -->
       <circle cx="120" cy="120" r="108" fill="none" stroke="rgba(255,255,255,.12)" stroke-width="8"/>
       <circle class="ring" cx="120" cy="120" r="108" fill="none" stroke="#FFD36B" stroke-width="8" stroke-linecap="round"/>
 
       <g clip-path="url(#badge-clip)">
-        <!-- Янтарь -->
         <g class="beer">
           <g class="wave wave-a">
             <rect x="-240" y="60" width="720" height="160" fill="url(#beer-grad)"/>
@@ -84,7 +82,6 @@
           </g>
         </g>
 
-        <!-- Пена -->
         <g class="foam" filter="url(#soft)">
           <ellipse cx="70"  cy="62" rx="32" ry="12" fill="#FFFFFF"/>
           <ellipse cx="105" cy="58" rx="38" ry="13" fill="#FFFFFF"/>
@@ -92,7 +89,6 @@
           <ellipse cx="170" cy="59" rx="30" ry="11" fill="#FFFFFF"/>
         </g>
 
-        <!-- Пузырьки -->
         <g class="bubbles">
           <circle cx="80"  cy="170" r="2.4"/>
           <circle cx="100" cy="185" r="2"/>
@@ -101,14 +97,14 @@
           <circle cx="110" cy="195" r="1.8"/>
         </g>
 
-        <!-- Блик стекла -->
         <ellipse class="highlight" cx="95" cy="95" rx="70" ry="95" fill="url(#glass-glow)"/>
       </g>
     </svg>
 
-    <div class="caption" id="app-preloader-caption">Готовим профиль…</div>
+    <div class="caption" id="app-preloader-caption">Подключаемся…</div>
   </div>
 </div>
+
 
 
 
@@ -732,82 +728,113 @@
 
 
 <script>
-  // ------- Управление прелоадером -------
-  function showLoader(text){
-    const el = document.getElementById('app-preloader');
-    if (!el) return;
-    const cap = document.getElementById('app-preloader-caption');
-    if (cap && text) cap.textContent = text;
-    el.classList.remove('is-hidden');
-  }
+(() => {
+  // === 0) Адрес воркера задаем прямо тут (без глобалей) ===
+  const API_BASE = (window.API_BASE && String(window.API_BASE).trim()) ||
+                   'https://craftbeer-demo.cyberian13.workers.dev';
+
+  // === 1) Helper: управление прелоадером ===
+  const $pre = () => document.getElementById('app-preloader');
+  const $cap = () => document.getElementById('app-preloader-caption');
+
+  function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
+  function showLoader(t){ const el=$pre(); if(!el) return; if(t) setCaption(t); el.classList.remove('is-hidden'); }
   function hideLoader(force=false){
-    const el = document.getElementById('app-preloader');
-    if (!el) return;
+    const el=$pre(); if(!el) return;
     el.classList.add('is-hidden');
-    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){} }, 380);
+    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
   }
 
-  // ------- Безопасный POST c логом, если пришёл HTML -------
-  async function jpostJSON(url, body){
-    const r = await fetch(url, {
-      method:'POST',
-      headers:{'Content-Type':'application/json','Accept':'application/json'},
-      body: JSON.stringify(body||{})
-    });
-    const ct = r.headers.get('content-type') || '';
-    const raw = await r.text();
-    let data;
-    try { data = JSON.parse(raw); }
-    catch(e){
-      console.error('NOT JSON from', url, { status:r.status, ct, raw: raw.slice(0,400) });
-      throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`);
+  // страховки: при любой необработанной ошибке лоадер не зависнет
+  window.addEventListener('error', ()=>hideLoader(false));
+  window.addEventListener('unhandledrejection', ()=>hideLoader(false));
+
+  // === 2) Fetch helpers ===
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+  async function jpostJSON(url, body, timeoutMs=12000){
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort('timeout'), timeoutMs);
+    try{
+      const r = await fetch(url, {
+        method:'POST',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body: JSON.stringify(body||{}),
+        signal: ctrl.signal
+      });
+      const ct = r.headers.get('content-type')||'';
+      const raw = await r.text();
+      let data;
+      try{ data = JSON.parse(raw); }
+      catch(e){
+        console.error('NOT JSON', {url, status:r.status, ct, raw:raw.slice(0,400)});
+        throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`);
+      }
+      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
+      return data;
+    } finally { clearTimeout(t); }
+  }
+
+  // === 3) Ждём state: бесконечные ретраи с бэкоффом, пока не ок ===
+  async function waitForState(tg_init){
+    let attempt = 0;
+    while (true){
+      attempt++;
+      try{
+        setCaption(`Подключаемся… попытка ${attempt}`);
+        // 1) «будим» GAS (через воркер)
+        const boot = await jpostJSON(API_BASE + '/api/mini/bootstrap', { tg_init, fresh:true });
+        // 2) тянем state (KV + SWR)
+        const st   = await jpostJSON(API_BASE + '/api/mini/state', { tg_init, fresh:false });
+
+        // Считаем валидным, если есть fresh_state от bootstrap или ok от state
+        const state = (st?.ok ? st : (boot?.fresh_state ? { ok:true, ...boot.fresh_state } : null));
+        if (state && (state.ok || state.coins != null || state.config)){
+          return state;
+        }
+        console.warn('State not valid yet', {boot, st});
+        throw new Error('state_invalid');
+      } catch(e){
+        console.warn('Wait state error:', e?.message || e);
+        // backoff: 1s, 2s, 3s … до 6s, затем держим 6s
+        const delay = Math.min(6000, 1000 * attempt);
+        setCaption(`Нет связи с сервером, пытаемся снова… (${Math.round(delay/1000)}s)`);
+        await sleep(delay);
+      }
     }
-    if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
-    return data;
   }
 
-  // ------- Init, будит GAS через воркер, тянет state -------
+  // === 4) Init: показываем UI только после валидных данных ===
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
-
-    // страховки от «зависшего» лоадера
-    window.addEventListener('error', ()=>hideLoader(true));
-    window.addEventListener('unhandledrejection', ()=>hideLoader(true));
-
-    // старт
-    showLoader('Готовим профиль…');
+    showLoader('Подключаемся…');
     tg?.showProgress?.();
 
     try{
-      if (!window.API_BASE){
-        console.error('API_BASE не объявлен в глобале');
-        return;
-      }
+      // ждём пока реально будет state
+      const state = await waitForState(tg_init);
+      window.APP_STATE = state;
 
-      // 1) Bootstrap: воркер дергает profile.bootstrap в GAS и кладет свежий state в KV
-      const boot = await jpostJSON(window.API_BASE + '/api/mini/bootstrap', { tg_init, fresh:true });
-      if (boot?.fresh_state) window.APP_STATE = boot.fresh_state;
-
-      // 2) State: воркер отдаёт KV-кэш и фоном освежает
-      const st = await jpostJSON(window.API_BASE + '/api/mini/state', { tg_init, fresh:false });
-      if (st?.ok) window.APP_STATE = st;
-
-      // 3) Рендер твоего UI (если функция есть)
+      // твой рендер (если есть)
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-    } catch(e){
-      console.error('initAppUltra error:', e);
-      // здесь можно показать тост/баннер «ошибка сети»
-    } finally {
+      // убираем прелоадер только после успешного рендера
       hideLoader(true);
+    }catch(e){
+      // сюда попадём только если внутри waitForState будет throw без ретраев
+      console.error('initAppUltra fatal:', e);
+      setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
+    }finally{
       tg?.ready?.();
       tg?.hideProgress?.();
     }
   }
 
   document.addEventListener('DOMContentLoaded', initAppUltra);
+})();
 </script>
+
 
 
 
