@@ -772,121 +772,87 @@
 
 <script>
 (() => {
-  // адрес воркера (если нужно — замени)
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // --- Прелоадер
+  // ---------- helpers для прелоадера (как у тебя) ----------
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
-
-  let LOADER_T0 = 0;
-  let LOADER_FILL_DONE = false;
+  let LOADER_T0 = 0, LOADER_FILL_DONE = false;
 
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){
     const el=$pre(); if(!el) return;
     if(t) setCaption(t);
-    LOADER_T0 = performance.now();
-    LOADER_FILL_DONE = false;
+    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false;
     const beer = el.querySelector('.beer');
-    if (beer){
-      beer.addEventListener('animationend', (e)=>{
-        if (e.animationName === 'fill') LOADER_FILL_DONE = true;
-      }, {once:true});
-    }
+    beer?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
     el.classList.remove('is-hidden');
   }
   function hideLoader(force=false){
     const el=$pre(); if(!el) return;
-    el.classList.add('is-hidden');
-    if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
+    el.classList.add('is-hidden'); if(force) setTimeout(()=>{ try{ el.remove(); }catch(_){} },380);
   }
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  // Спиннер-страховка: если dashoffset не двигается — анимируем вручную
-  function ensureSpinnerRuns(){
-    const c = document.querySelector('.spinner-dash');
-    if (!c) return;
-    const r = Number(c.getAttribute('r') || 108);
-    const len = Math.round(2 * Math.PI * r);
-    c.style.strokeDasharray = `120 ${len}`;
-    const before = getComputedStyle(c).strokeDashoffset;
-    setTimeout(() => {
-      const after = getComputedStyle(c).strokeDashoffset;
-      if (before === after || !after){
-        let t0 = null; const period = 1.15;
-        function loop(ts){
-          if (!t0) t0 = ts;
-          const dt = (ts - t0) / 1000;
-          const offset = -(len * (dt % period) / period);
-          c.style.strokeDashoffset = String(offset);
-          requestAnimationFrame(loop);
-        }
-        requestAnimationFrame(loop);
-      }
-    }, 400);
-  }
-
-  // ждём минимум один цикл анимации + минимальное время на экране
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
-    const elapsed = performance.now() - LOADER_T0;
+    const elapsed = performance.now()-LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
     const leftFill    = LOADER_FILL_DONE ? 0 : Math.max(0, fillMs - elapsed);
     const wait = Math.max(leftVisible, leftFill);
-    if (wait > 0) await new Promise(r=>setTimeout(r, wait));
+    if (wait>0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // --- fetch helpers
-  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-  async function jpostJSON(url, body, timeoutMs=12000){
+  // ---------- fetch с no-store + X-User-ID ----------
+  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
+  async function jpostJSON(url, body, uid, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
       const r = await fetch(url, {
         method:'POST',
-        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        cache: 'no-store',
+        headers:{
+          'Content-Type':'application/json',
+          'Accept':'application/json',
+          'Cache-Control':'no-store, no-cache, must-revalidate',
+          'Pragma':'no-cache',
+          ...(uid ? {'X-User-ID': String(uid)} : {})
+        },
         body: JSON.stringify(body||{}),
         signal: ctrl.signal
       });
       const ct = r.headers.get('content-type')||''; const raw = await r.text();
-      let data;
-      try{ data = JSON.parse(raw); }
+      let data; try{ data = JSON.parse(raw); }
       catch(e){ console.error('NOT JSON', {url, status:r.status, ct, raw: raw.slice(0,400)}); throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`); }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       return data;
     } finally { clearTimeout(t); }
   }
 
-  // --- простые DOM-апдейтеры (fallback, если нет твоих функций)
-  const setText = (sel, val) => { const el=document.querySelector(sel); if(el!=null) el.textContent = String(val ?? ''); };
-  const setHTML = (sel, html) => { const el=document.querySelector(sel); if(el!=null) el.innerHTML = html; };
+  // ---------- простые DOM-апдейтеры (на случай, если твоих функций нет) ----------
+  const setText = (sel, v)=>{ const el=document.querySelector(sel); if(el) el.textContent=String(v??''); };
+  const setHTML = (sel, html)=>{ const el=document.querySelector(sel); if(el) el.innerHTML=html; };
 
-  // --- применение state к UI (и через функции, и через data-* селекторы)
   function applyState(s){
     if (!s) return;
+    // профиль
+    if (typeof updateCoinsUI==='function') updateCoinsUI(s.coins); else if(s.coins!=null) setText('[data-coins]', s.coins);
+    if (typeof updateStylesCounter==='function') updateStylesCounter(s.styles_count, s.styles_total);
+    else if (s.styles_count!=null) setText('[data-styles]', `${s.styles_count??0}/${s.styles_total??''}`);
+    if (typeof updateRefTotal==='function') updateRefTotal(s.ref_total); else if(s.ref_total!=null) setText('[data-ref-total]', s.ref_total);
+    if (typeof updateLastStamp==='function') updateLastStamp(s.last_stamp_name); else if(s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
 
-    // Профиль / цифры
-    if (typeof updateCoinsUI === 'function') updateCoinsUI(s.coins); else if (s.coins != null) setText('[data-coins]', s.coins);
-    if (typeof updateStylesCounter === 'function') updateStylesCounter(s.styles_count, s.styles_total);
-    else if (s.styles_count != null) setText('[data-styles]', `${s.styles_count ?? 0}/${s.styles_total ?? ''}`);
-    if (typeof updateRefTotal === 'function') updateRefTotal(s.ref_total); else if (s.ref_total != null) setText('[data-ref-total]', s.ref_total);
-
-    if (typeof updateLastStamp === 'function') updateLastStamp(s.last_stamp_name);
-    else if (s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
-
-    // Последние призы
+    // последние призы
     if (Array.isArray(s.last_prizes)){
-      if (typeof updateLastPrizes === 'function') updateLastPrizes(s.last_prizes);
-      else {
-        setHTML('[data-last-prizes]', s.last_prizes.map(p=>`
-          <li class="prize-row">
-            <span class="prize-name">${p.name ?? p.prize ?? 'Приз'}</span>
-            <span class="prize-when">${p.when ?? ''}</span>
-          </li>`).join(''));
-      }
+      if (typeof updateLastPrizes==='function') updateLastPrizes(s.last_prizes);
+      else setHTML('[data-last-prizes]', s.last_prizes.map(p=>`
+        <li class="prize-row">
+          <span class="prize-name">${p.name ?? p.prize ?? 'Приз'}</span>
+          <span class="prize-when">${p.when ?? ''}</span>
+        </li>`).join(''));
     }
 
-    // Штампы / подсветка полученных (если есть разметка с data-style-id)
+    // подсветка собранных штампов
     if (Array.isArray(s.styles_collected)){
       const ids = new Set(s.styles_collected.map(x=>String(x)));
       document.querySelectorAll('[data-style-id]').forEach(el=>{
@@ -895,57 +861,62 @@
       });
     }
 
-    // Турнир
+    // турнир
     if (Array.isArray(s.leaderboard_today)){
-      if (typeof renderLeaderboardToday === 'function') renderLeaderboardToday(s.leaderboard_today);
-      else setHTML('[data-leaderboard-today]', s.leaderboard_today.map((r,i)=>`
-        <div class="lb-row"><b>${i+1}.</b> ${r.name ?? r.username ?? 'Игрок'} — ${r.score ?? 0}</div>`).join(''));
+      if (typeof renderLeaderboardToday==='function') renderLeaderboardToday(s.leaderboard_today);
+      else setHTML('[data-leaderboard-today]', s.leaderboard_today.map((r,i)=>`<div class="lb-row"><b>${i+1}.</b> ${r.name??r.username??'Игрок'} — ${r.score??0}</div>`).join(''));
     }
     if (Array.isArray(s.leaderboard_alltime)){
-      if (typeof renderLeaderboardAlltime === 'function') renderLeaderboardAlltime(s.leaderboard_alltime);
-      else setHTML('[data-leaderboard-alltime]', s.leaderboard_alltime.map((r,i)=>`
-        <div class="lb-row"><b>${i+1}.</b> ${r.name ?? r.username ?? 'Игрок'} — ${r.score ?? 0}</div>`).join(''));
+      if (typeof renderLeaderboardAlltime==='function') renderLeaderboardAlltime(s.leaderboard_alltime);
+      else setHTML('[data-leaderboard-alltime]', s.leaderboard_alltime.map((r,i)=>`<div class="lb-row"><b>${i+1}.</b> ${r.name??r.username??'Игрок'} — ${r.score??0}</div>`).join(''));
     }
 
-    if (s.game_today_best  != null && typeof updateTodayBest  === 'function') updateTodayBest(s.game_today_best);
-    if (s.game_plays_today != null && typeof updateTodayPlays === 'function') updateTodayPlays(s.game_plays_today);
+    if (s.game_today_best!=null && typeof updateTodayBest==='function') updateTodayBest(s.game_today_best);
+    if (s.game_plays_today!=null && typeof updateTodayPlays==='function') updateTodayPlays(s.game_plays_today);
 
-    if (s.config && typeof cacheConfig === 'function') cacheConfig(s.config);
+    if (s.config && typeof cacheConfig==='function') cacheConfig(s.config);
   }
 
-  // --- watcher по kv_sig (фоновые обновления)
-  let LAST_SIG = null;
-  async function watchState(tg_init){
-    while (true){
+  // ---------- watcher по kv_sig с привязкой к UID ----------
+  let LAST_SIG = null, WATCH_ABORT = false;
+  async function watchState(tg_init, uid){
+    WATCH_ABORT = false;
+    while (!WATCH_ABORT){
       try{
-        const st = await jpostJSON(API_BASE+'/api/mini/state', { tg_init, fresh:false });
+        const st = await jpostJSON(API_BASE+'/api/mini/state', { tg_init, fresh:false, uid, bust:Date.now() }, uid);
         if (st?.kv_sig && st.kv_sig !== LAST_SIG){
           LAST_SIG = st.kv_sig;
-          applyState(st);
+          // На всякий случай проверяем, что стейт не «чужой»
+          if (!st.uid || String(st.uid) === String(uid)) applyState(st);
         }
       }catch(_){}
       await sleep(15000);
     }
   }
 
-  // --- /api/mini/event: сразу применяем fresh_state из ответа
-  window.postMiniEvent = async function(type, data, tg_init){
-    const res = await jpostJSON(API_BASE+'/api/mini/event', { tg_init, type, data });
+  // ---------- /api/mini/event: сразу применяем fresh_state ----------
+  window.postMiniEvent = async function(type, data, tg_init, uid){
+    const res = await jpostJSON(API_BASE+'/api/mini/event', { tg_init, type, data, uid, bust:Date.now() }, uid);
     if (res?.fresh_state) applyState(res.fresh_state);
     return res;
   };
 
-  // --- ожидание валидного state (ретраи с бэкоффом)
-  async function waitForState(tg_init){
+  async function waitForState(tg_init, uid, switched){
     let attempt = 0;
     while (true){
       attempt++;
       try{
         setCaption(`Подключаемся… попытка ${attempt}`);
-        const boot = await jpostJSON(API_BASE+'/api/mini/bootstrap', { tg_init, fresh:true });
-        const st   = await jpostJSON(API_BASE+'/api/mini/state',     { tg_init, fresh:false });
+        const common = { tg_init, uid, bust: Date.now() };
+        // если аккаунт сменился — просим воркер сбросить/освежить снапшот
+        const boot = await jpostJSON(API_BASE+'/api/mini/bootstrap', { ...common, fresh:true, force: !!switched }, uid);
+        const st   = await jpostJSON(API_BASE+'/api/mini/state',     { ...common, fresh:false }, uid);
+
+        // На случай, если воркер начал возвращать uid — проверим
         const state = (st?.ok ? st : (boot?.fresh_state ? { ok:true, ...boot.fresh_state } : null));
-        if (state && (state.ok || state.coins != null || state.config)) return state;
+        if (state && (state.ok || state.coins!=null || state.config)){
+          if (!state.uid || String(state.uid) === String(uid)) return state;
+        }
         throw new Error('state_invalid');
       }catch(e){
         const delay = Math.min(6000, 1000*attempt);
@@ -955,26 +926,54 @@
     }
   }
 
-  // --- главный init
+  // ---------- главный init с детектом смены аккаунта ----------
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
+    const UID = String(tg?.initDataUnsafe?.user?.id || '');
+    const lastUid = sessionStorage.getItem('last_uid') || '';
+    const switched = UID && lastUid && UID !== lastUid;
+
+    // сброс фронт-состояния, если другой аккаунт
+    if (switched){
+      LAST_SIG = null;
+      window.APP_STATE = null;
+      WATCH_ABORT = true; // остановим прежний watcher, если был
+    }
+    if (UID) sessionStorage.setItem('last_uid', UID);
 
     showLoader('Подключаемся…');
-    ensureSpinnerRuns();  // гарант кручения на десктопе
+    // гарант кручения спиннера на десктопе
+    (function ensureSpinnerRuns(){
+      const c = document.querySelector('.spinner-dash'); if (!c) return;
+      const r = Number(c.getAttribute('r') || 108);
+      const len = Math.round(2 * Math.PI * r);
+      c.style.strokeDasharray = `120 ${len}`;
+      const before = getComputedStyle(c).strokeDashoffset;
+      setTimeout(()=>{ const after = getComputedStyle(c).strokeDashoffset;
+        if (before === after || !after){
+          let t0=null, period=1.15;
+          const loop=(ts)=>{ if(!t0) t0=ts; const dt=(ts-t0)/1000;
+            c.style.strokeDashoffset = String(-(len * (dt % period) / period));
+            requestAnimationFrame(loop);
+          };
+          requestAnimationFrame(loop);
+        }
+      }, 400);
+    })();
     tg?.showProgress?.();
 
     try{
-      const state = await waitForState(tg_init);
+      const state = await waitForState(tg_init, UID, switched);
       window.APP_STATE = state;
 
       applyState(window.APP_STATE);
       if (typeof renderAll === 'function') renderAll(window.APP_STATE);
 
-      await waitLoaderCycle();   // минимум один цикл анимации
+      await waitLoaderCycle();
       hideLoader(true);
 
-      watchState(tg_init);       // фоновая синхронизация KV
+      watchState(tg_init, UID);
     }catch(e){
       console.error('initAppUltra fatal:', e);
       setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
@@ -987,6 +986,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
