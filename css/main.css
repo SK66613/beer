@@ -1082,8 +1082,9 @@ canvas, .game, .no-gesture { touch-action: none; }
 .spinner-dash{
   stroke-dashoffset: 0;
   animation: dash 1.15s linear infinite;
-  filter: drop-shadow(0 0 6px rgba(255,211,107,.25));
+  /* filter: drop-shadow(0 0 6px rgba(255,211,107,.25));  <-- убираем */
 }
+
 @keyframes dash { to { stroke-dashoffset: -800; } }
 
 /* Пиво — один цикл «наливания» */
