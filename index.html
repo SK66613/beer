@@ -837,7 +837,7 @@
   // адрес воркера
   const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
 
-  // --- Прелоадер (как раньше) ---
+  // ===== Прелоадер =====
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
@@ -894,14 +894,14 @@
     if (wait>0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // --- fetch helper: БЕЗ кастомных заголовков (чтобы не было preflight-провала) ---
+  // ===== fetch helper (без кастомных заголовков) =====
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
   async function jpostJSON(url, body, timeoutMs=12000){
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
       const r = await fetch(url, {
         method:'POST',
-        cache: 'no-store',              // браузер не будет брать из своего кэша
+        cache: 'no-store',
         headers:{
           'Content-Type':'application/json',
           'Accept':'application/json'
@@ -917,13 +917,17 @@
     } finally { clearTimeout(t); }
   }
 
-  // --- простые DOM-апдейтеры на случай, если твоих функций нет ---
+  // ===== Применение стейта к UI =====
   const setText = (sel, v)=>{ const el=document.querySelector(sel); if(el) el.textContent=String(v??''); };
   const setHTML = (sel, html)=>{ const el=document.querySelector(sel); if(el) el.innerHTML=html; };
 
-  // --- применение state к UI (профиль, призы, штампы, турнир) ---
+  // Текущий UID для защиты от «чужого» стейта
+  let CUR_UID = '';
+
   function applyState(s){
     if (!s) return;
+    // Гейт: не применяем стейт другого пользователя
+    if (CUR_UID && s.uid && String(s.uid) !== CUR_UID) return;
 
     // профиль
     if (typeof updateCoinsUI==='function') updateCoinsUI(s.coins); else if (s.coins!=null) setText('[data-coins]', s.coins);
@@ -967,31 +971,33 @@
     if (s.config && typeof cacheConfig==='function') cacheConfig(s.config);
   }
 
-  // --- watcher по kv_sig ---
+  // ===== watcher по kv_sig =====
   let LAST_SIG = null, WATCH_ABORT = false;
   async function watchState(tg_init, uid){
     WATCH_ABORT = false;
     while (!WATCH_ABORT){
       try{
-        // только body (uid, bust), НИКАКИХ кастом-заголовков
         const st = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`, { tg_init, fresh:false, uid, bust:Date.now() });
-        if (st?.kv_sig && st.kv_sig !== LAST_SIG){
+        // Сначала проверяем UID, и только потом трогаем LAST_SIG
+        const matchesUid = (!st?.uid || String(st.uid) === CUR_UID);
+        if (matchesUid && st?.kv_sig && st.kv_sig !== LAST_SIG){
           LAST_SIG = st.kv_sig;
-          if (!st.uid || String(st.uid) === String(uid)) applyState(st);
+          applyState(st);
         }
       }catch(_){}
       await sleep(15000);
     }
   }
 
-  // --- /api/mini/event: сразу применяем fresh_state ---
+  // ===== /api/mini/event: сразу применяем fresh_state (только свой UID) =====
   window.postMiniEvent = async function(type, data, tg_init, uid){
     const res = await jpostJSON(`${API_BASE}/api/mini/event?bust=${Date.now()}`, { tg_init, type, data, uid, bust:Date.now() });
-    if (res?.fresh_state) applyState(res.fresh_state);
+    const st = res?.fresh_state;
+    if (st && (!st.uid || String(st.uid) === CUR_UID)) applyState(st);
     return res;
   };
 
-  // --- ожидание валидного state (ретраи) ---
+  // ===== ожидание валидного state (ретраи) =====
   async function waitForState(tg_init, uid, switched){
     let attempt = 0;
     while (true){
@@ -1015,15 +1021,32 @@
     }
   }
 
-  // --- главный init с детектом смены аккаунта ---
+  // ===== главный init с детектом смены аккаунта =====
   async function initAppUltra(){
     const tg = window.Telegram?.WebApp;
     const tg_init = tg?.initData || '';
     const UID = String(tg?.initDataUnsafe?.user?.id || '');
+    CUR_UID = String(UID || '');        // <-- фиксируем текущий UID для гейтов
+
     const lastUid = sessionStorage.getItem('last_uid') || '';
     const switched = UID && lastUid && UID !== lastUid;
 
-    if (switched){ LAST_SIG = null; window.APP_STATE = null; WATCH_ABORT = true; }
+    if (switched){
+      LAST_SIG = null;
+      window.APP_STATE = null;
+      WATCH_ABORT = true;
+      // Мгновенный сброс UI, чтобы не мигали старые данные
+      (function resetUI(){
+        setText('[data-coins]', '—');
+        setText('[data-styles]', '—');
+        setText('[data-ref-total]', '—');
+        setText('[data-last-stamp]', '—');
+        setHTML('[data-last-prizes]', '');
+        setHTML('[data-leaderboard-today]', '');
+        setHTML('[data-leaderboard-alltime]', '');
+        document.querySelectorAll('[data-style-id]').forEach(el=>el.classList.remove('is-collected'));
+      })();
+    }
     if (UID) sessionStorage.setItem('last_uid', UID);
 
     showLoader('Подключаемся…');
@@ -1053,6 +1076,7 @@
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
