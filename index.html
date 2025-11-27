@@ -836,51 +836,46 @@
 
 <script>
 (() => {
-  // === Те же базовые переменные, что в проекте ===
-  const TG = (window.Telegram && window.Telegram.WebApp) || null;
-  const API_BASE = window.API_BASE || window.__API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
-
-  // ===== Прелоадер =====
+  // ===== ссылки на лоудер =====
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
-  let LOADER_T0 = 0, LOADER_FILL_DONE = false;
+  // ===== Telegram =====
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  function getUID(){ try{ return String(TG?.initDataUnsafe?.user?.id || ''); }catch(_){ return ''; } }
+  function getTgInit(){ try{ return TG?.initData || ''; }catch(_){ return ''; } }
+
+  // ===== визуал =====
+  let LOADER_T0 = 0, LOADER_FILL_DONE = false, HIDDEN = false;
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){
     const el=$pre(); if(!el) return;
     if(t) setCaption(t);
-    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false;
+    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false; HIDDEN = false;
     el.querySelector('.beer')?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
     el.classList.remove('is-hidden');
   }
   function hideLoader(force=false){
+    if (HIDDEN) return; HIDDEN = true;
     const el=$pre(); if(!el) return;
     el.classList.add('is-hidden');
     if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
   }
-  window.addEventListener('error', ()=>hideLoader(false));
-  window.addEventListener('unhandledrejection', ()=>hideLoader(false));
-
-  // Спиннер-страховка (десктоп WebView)
+  // страхуем кручение бегунка на десктопе
   function ensureSpinnerRuns(){
     const c = document.querySelector('.spinner-dash'); if (!c) return;
-    const r = Number(c.getAttribute('r') || 108);
-    const len = Math.round(2 * Math.PI * r);
+    const r = Number(c.getAttribute('r') || 108), len = Math.round(2*Math.PI*r);
     c.style.strokeDasharray = `120 ${len}`;
     const before = getComputedStyle(c).strokeDashoffset;
-    setTimeout(() => {
+    setTimeout(()=>{
       const after = getComputedStyle(c).strokeDashoffset;
       if (before === after || !after){
-        let t0 = null; const period = 1.15;
-        function loop(ts){ if (!t0) t0 = ts; const dt = (ts - t0) / 1000;
-          c.style.strokeDashoffset = String(-(len * (dt % period) / period));
-          requestAnimationFrame(loop);
-        }
+        let t0=null, period=1.15;
+        const loop=(ts)=>{ if(!t0) t0=ts; const dt=(ts-t0)/1000; c.style.strokeDashoffset=String(-(len*(dt%period)/period)); requestAnimationFrame(loop); };
         requestAnimationFrame(loop);
       }
-    }, 400);
+    },400);
   }
-
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
     const elapsed = performance.now()-LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
@@ -889,194 +884,101 @@
     if (wait>0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // ===== ВАЖНО: ждём Telegram initData, как в твоих блоках =====
-  function getTgInit(){ try { return TG && TG.initData ? TG.initData : ''; }catch(_){ return ''; } }
+  // ===== ждём TG.initData как в твоих блоках =====
   async function waitTGInit(maxMs=4500){
-    const t0 = Date.now();
+    const t0=Date.now();
     return new Promise(resolve=>{
       (function tick(){
-        const has = !!(TG && TG.initData && TG.initData.length>0);
-        if (has || Date.now()-t0 > maxMs) return resolve();
+        const has = !!(getTgInit() && getTgInit().length>0);
+        if (has || Date.now()-t0>maxMs) return resolve();
         setTimeout(tick, 60);
       })();
     });
   }
 
-  // ===== fetch/jpost (используем твой общий путь, без «прямых» обходов) =====
-  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-  async function jpost(path, body, timeoutMs=12000){
-    // если в проекте уже есть window.jpost — используем его
-    if (typeof window.jpost === 'function'){
-      return window.jpost(path, body);
-    }
-    // иначе — аккуратный POST в том же стиле
-    const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
-    try{
-      const r = await fetch((API_BASE||'') + path, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json', 'Cache-Control':'no-store' },
-        cache:'no-store',
-        body: JSON.stringify(body||{}),
-        signal: ctrl.signal
-      });
-      const raw = await r.text(); let data;
-      try{ data = JSON.parse(raw); }catch(e){ throw new Error(`Bad JSON ${path}`); }
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
-      return data;
-    } finally { clearTimeout(t); }
-  }
-
-  const isMobileNet = () => {
-    const nc = navigator.connection;
-    const t = String(nc?.type || nc?.effectiveType || '');
-    return /cellular|2g|3g|4g|5g|slow-2g/i.test(t);
-  };
-
-  async function warmupPop(tg_init){
-    try{ await jpost('/api/mini/bootstrap', { tg_init, fresh:true, inline:true }); }catch(_){}
-  }
-  async function mobileRescue(tg_init){
-    if (!isMobileNet()) return null;
-    await sleep(1600);
-    try{
-      setCaption('Медленная сеть… пробуем альтернативный канал');
-      // безопасный «пинг» через event -> fresh_state (твой фронт так уже делает)
-      const ping = await jpost('/api/mini/event', { tg_init, type:'state.ping', data:{} });
-      if (ping?.fresh_state) return { ok:true, ...ping.fresh_state };
-    }catch(_){}
-    try{
-      const st = await jpost('/api/mini/state', { tg_init, fresh:true });
-      if (st && (st.ok || st.coins!=null || st.config)) return st;
-    }catch(_){}
-    return null;
-  }
-
-  // ===== Применение state к UI (через ту же точку, что и остальное) =====
-  const setText = (sel, v)=>{ const el=document.querySelector(sel); if(el) el.textContent=String(v??''); };
-  const setHTML = (sel, html)=>{ const el=document.querySelector(sel); if(el) el.innerHTML=html; };
-
+  // ===== защита от «смешивания» (на всякий) =====
   let CUR_UID = '';
-  function applyState(s){
-    if (!s) return;
-    // гейт: не применяем чужой стейт (если сервер прислал uid)
-    if (CUR_UID && s.uid && String(s.uid) !== CUR_UID) return;
-
-    // Если у тебя уже есть window.applyServerState — пользуемся им (единый путь)
-    if (typeof window.applyServerState === 'function'){
-      try { window.applyServerState(s); return; } catch(_) {}
-    }
-
-    // Иначе — минимальный фолбэк (чтобы не оставить пустой экран)
-    if (s.coins!=null) setText('[data-coins]', s.coins);
-    if (s.styles_count!=null) setText('[data-styles]', `${s.styles_count??0}/${s.styles_total??''}`);
-    if (s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
-    if (Array.isArray(s.last_prizes)) setHTML('[data-last-prizes]', s.last_prizes.map(p=>`<li class="prize-row"><span class="prize-name">${p.name ?? p.prize ?? 'Приз'}</span><span class="prize-when">${p.when ?? ''}</span></li>`).join(''));
-    if (Array.isArray(s.styles_collected)){
-      const ids = new Set(s.styles_collected.map(x=>String(x)));
-      document.querySelectorAll('[data-style-id]').forEach(el=>{
-        const id = String(el.getAttribute('data-style-id')||'');
-        el.classList.toggle('is-collected', ids.has(id));
-      });
-    }
+  function acceptState(s){
+    if (!s) return false;
+    if (CUR_UID && s.uid && String(s.uid) !== CUR_UID) return false;
+    return !!(s.ok || s.coins!=null || s.config || Array.isArray(s.last_prizes) || Array.isArray(s.styles_collected));
   }
 
-  // watcher по kv_sig (как было, но через jpost)
-  let LAST_SIG = null, WATCH_ABORT = false;
-  async function watchState(tg_init){
-    WATCH_ABORT = false;
-    while (!WATCH_ABORT){
-      try{
-        const st = await jpost('/api/mini/state', { tg_init, fresh:false, bust:Date.now() });
-        if (st?.kv_sig && st.kv_sig !== LAST_SIG){
-          LAST_SIG = st.kv_sig;
-          applyState(st);
-        }
-      }catch(_){}
-      await sleep(15000);
-    }
-  }
-
-  // /api/mini/event прокидываем как и в проекте (чтобы штампы/монеты шли одним путём)
-  window.postMiniEvent = async function(type, data, tg_init){
-    const res = await jpost('/api/mini/event', { tg_init, type, data });
-    if (res?.fresh_state) applyState(res.fresh_state);
-    return res;
-  };
-
-  async function waitForState(tg_init, switched){
-    let attempt = 0;
-    while (true){
-      attempt++;
-      try{
-        setCaption(`Подключаемся… попытка ${attempt}`);
-        // строго как в твоих файлах: bootstrap -> state (без uid/лишних полей)
-        await jpost('/api/mini/bootstrap', { tg_init, fresh:true, force: !!switched, data:{ start_param: TG?.initDataUnsafe?.start_param || "" } });
-        const st = await jpost('/api/mini/state', { tg_init, fresh:false });
-
-        if (st && (st.ok || st.coins!=null || st.config)) return st;
-        throw new Error('state_invalid');
-      }catch(e){
-        const delay = Math.min(6000, 1000*attempt);
-        setCaption(`Нет связи с сервером, пытаемся снова… (${Math.round(delay/1000)}s)`);
-        await sleep(delay);
+  // ===== «подписка» на applyServerState в любом порядке загрузки =====
+  let stateArrived = false;
+  function installApplyServerStateHook(){
+    try{
+      // уже есть функция — оборачиваем
+      if (typeof window.applyServerState === 'function'){
+        const prev = window.applyServerState;
+        window.applyServerState = function wrapped(state){
+          const res = prev.apply(this, arguments);
+          try{
+            if (!stateArrived && acceptState(state)){
+              stateArrived = true;
+              // даём UI отрисоваться и скрываем лоудер мягко
+              (async()=>{ await waitLoaderCycle(); hideLoader(true); })();
+            }
+          }catch(_){}
+          return res;
+        };
+        return;
       }
+      // ещё нет — перехватим будущую установку
+      let backing;
+      Object.defineProperty(window, 'applyServerState', {
+        configurable: true,
+        enumerable: true,
+        get(){ return backing; },
+        set(fn){
+          if (typeof fn === 'function'){
+            backing = function wrapped(state){
+              const res = fn.apply(this, arguments);
+              try{
+                if (!stateArrived && acceptState(state)){
+                  stateArrived = true;
+                  (async()=>{ await waitLoaderCycle(); hideLoader(true); })();
+                }
+              }catch(_){}
+              return res;
+            };
+          }else{
+            backing = fn;
+          }
+        }
+      });
+    }catch(e){
+      // вообще без хуков — просто таймаутом
+      console.warn('applyServerState hook failed:', e);
     }
   }
 
-  // ===== init: теперь ждём TG.initData ПЕРЕД сетью =====
-  async function initAppUltra(){
+  // ===== init =====
+  async function init(){
     try{ TG?.ready?.(); TG?.expand?.(); TG?.disableVerticalSwipes?.(); }catch(_){}
-    await waitTGInit();                       // << ключевая правка
-
-    const tg_init = getTgInit();
-    const u = TG?.initDataUnsafe?.user || {};
-    CUR_UID = u && u.id!=null ? String(u.id) : '';
-
-    const lastUid = sessionStorage.getItem('last_uid') || '';
-    const switched = CUR_UID && lastUid && CUR_UID !== lastUid;
-    if (switched){
-      LAST_SIG = null; window.APP_STATE = null; WATCH_ABORT = true;
-      // сброс UI (чтоб не мигали старые данные)
-      setText('[data-coins]', '—'); setText('[data-styles]', '—');
-      setText('[data-ref-total]', '—'); setText('[data-last-stamp]', '—');
-      setHTML('[data-last-prizes]', ''); setHTML('[data-leaderboard-today]', ''); setHTML('[data-leaderboard-alltime]', '');
-      document.querySelectorAll('[data-style-id]').forEach(el=>el.classList.remove('is-collected'));
-    }
-    if (CUR_UID) sessionStorage.setItem('last_uid', CUR_UID);
+    await waitTGInit();
+    CUR_UID = getUID();
 
     showLoader('Подключаемся…');
     ensureSpinnerRuns();
-    TG?.showProgress?.();
 
-    // мягкий прогрев POP
-    warmupPop(tg_init).catch(()=>{});
+    // Подписываемся на моменты, когда твои блоки реально закончат загрузку
+    installApplyServerStateHook();
 
-    try{
-      // основная загрузка + мобильный rescue параллельно
-      const state = await Promise.race([
-        waitForState(tg_init, switched),
-        mobileRescue(tg_init)
-      ]) || await waitForState(tg_init, switched);
-
-      window.APP_STATE = state;
-      applyState(state);
-      if (typeof renderAll === 'function') renderAll(state);
-
-      await waitLoaderCycle();
-      hideLoader(true);
-
-      watchState(tg_init);
-    }catch(e){
-      console.error('initAppUltra fatal:', e);
-      setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
-    }finally{
-      TG?.ready?.(); TG?.hideProgress?.();
-    }
+    // Фолбэк: если за N секунд не прилетело никакого состояния — пишем аккуратно
+    const FAIL_MS = 9000;
+    setTimeout(()=>{
+      if (!stateArrived){
+        setCaption('Нет связи с сервером, пробуем ещё…');
+        // дальше не скрываем — пусть твой штатный retry догрузит и applyServerState закроет оверлей
+      }
+    }, FAIL_MS);
   }
 
-  document.addEventListener('DOMContentLoaded', initAppUltra);
+  document.addEventListener('DOMContentLoaded', init);
 })();
 </script>
+
 
 
 
