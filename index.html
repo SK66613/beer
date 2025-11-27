@@ -1068,6 +1068,53 @@
 
   document.addEventListener('DOMContentLoaded', waitTGReadyAndStart);
 })();
+
+
+
+/* --- Auto-Refresh Watchdog (6s) -------------------------------------- */
+(function autoRefreshWatchdog(){
+  const LIMIT_MS = 6000;      // через сколько автоперезагружать (6с)
+  const GUARD_MS = 45000;     // не чаще одного авто-рефреша раз в 45с
+  const KEY_LAST = 'af_last_ts';
+
+  setTimeout(() => {
+    const pre = document.getElementById('app-preloader');
+    const cap = document.getElementById('app-preloader-caption');
+
+    // если лоудер уже скрыт — всё ок, ничего не делаем
+    const hidden = pre ? pre.classList.contains('is-hidden') : true;
+    if (hidden) return;
+
+    const now  = Date.now();
+    const last = Number(sessionStorage.getItem(KEY_LAST) || '0');
+
+    // анти-петля: если недавно уже авто-рефрешились — не перезагружаем повторно
+    if (now - last < GUARD_MS){
+      if (cap){
+        cap.innerHTML = 'Нет связи… <u>Обновить</u>';
+        cap.style.cursor = 'pointer';
+        cap.addEventListener('click', () => { try{ location.reload(); }catch(_){} }, { once:true });
+      }
+      return;
+    }
+
+    // метка, чтобы не крутиться по кругу
+    sessionStorage.setItem(KEY_LAST, String(now));
+
+    // аккуратный хард-рефреш с bust-параметром ?r=
+    try{
+      if (cap){ cap.textContent = 'Обновляем страницу…'; }
+      const u = new URL(location.href);
+      u.searchParams.set('r', String(now)); // bust кеша/POP
+      setTimeout(() => { location.replace(u.toString()); }, 200);
+    }catch(_){
+      // на всякий fallback
+      try{ location.reload(); }catch(__){}
+    }
+  }, LIMIT_MS);
+})();
+
+
 </script>
 
 
