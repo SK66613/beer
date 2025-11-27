@@ -836,24 +836,21 @@
 
 <script>
 (() => {
-  // адрес воркера
-  const API_BASE = 'https://craftbeer-demo.cyberian13.workers.dev';
+  // === Те же базовые переменные, что в проекте ===
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  const API_BASE = window.API_BASE || window.__API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
 
   // ===== Прелоадер =====
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
-  let LOADER_T0 = 0;
-  let LOADER_FILL_DONE = false;
-
+  let LOADER_T0 = 0, LOADER_FILL_DONE = false;
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){
     const el=$pre(); if(!el) return;
     if(t) setCaption(t);
-    LOADER_T0 = performance.now();
-    LOADER_FILL_DONE = false;
-    const beer = el.querySelector('.beer');
-    beer?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
+    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false;
+    el.querySelector('.beer')?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
     el.classList.remove('is-hidden');
   }
   function hideLoader(force=false){
@@ -864,10 +861,9 @@
   window.addEventListener('error', ()=>hideLoader(false));
   window.addEventListener('unhandledrejection', ()=>hideLoader(false));
 
-  // спиннер-страховка для десктопа
+  // Спиннер-страховка (десктоп WebView)
   function ensureSpinnerRuns(){
-    const c = document.querySelector('.spinner-dash');
-    if (!c) return;
+    const c = document.querySelector('.spinner-dash'); if (!c) return;
     const r = Number(c.getAttribute('r') || 108);
     const len = Math.round(2 * Math.PI * r);
     c.style.strokeDasharray = `120 ${len}`;
@@ -876,9 +872,7 @@
       const after = getComputedStyle(c).strokeDashoffset;
       if (before === after || !after){
         let t0 = null; const period = 1.15;
-        function loop(ts){
-          if (!t0) t0 = ts;
-          const dt = (ts - t0) / 1000;
+        function loop(ts){ if (!t0) t0 = ts; const dt = (ts - t0) / 1000;
           c.style.strokeDashoffset = String(-(len * (dt % period) / period));
           requestAnimationFrame(loop);
         }
@@ -887,7 +881,6 @@
     }, 400);
   }
 
-  // ждём минимум один цикл «наливания»
   async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
     const elapsed = performance.now()-LOADER_T0;
     const leftVisible = Math.max(0, minVisibleMs - elapsed);
@@ -896,88 +889,88 @@
     if (wait>0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // ===== fetch helper (без кастомных заголовков) =====
+  // ===== ВАЖНО: ждём Telegram initData, как в твоих блоках =====
+  function getTgInit(){ try { return TG && TG.initData ? TG.initData : ''; }catch(_){ return ''; } }
+  async function waitTGInit(maxMs=4500){
+    const t0 = Date.now();
+    return new Promise(resolve=>{
+      (function tick(){
+        const has = !!(TG && TG.initData && TG.initData.length>0);
+        if (has || Date.now()-t0 > maxMs) return resolve();
+        setTimeout(tick, 60);
+      })();
+    });
+  }
+
+  // ===== fetch/jpost (используем твой общий путь, без «прямых» обходов) =====
   const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-  async function jpostJSON(url, body, timeoutMs=12000){
+  async function jpost(path, body, timeoutMs=12000){
+    // если в проекте уже есть window.jpost — используем его
+    if (typeof window.jpost === 'function'){
+      return window.jpost(path, body);
+    }
+    // иначе — аккуратный POST в том же стиле
     const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
     try{
-      const r = await fetch(url, {
+      const r = await fetch((API_BASE||'') + path, {
         method:'POST',
-        cache: 'no-store',
-        headers:{ 'Content-Type':'application/json', 'Accept':'application/json' },
+        headers:{ 'Content-Type':'application/json', 'Cache-Control':'no-store' },
+        cache:'no-store',
         body: JSON.stringify(body||{}),
         signal: ctrl.signal
       });
-      const ct = r.headers.get('content-type')||''; const raw = await r.text();
-      let data; try{ data = JSON.parse(raw); }
-      catch(e){ console.error('NOT JSON', {url, status:r.status, ct, raw: raw.slice(0,400)}); throw new Error(`Bad JSON from ${url} (HTTP ${r.status})`); }
+      const raw = await r.text(); let data;
+      try{ data = JSON.parse(raw); }catch(e){ throw new Error(`Bad JSON ${path}`); }
       if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
       return data;
     } finally { clearTimeout(t); }
   }
 
-  // ===== helpers для мобильного POP =====
   const isMobileNet = () => {
     const nc = navigator.connection;
     const t = String(nc?.type || nc?.effectiveType || '');
     return /cellular|2g|3g|4g|5g|slow-2g/i.test(t);
   };
 
-  // прогрев POP: просим сервер подготовить свежий снимок (если поддерживается)
-  async function warmupPop(tg_init, uid){
-    try{
-      await jpostJSON(`${API_BASE}/api/mini/bootstrap?bust=${Date.now()}`, { tg_init, uid, fresh:true, inline:true });
-    }catch(_){}
+  async function warmupPop(tg_init){
+    try{ await jpost('/api/mini/bootstrap', { tg_init, fresh:true, inline:true }); }catch(_){}
   }
-
-  // мобильный rescue: если «тупит», пробуем достать fresh_state напрямую
-  async function mobileRescue(tg_init, uid){
+  async function mobileRescue(tg_init){
     if (!isMobileNet()) return null;
-    await sleep(1600); // даём шанс основной ветке
+    await sleep(1600);
     try{
       setCaption('Медленная сеть… пробуем альтернативный канал');
-      const ping = await jpostJSON(`${API_BASE}/api/mini/event?bust=${Date.now()}`, { tg_init, type:'state.ping', data:{}, uid, bust:Date.now() });
-      if (ping?.fresh_state && (!ping.fresh_state.uid || String(ping.fresh_state.uid) === CUR_UID)){
-        return { ok:true, ...ping.fresh_state };
-      }
+      // безопасный «пинг» через event -> fresh_state (твой фронт так уже делает)
+      const ping = await jpost('/api/mini/event', { tg_init, type:'state.ping', data:{} });
+      if (ping?.fresh_state) return { ok:true, ...ping.fresh_state };
     }catch(_){}
     try{
-      const st = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`, { tg_init, uid, fresh:true });
-      if (st && (!st.uid || String(st.uid) === CUR_UID) && (st.ok || st.coins!=null || st.config)) return st;
+      const st = await jpost('/api/mini/state', { tg_init, fresh:true });
+      if (st && (st.ok || st.coins!=null || st.config)) return st;
     }catch(_){}
     return null;
   }
 
-  // ===== Применение стейта к UI =====
+  // ===== Применение state к UI (через ту же точку, что и остальное) =====
   const setText = (sel, v)=>{ const el=document.querySelector(sel); if(el) el.textContent=String(v??''); };
   const setHTML = (sel, html)=>{ const el=document.querySelector(sel); if(el) el.innerHTML=html; };
 
-  // Текущий UID для защиты от «чужого» стейта
   let CUR_UID = '';
-
   function applyState(s){
     if (!s) return;
-    // Гейт: не применяем стейт другого пользователя
+    // гейт: не применяем чужой стейт (если сервер прислал uid)
     if (CUR_UID && s.uid && String(s.uid) !== CUR_UID) return;
 
-    // профиль
-    if (typeof updateCoinsUI==='function') updateCoinsUI(s.coins); else if (s.coins!=null) setText('[data-coins]', s.coins);
-    if (typeof updateStylesCounter==='function') updateStylesCounter(s.styles_count, s.styles_total);
-    else if (s.styles_count!=null) setText('[data-styles]', `${s.styles_count??0}/${s.styles_total??''}`);
-    if (typeof updateRefTotal==='function') updateRefTotal(s.ref_total); else if (s.ref_total!=null) setText('[data-ref-total]', s.ref_total);
-    if (typeof updateLastStamp==='function') updateLastStamp(s.last_stamp_name); else if (s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
-
-    // последние призы
-    if (Array.isArray(s.last_prizes)){
-      if (typeof updateLastPrizes==='function') updateLastPrizes(s.last_prizes);
-      else setHTML('[data-last-prizes]', s.last_prizes.map(p=>`
-        <li class="prize-row">
-          <span class="prize-name">${p.name ?? p.prize ?? 'Приз'}</span>
-          <span class="prize-when">${p.when ?? ''}</span>
-        </li>`).join(''));
+    // Если у тебя уже есть window.applyServerState — пользуемся им (единый путь)
+    if (typeof window.applyServerState === 'function'){
+      try { window.applyServerState(s); return; } catch(_) {}
     }
 
-    // подсветка полученных штампов
+    // Иначе — минимальный фолбэк (чтобы не оставить пустой экран)
+    if (s.coins!=null) setText('[data-coins]', s.coins);
+    if (s.styles_count!=null) setText('[data-styles]', `${s.styles_count??0}/${s.styles_total??''}`);
+    if (s.last_stamp_name) setText('[data-last-stamp]', s.last_stamp_name);
+    if (Array.isArray(s.last_prizes)) setHTML('[data-last-prizes]', s.last_prizes.map(p=>`<li class="prize-row"><span class="prize-name">${p.name ?? p.prize ?? 'Приз'}</span><span class="prize-when">${p.when ?? ''}</span></li>`).join(''));
     if (Array.isArray(s.styles_collected)){
       const ids = new Set(s.styles_collected.map(x=>String(x)));
       document.querySelectorAll('[data-style-id]').forEach(el=>{
@@ -985,33 +978,16 @@
         el.classList.toggle('is-collected', ids.has(id));
       });
     }
-
-    // турнир
-    if (Array.isArray(s.leaderboard_today)){
-      if (typeof renderLeaderboardToday==='function') renderLeaderboardToday(s.leaderboard_today);
-      else setHTML('[data-leaderboard-today]', s.leaderboard_today.map((r,i)=>`<div class="lb-row"><b>${i+1}.</b> ${r.name??r.username??'Игрок'} — ${r.score??0}</div>`).join(''));
-    }
-    if (Array.isArray(s.leaderboard_alltime)){
-      if (typeof renderLeaderboardAlltime==='function') renderLeaderboardAlltime(s.leaderboard_alltime);
-      else setHTML('[data-leaderboard-alltime]', s.leaderboard_alltime.map((r,i)=>`<div class="lb-row"><b>${i+1}.</b> ${r.name??r.username??'Игрок'} — ${r.score??0}</div>`).join(''));
-    }
-
-    if (s.game_today_best!=null && typeof updateTodayBest==='function') updateTodayBest(s.game_today_best);
-    if (s.game_plays_today!=null && typeof updateTodayPlays==='function') updateTodayPlays(s.game_plays_today);
-
-    if (s.config && typeof cacheConfig==='function') cacheConfig(s.config);
   }
 
-  // ===== watcher по kv_sig =====
+  // watcher по kv_sig (как было, но через jpost)
   let LAST_SIG = null, WATCH_ABORT = false;
-  async function watchState(tg_init, uid){
+  async function watchState(tg_init){
     WATCH_ABORT = false;
     while (!WATCH_ABORT){
       try{
-        const st = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`, { tg_init, fresh:false, uid, bust:Date.now() });
-        // Сначала проверяем UID, и только потом трогаем LAST_SIG
-        const matchesUid = (!st?.uid || String(st.uid) === CUR_UID);
-        if (matchesUid && st?.kv_sig && st.kv_sig !== LAST_SIG){
+        const st = await jpost('/api/mini/state', { tg_init, fresh:false, bust:Date.now() });
+        if (st?.kv_sig && st.kv_sig !== LAST_SIG){
           LAST_SIG = st.kv_sig;
           applyState(st);
         }
@@ -1020,29 +996,24 @@
     }
   }
 
-  // ===== /api/mini/event: сразу применяем fresh_state (только свой UID) =====
-  window.postMiniEvent = async function(type, data, tg_init, uid){
-    const res = await jpostJSON(`${API_BASE}/api/mini/event?bust=${Date.now()}`, { tg_init, type, data, uid, bust:Date.now() });
-    const st = res?.fresh_state;
-    if (st && (!st.uid || String(st.uid) === CUR_UID)) applyState(st);
+  // /api/mini/event прокидываем как и в проекте (чтобы штампы/монеты шли одним путём)
+  window.postMiniEvent = async function(type, data, tg_init){
+    const res = await jpost('/api/mini/event', { tg_init, type, data });
+    if (res?.fresh_state) applyState(res.fresh_state);
     return res;
   };
 
-  // ===== ожидание валидного state (как было) =====
-  async function waitForState(tg_init, uid, switched){
+  async function waitForState(tg_init, switched){
     let attempt = 0;
     while (true){
       attempt++;
       try{
         setCaption(`Подключаемся… попытка ${attempt}`);
-        const common = { tg_init, uid, bust: Date.now() };
-        const boot = await jpostJSON(`${API_BASE}/api/mini/bootstrap?bust=${Date.now()}`, { ...common, fresh:true, force: !!switched });
-        const st   = await jpostJSON(`${API_BASE}/api/mini/state?bust=${Date.now()}`,     { ...common, fresh:false });
+        // строго как в твоих файлах: bootstrap -> state (без uid/лишних полей)
+        await jpost('/api/mini/bootstrap', { tg_init, fresh:true, force: !!switched, data:{ start_param: TG?.initDataUnsafe?.start_param || "" } });
+        const st = await jpost('/api/mini/state', { tg_init, fresh:false });
 
-        const state = (st?.ok ? st : (boot?.fresh_state ? { ok:true, ...boot.fresh_state } : null));
-        if (state && (state.ok || state.coins!=null || state.config)){
-          if (!state.uid || String(state.uid) === String(uid)) return state;
-        }
+        if (st && (st.ok || st.coins!=null || st.config)) return st;
         throw new Error('state_invalid');
       }catch(e){
         const delay = Math.min(6000, 1000*attempt);
@@ -1052,72 +1023,61 @@
     }
   }
 
-  // ===== главный init с детектом смены аккаунта + мобильные фишки =====
-  let RESCUE_ABORT = false;
-
+  // ===== init: теперь ждём TG.initData ПЕРЕД сетью =====
   async function initAppUltra(){
-    const tg = window.Telegram?.WebApp;
-    const tg_init = tg?.initData || '';
-    const UID = String(tg?.initDataUnsafe?.user?.id || '');
-    CUR_UID = String(UID || '');        // <-- фиксируем текущий UID для гейтов
+    try{ TG?.ready?.(); TG?.expand?.(); TG?.disableVerticalSwipes?.(); }catch(_){}
+    await waitTGInit();                       // << ключевая правка
+
+    const tg_init = getTgInit();
+    const u = TG?.initDataUnsafe?.user || {};
+    CUR_UID = u && u.id!=null ? String(u.id) : '';
 
     const lastUid = sessionStorage.getItem('last_uid') || '';
-    const switched = UID && lastUid && UID !== lastUid;
-
+    const switched = CUR_UID && lastUid && CUR_UID !== lastUid;
     if (switched){
-      LAST_SIG = null;
-      window.APP_STATE = null;
-      WATCH_ABORT = true;
-      // Мгновенный сброс UI, чтобы не мигали старые данные
-      (function resetUI(){
-        setText('[data-coins]', '—');
-        setText('[data-styles]', '—');
-        setText('[data-ref-total]', '—');
-        setText('[data-last-stamp]', '—');
-        setHTML('[data-last-prizes]', '');
-        setHTML('[data-leaderboard-today]', '');
-        setHTML('[data-leaderboard-alltime]', '');
-        document.querySelectorAll('[data-style-id]').forEach(el=>el.classList.remove('is-collected'));
-      })();
+      LAST_SIG = null; window.APP_STATE = null; WATCH_ABORT = true;
+      // сброс UI (чтоб не мигали старые данные)
+      setText('[data-coins]', '—'); setText('[data-styles]', '—');
+      setText('[data-ref-total]', '—'); setText('[data-last-stamp]', '—');
+      setHTML('[data-last-prizes]', ''); setHTML('[data-leaderboard-today]', ''); setHTML('[data-leaderboard-alltime]', '');
+      document.querySelectorAll('[data-style-id]').forEach(el=>el.classList.remove('is-collected'));
     }
-    if (UID) sessionStorage.setItem('last_uid', UID);
+    if (CUR_UID) sessionStorage.setItem('last_uid', CUR_UID);
 
     showLoader('Подключаемся…');
-    ensureSpinnerRuns(); // гарант кручения на десктопе
-    tg?.showProgress?.();
+    ensureSpinnerRuns();
+    TG?.showProgress?.();
 
-    // Прогреем POP (не мешает основной логике)
-    warmupPop(tg_init, UID).catch(()=>{});
+    // мягкий прогрев POP
+    warmupPop(tg_init).catch(()=>{});
 
     try{
-      // Запускаем основную загрузку и параллельно мобильный rescue
+      // основная загрузка + мобильный rescue параллельно
       const state = await Promise.race([
-        waitForState(tg_init, UID, switched),
-        mobileRescue(tg_init, UID)
-      ]) || await waitForState(tg_init, UID, switched); // если rescue вернул null
+        waitForState(tg_init, switched),
+        mobileRescue(tg_init)
+      ]) || await waitForState(tg_init, switched);
 
-      RESCUE_ABORT = true; // если был rescue — дальше он нам не нужен
       window.APP_STATE = state;
+      applyState(state);
+      if (typeof renderAll === 'function') renderAll(state);
 
-      applyState(window.APP_STATE);
-      if (typeof renderAll === 'function') renderAll(window.APP_STATE);
-
-      await waitLoaderCycle();   // минимум один цикл анимации
+      await waitLoaderCycle();
       hideLoader(true);
 
-      watchState(tg_init, UID);  // фоновая синхронизация KV
+      watchState(tg_init);
     }catch(e){
       console.error('initAppUltra fatal:', e);
       setCaption('Не удалось подключиться. Потяните вниз, чтобы обновить.');
     }finally{
-      tg?.ready?.();
-      tg?.hideProgress?.();
+      TG?.ready?.(); TG?.hideProgress?.();
     }
   }
 
   document.addEventListener('DOMContentLoaded', initAppUltra);
 })();
 </script>
+
 
 
 
