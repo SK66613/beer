@@ -1070,25 +1070,44 @@
 })();
 
 
+/* --- Auto-Refresh Watchdog (6s) + anti-loop + clear-on-success --- */
+(function(){
+  // анти-дублирование
+  if (window.__AF_WATCHDOG__) return;
+  window.__AF_WATCHDOG__ = true;
 
-/* --- Auto-Refresh Watchdog (6s) -------------------------------------- */
-(function autoRefreshWatchdog(){
-  const LIMIT_MS = 6000;      // через сколько автоперезагружать (6с)
-  const GUARD_MS = 45000;     // не чаще одного авто-рефреша раз в 45с
+  const LIMIT_MS = 6000;   // через сколько автоперезагружать
+  const GUARD_MS = 45000;  // не чаще одного авто-рефреша за 45с
   const KEY_LAST = 'af_last_ts';
 
+  const clearMark = () => { try{ sessionStorage.removeItem(KEY_LAST); }catch(_){} };
+
+  // Снимаем метку, когда лоудер успешно скрыт (успешная загрузка)
+  (function observeLoaderHide(){
+    const pre = document.getElementById('app-preloader');
+    if (!pre){ clearMark(); return; } // лоудера нет — считаем, что всё ок
+    // если уже скрыт — очистим сразу
+    if (pre.classList.contains('is-hidden')) { clearMark(); return; }
+    // следим за сменой класса
+    const mo = new MutationObserver(() => {
+      if (pre.classList.contains('is-hidden')) { clearMark(); mo.disconnect(); }
+    });
+    mo.observe(pre, { attributes:true, attributeFilter:['class'] });
+  })();
+
+  // Сам сторожок
   setTimeout(() => {
     const pre = document.getElementById('app-preloader');
     const cap = document.getElementById('app-preloader-caption');
 
-    // если лоудер уже скрыт — всё ок, ничего не делаем
+    // если лоудер уже скрыт — ничего не делаем
     const hidden = pre ? pre.classList.contains('is-hidden') : true;
     if (hidden) return;
 
     const now  = Date.now();
     const last = Number(sessionStorage.getItem(KEY_LAST) || '0');
 
-    // анти-петля: если недавно уже авто-рефрешились — не перезагружаем повторно
+    // анти-петля: если недавно уже обновлялись — не перезагружаем, даём кнопку
     if (now - last < GUARD_MS){
       if (cap){
         cap.innerHTML = 'Нет связи… <u>Обновить</u>';
@@ -1098,17 +1117,16 @@
       return;
     }
 
-    // метка, чтобы не крутиться по кругу
-    sessionStorage.setItem(KEY_LAST, String(now));
+    // ставим метку, чтобы не крутиться по кругу
+    try{ sessionStorage.setItem(KEY_LAST, String(now)); }catch(_){}
 
-    // аккуратный хард-рефреш с bust-параметром ?r=
+    // мягкий рефреш с bust-параметром
     try{
-      if (cap){ cap.textContent = 'Обновляем страницу…'; }
+      if (cap) cap.textContent = 'Обновляем страницу…';
       const u = new URL(location.href);
-      u.searchParams.set('r', String(now)); // bust кеша/POP
-      setTimeout(() => { location.replace(u.toString()); }, 200);
+      u.searchParams.set('r', String(now));
+      setTimeout(() => { location.replace(u.toString()); }, 120);
     }catch(_){
-      // на всякий fallback
       try{ location.reload(); }catch(__){}
     }
   }, LIMIT_MS);
