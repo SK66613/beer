@@ -836,22 +836,39 @@
 
 <script>
 (() => {
-  // === Telegram / API_BASE как в твоём проекте ===
-  const TG = (window.Telegram && window.Telegram.WebApp) || null;
-  const API_BASE = window.API_BASE || window.__API_BASE || "https://craftbeer-demo.cyberian13.workers.dev";
-
-  // === Ссылки на лоудер ===
+  // ===== ссылки на лоудер =====
   const $pre = () => document.getElementById('app-preloader');
   const $cap = () => document.getElementById('app-preloader-caption');
 
-  // === Визуальная логика лоудера ===
+  // ===== Telegram =====
+  const TG = (window.Telegram && window.Telegram.WebApp) || null;
+  function getUID(){ try{ return String(TG?.initDataUnsafe?.user?.id || ''); }catch(_){ return ''; } }
+  function getTgInit(){ try{ return TG?.initData || ''; }catch(_){ return ''; } }
+
+  // ===== Профиль сети (адаптивные тайминги) =====
+  const net = (navigator.connection && (navigator.connection.type || navigator.connection.effectiveType)) || '';
+  const FAST_NET = /wifi|ethernet|4g/i.test(String(net));
+  // Подкрути при желании:
+  const FILL_MS        = FAST_NET ? 1100 : 1400;   // длительность «налива» (мы перезапишем inline)
+  const MIN_VISIBLE_MS = FAST_NET ? 500  : 900;    // минимум видимости лоудера
+  const FAIL_MS        = FAST_NET ? 4000 : 7000;   // через сколько показать «нет связи»
+
+  // ===== визуал =====
   let LOADER_T0 = 0, LOADER_FILL_DONE = false, HIDDEN = false;
   function setCaption(t){ const c=$cap(); if(c) c.textContent=String(t||''); }
   function showLoader(t){
     const el=$pre(); if(!el) return;
     if(t) setCaption(t);
-    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false; HIDDEN=false;
-    el.querySelector('.beer')?.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
+    LOADER_T0 = performance.now(); LOADER_FILL_DONE = false; HIDDEN = false;
+
+    // Ускоряем «налив» без правок CSS: ставим inline-duration
+    const beer = el.querySelector('.beer');
+    if (beer){
+      // если в CSS 1.8s — перезаписываем на наше значение
+      beer.style.animationDuration = (FILL_MS/1000) + 's';
+      beer.addEventListener('animationend', (e)=>{ if(e.animationName==='fill') LOADER_FILL_DONE=true; }, {once:true});
+    }
+
     el.classList.remove('is-hidden');
   }
   function hideLoader(force=false){
@@ -860,6 +877,7 @@
     el.classList.add('is-hidden');
     if (force) setTimeout(()=>{ try{ el.remove(); }catch(_){ } }, 380);
   }
+  // страхуем кручение бегунка на десктопе
   function ensureSpinnerRuns(){
     const c = document.querySelector('.spinner-dash'); if (!c) return;
     const r = Number(c.getAttribute('r') || 108), len = Math.round(2*Math.PI*r);
@@ -874,60 +892,58 @@
       }
     },400);
   }
-  async function waitLoaderCycle(minVisibleMs=1400, fillMs=1800){
+  // ждём минимум один цикл, но теперь быстрее и адаптивно
+  async function waitLoaderCycle(minVisibleMs, fillMs){
+    const minVis = (minVisibleMs ?? MIN_VISIBLE_MS);
+    const fill   = (fillMs       ?? FILL_MS);
     const elapsed = performance.now()-LOADER_T0;
-    const leftVisible = Math.max(0, minVisibleMs - elapsed);
-    const leftFill    = LOADER_FILL_DONE ? 0 : Math.max(0, fillMs - elapsed);
+
+    // Если «налив» уже закончился — оставим короткий "грейс" для гладкости
+    if (LOADER_FILL_DONE){
+      const grace = 120; // 0.12s
+      const left = Math.max(0, Math.max(minVis, grace) - elapsed);
+      if (left>0) await new Promise(r=>setTimeout(r, left));
+      return;
+    }
+
+    const leftVisible = Math.max(0, minVis - elapsed);
+    const leftFill    = Math.max(0, fill   - elapsed);
     const wait = Math.max(leftVisible, leftFill);
     if (wait>0) await new Promise(r=>setTimeout(r, wait));
   }
 
-  // === Ждём TG.initData (как в твоих блоках) ===
-  function getTgInit(){ try { return TG?.initData || ''; }catch(_){ return ''; } }
-  function getUID(){ try{ return String(TG?.initDataUnsafe?.user?.id || ''); }catch(_){ return ''; } }
-  async function waitTGInit(maxMs=4500){
+  // ===== ждём TG.initData как в твоих блоках =====
+  async function waitTGInit(maxMs=3000){ // было 4500 — ускорим
     const t0=Date.now();
     return new Promise(resolve=>{
       (function tick(){
-        const ok = !!(getTgInit() && getTgInit().length>0);
-        if (ok || Date.now()-t0>maxMs) return resolve();
-        setTimeout(tick, 60);
+        const has = !!(getTgInit() && getTgInit().length>0);
+        if (has || Date.now()-t0>maxMs) return resolve();
+        setTimeout(tick, 50); // было 60 — чуть чаще
       })();
     });
   }
 
-  // === jpost: используем твой, иначе — тонкий фолбэк с теми же путями ===
-  const sleep = (ms)=>new Promise(r=>setTimeout(r,ms));
-  async function jpost(path, body, timeoutMs=12000){
-    if (typeof window.jpost === 'function') return window.jpost(path, body);
-    const ctrl = new AbortController(); const t = setTimeout(()=>ctrl.abort('timeout'), timeoutMs);
-    try{
-      const r = await fetch(API_BASE + path, {
-        method:'POST',
-        headers:{ 'Content-Type':'application/json','Accept':'application/json' },
-        cache:'no-store',
-        body: JSON.stringify(body||{}),
-        signal: ctrl.signal
-      });
-      const raw = await r.text(); let data;
-      try{ data = JSON.parse(raw); }catch(e){ throw new Error(`Bad JSON ${path}`); }
-      if (!r.ok) throw new Error(data?.error || `HTTP ${r.status}`);
-      return data;
-    } finally { clearTimeout(t); }
+  // ===== защита от «смешивания» (на всякий) =====
+  let CUR_UID = '';
+  function acceptState(s){
+    if (!s) return false;
+    if (CUR_UID && s.uid && String(s.uid) !== CUR_UID) return false;
+    return !!(s.ok || s.coins!=null || s.config || Array.isArray(s.last_prizes) || Array.isArray(s.styles_collected));
   }
 
-  // === Подписка на applyServerState: закрываем лоудер, когда твой код реально обновит UI ===
-  let CUR_UID = '', STATE_READY = false;
-  function acceptState(s){ return !!(s && (s.ok || s.coins!=null || s.config || Array.isArray(s.last_prizes) || Array.isArray(s.styles_collected))); }
-  function hookApplyServerState(){
+  // ===== «подписка» на applyServerState в любом порядке загрузки =====
+  let stateArrived = false;
+  function installApplyServerStateHook(){
     try{
+      // уже есть функция — оборачиваем
       if (typeof window.applyServerState === 'function'){
         const prev = window.applyServerState;
         window.applyServerState = function wrapped(state){
           const res = prev.apply(this, arguments);
           try{
-            if (!STATE_READY && acceptState(state)){
-              STATE_READY = true;
+            if (!stateArrived && acceptState(state)){
+              stateArrived = true;
               (async()=>{ await waitLoaderCycle(); hideLoader(true); })();
             }
           }catch(_){}
@@ -935,75 +951,35 @@
         };
         return;
       }
+      // ещё нет — перехватим будущую установку
       let backing;
       Object.defineProperty(window, 'applyServerState', {
-        configurable:true, enumerable:true,
+        configurable: true,
+        enumerable: true,
         get(){ return backing; },
         set(fn){
           if (typeof fn === 'function'){
             backing = function wrapped(state){
               const res = fn.apply(this, arguments);
               try{
-                if (!STATE_READY && acceptState(state)){
-                  STATE_READY = true;
+                if (!stateArrived && acceptState(state)){
+                  stateArrived = true;
                   (async()=>{ await waitLoaderCycle(); hideLoader(true); })();
                 }
               }catch(_){}
               return res;
             };
-          }else backing = fn;
+          }else{
+            backing = fn;
+          }
         }
       });
-    }catch(e){ console.warn('applyServerState hook failed:', e); }
-  }
-
-  // === Rescue внутри лоудера (без ломки общей логики) ===
-  let RESCUE_INFLIGHT = false;
-  async function rescueKick(tg_init){
-    if (RESCUE_INFLIGHT || STATE_READY) return null;
-    RESCUE_INFLIGHT = true;
-    try{
-      setCaption('Медленная сеть… пробуем альтернативный канал');
-      // 1) Bootstrap с fresh:true (как у тебя)
-      await jpost('/api/mini/bootstrap', { tg_init, fresh:true, force:true, data:{ start_param: TG?.initDataUnsafe?.start_param || "" } });
-      // Маленькая пауза, чтобы снапшот успел доехать
-      await sleep(300);
-      // 2) Обычный state из KV
-      let st = await jpost('/api/mini/state', { tg_init, fresh:false });
-      if (!acceptState(st)){
-        // 3) Прямой свежак
-        st = await jpost('/api/mini/state', { tg_init, fresh:true });
-      }
-      if (!acceptState(st)){
-        // 4) Ping через /event -> fresh_state
-        const ping = await jpost('/api/mini/event', { tg_init, type:'state.ping', data:{} });
-        if (acceptState(ping?.fresh_state)) st = { ok:true, ...ping.fresh_state };
-      }
-      if (acceptState(st)){
-        // Кормим в applyServerState, чтобы пройти через единый путь твоего фронта
-        if (typeof window.applyServerState === 'function'){
-          window.applyServerState(st);
-        }else{
-          // если по какой-то причине нет — мягкий фолбэк (минимум профиль/призы)
-          try{
-            if (st.coins!=null){ const el=document.querySelector('[data-coins]'); if(el) el.textContent=String(st.coins); }
-            if (st.styles_count!=null){ const el=document.querySelector('[data-styles]'); if(el) el.textContent=`${st.styles_count??0}/${st.styles_total??''}`; }
-          }catch(_){}
-          STATE_READY = true;
-          await waitLoaderCycle(); hideLoader(true);
-        }
-        return st;
-      }
     }catch(e){
-      // Плавно обновим капшен, но лоудер не скрываем
-      setCaption('Нет связи… повторяем попытку');
-    }finally{
-      RESCUE_INFLIGHT = false;
+      console.warn('applyServerState hook failed:', e);
     }
-    return null;
   }
 
-  // === init ===
+  // ===== init =====
   async function init(){
     try{ TG?.ready?.(); TG?.expand?.(); TG?.disableVerticalSwipes?.(); }catch(_){}
     await waitTGInit();
@@ -1011,36 +987,22 @@
 
     showLoader('Подключаемся…');
     ensureSpinnerRuns();
-    hookApplyServerState();
 
-    // Жёсткие тайминги (подстрой при желании)
-    const RESCUE_AFTER = 2200;  // через сколько стартует rescue, если тишина
-    const BACKOFF = 3500;       // шаг между повторными rescue
+    // Подписываемся на момент, когда твои блоки реально закончат загрузку
+    installApplyServerStateHook();
 
-    // Стартуем rescue по таймеру, и потом — пока не придёт штатный state
-    setTimeout(async function loop(){
-      if (!STATE_READY){
-        const tg_init = getTgInit();
-        await rescueKick(tg_init);
-        if (!STATE_READY) setTimeout(loop, BACKOFF);
+    // Ускоренный фолбэк-текст (раньше был 9000)
+    setTimeout(()=>{
+      if (!stateArrived){
+        setCaption('Нет связи с сервером, пробуем ещё…');
       }
-    }, RESCUE_AFTER);
-
-    // На возвращение из фона — если лоудер ещё открыт, пни rescue
-    document.addEventListener('visibilitychange', async ()=>{
-      if (document.visibilityState === 'visible' && !STATE_READY){
-        const tg_init = getTgInit();
-        await rescueKick(tg_init);
-      }
-    });
-
-    // «человечный» фолбэк — текст через 9с, если вообще ничего нет
-    setTimeout(()=>{ if (!STATE_READY) setCaption('Нет связи с сервером, пробуем ещё…'); }, 9000);
+    }, FAIL_MS);
   }
 
   document.addEventListener('DOMContentLoaded', init);
 })();
 </script>
+
 
 
 
